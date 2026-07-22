@@ -24,7 +24,7 @@ Check a box only after recording verification evidence in PROGRESS.md.
 
 ## C. Player mechanics
 
-- [ ] C1. Horizontal movement is frame-rate independent and respects solid collisions.
+- [x] C1. Horizontal movement is frame-rate independent and respects solid collisions.
 - [ ] C2. Jumping, landing, variable jump height, and one-way platform drop-through are reliable.
 - [ ] C3. Crouching changes the player's pose and collision behavior safely.
 - [ ] C4. Eight-direction aiming and firing work in standing, moving, crouching, and airborne states.

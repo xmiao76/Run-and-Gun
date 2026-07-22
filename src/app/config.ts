@@ -23,7 +23,8 @@ export const LOGICAL_HEIGHT = 540;
 /** Central registry of scene keys to avoid magic strings. */
 export const SCENE_KEYS = {
   boot: 'boot',
-  title: 'title'
+  title: 'title',
+  sandbox: 'sandbox'
 } as const;
 
 export type SceneKey = (typeof SCENE_KEYS)[keyof typeof SCENE_KEYS];
