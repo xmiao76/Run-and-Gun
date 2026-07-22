@@ -1,10 +1,18 @@
 {
-  "name": "run-and-gun",
-  "version": "1.0.0",
-  "description": "This pack supplies specifications and autonomous-agent instructions for an original browser run-and-gun game. It deliberately does not contain Contra assets, maps, code, or ROM content.",
-  "main": "index.js",
+  "name": "operation-iron-echo",
+  "version": "0.1.0",
+  "description": "Operation Iron Echo - an original browser-based 2D side-scrolling run-and-gun game. Contains no Contra assets, maps, code, or ROM content.",
+  "private": true,
+  "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test"
   },
   "repository": {
     "type": "git",
@@ -13,7 +21,6 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "commonjs",
   "bugs": {
     "url": "https://github.com/xmiao76/Run-and-Gun/issues"
   },

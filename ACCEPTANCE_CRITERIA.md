@@ -4,19 +4,19 @@ Check a box only after recording verification evidence in PROGRESS.md.
 
 ## A. Repository and toolchain
 
-- [ ] A1. `npm install` succeeds from a clean checkout using the committed lockfile.
-- [ ] A2. `npm run dev` starts a playable local site.
-- [ ] A3. `npm run lint` exits with code 0.
-- [ ] A4. `npm run typecheck` exits with code 0 under strict TypeScript settings.
-- [ ] A5. `npm run test` exits with code 0.
-- [ ] A6. `npm run test:e2e` exits with code 0 in Chromium.
-- [ ] A7. `npm run build` exits with code 0 and creates `dist/`.
-- [ ] A8. No production dependency requires a server at runtime.
+- [x] A1. `npm install` succeeds from a clean checkout using the committed lockfile.
+- [x] A2. `npm run dev` starts a playable local site.
+- [x] A3. `npm run lint` exits with code 0.
+- [x] A4. `npm run typecheck` exits with code 0 under strict TypeScript settings.
+- [x] A5. `npm run test` exits with code 0.
+- [x] A6. `npm run test:e2e` exits with code 0 in Chromium.
+- [x] A7. `npm run build` exits with code 0 and creates `dist/`.
+- [x] A8. No production dependency requires a server at runtime.
 
 ## B. Game startup and navigation
 
-- [ ] B1. The site loads without an uncaught browser console error.
-- [ ] B2. The title screen displays the original title Operation Iron Echo.
+- [x] B1. The site loads without an uncaught browser console error.
+- [x] B2. The title screen displays the original title Operation Iron Echo.
 - [ ] B3. New Game starts Level 1 in a controlled playable state.
 - [ ] B4. Help accurately lists keyboard, gamepad, and touch controls.
 - [ ] B5. Settings persist volume, mute, reduced-flash, and control preferences.
@@ -86,7 +86,7 @@ Check a box only after recording verification evidence in PROGRESS.md.
 - [ ] J2. Playwright verifies at least one checkpoint respawn flow.
 - [ ] J3. Automated tests cover weapon rate limits, damage/invulnerability, checkpoint state, storage validation, and boss phase transitions.
 - [ ] J4. A ten-minute automated or scripted soak test shows bounded enemy/projectile counts and no uncaught errors.
-- [ ] J5. `dist/` works when served as static files with SPA fallback behavior configured if needed.
-- [ ] J6. Cloudflare Pages settings are documented as build command `npm run build` and output directory `dist`.
+- [x] J5. `dist/` works when served as static files with SPA fallback behavior configured if needed.
+- [x] J6. Cloudflare Pages settings are documented as build command `npm run build` and output directory `dist`.
 - [ ] J7. ASSET_POLICY.md contains provenance and license notes for every non-code asset.
-- [ ] J8. The production UI, source assets, and metadata contain no Contra title, logo, characters, extracted assets, ROM data, or copied level layouts.
+- [x] J8. The production UI, source assets, and metadata contain no Contra title, logo, characters, extracted assets, ROM data, or copied level layouts.
