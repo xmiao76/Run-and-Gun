@@ -1,0 +1,34 @@
+{
+  "name": "run-and-gun",
+  "version": "1.0.0",
+  "description": "This pack supplies specifications and autonomous-agent instructions for an original browser run-and-gun game. It deliberately does not contain Contra assets, maps, code, or ROM content.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/xmiao76/Run-and-Gun.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/xmiao76/Run-and-Gun/issues"
+  },
+  "homepage": "https://github.com/xmiao76/Run-and-Gun#readme",
+  "dependencies": {
+    "phaser": "^4.2.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.61.1",
+    "@vitest/coverage-v8": "^4.1.10",
+    "eslint": "^10.7.0",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.65.0",
+    "vite": "^8.1.5",
+    "vitest": "^4.1.10"
+  }
+}
