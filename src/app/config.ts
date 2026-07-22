@@ -24,7 +24,9 @@ export const LOGICAL_HEIGHT = 540;
 export const SCENE_KEYS = {
   boot: 'boot',
   title: 'title',
-  sandbox: 'sandbox'
+  sandbox: 'sandbox',
+  level: 'level',
+  results: 'results'
 } as const;
 
 export type SceneKey = (typeof SCENE_KEYS)[keyof typeof SCENE_KEYS];

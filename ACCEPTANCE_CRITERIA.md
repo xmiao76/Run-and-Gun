@@ -17,7 +17,7 @@ Check a box only after recording verification evidence in PROGRESS.md.
 
 - [x] B1. The site loads without an uncaught browser console error.
 - [x] B2. The title screen displays the original title Operation Iron Echo.
-- [ ] B3. New Game starts Level 1 in a controlled playable state.
+- [x] B3. New Game starts Level 1 in a controlled playable state.
 - [ ] B4. Help accurately lists keyboard, gamepad, and touch controls.
 - [ ] B5. Settings persist volume, mute, reduced-flash, and control preferences.
 - [ ] B6. Pause, resume, restart-level, and return-to-title work without stale state.
@@ -26,7 +26,7 @@ Check a box only after recording verification evidence in PROGRESS.md.
 
 - [x] C1. Horizontal movement is frame-rate independent and respects solid collisions.
 - [ ] C2. Jumping, landing, variable jump height, and one-way platform drop-through are reliable.
-- [ ] C3. Crouching changes the player's pose and collision behavior safely.
+- [x] C3. Crouching changes the player's pose and collision behavior safely.
 - [ ] C4. Eight-direction aiming and firing work in standing, moving, crouching, and airborne states.
 - [ ] C5. Fire-rate limits prevent input frequency from bypassing weapon balance.
 - [ ] C6. Player damage, temporary invulnerability, death, life loss, checkpoint respawn, and game over are correct.
@@ -52,17 +52,17 @@ Check a box only after recording verification evidence in PROGRESS.md.
 
 - [ ] F1. Level 1 is complete from start through the Siege Walker boss.
 - [ ] F2. Level 2 is complete from start through the Reactor Warden boss.
-- [ ] F3. Each level includes at least two functioning checkpoints.
-- [ ] F4. Falling into a pit or touching a lethal hazard follows the same documented life-loss flow.
+- [x] F3. Each level includes at least two functioning checkpoints.
+- [x] F4. Falling into a pit or touching a lethal hazard follows the same documented life-loss flow.
 - [ ] F5. Doors, moving platforms, destructible containers, and level transitions do not trap the player in an invalid state.
-- [ ] F6. Level content is original and does not reproduce a Contra map or recognizable encounter sequence.
+- [x] F6. Level content is original and does not reproduce a Contra map or recognizable encounter sequence.
 
 ## G. Bosses
 
-- [ ] G1. Siege Walker has three telegraphed patterns and a vulnerable phase.
+- [x] G1. Siege Walker has three telegraphed patterns and a vulnerable phase.
 - [ ] G2. Reactor Warden has two phases and destructible subcomponents.
-- [ ] G3. Boss phase transitions are deterministic and cannot deadlock.
-- [ ] G4. Boss health UI appears only when appropriate and reaches zero exactly once.
+- [x] G3. Boss phase transitions are deterministic and cannot deadlock.
+- [x] G4. Boss health UI appears only when appropriate and reaches zero exactly once.
 - [ ] G5. Boss defeat cannot leave hostile projectiles active during the completion sequence.
 
 ## H. Input and responsive behavior
@@ -76,9 +76,9 @@ Check a box only after recording verification evidence in PROGRESS.md.
 ## I. Persistence and resilience
 
 - [ ] I1. Best score and settings survive a browser reload.
-- [ ] I2. Saved local data is versioned and schema-validated.
-- [ ] I3. Corrupt localStorage data does not prevent the game from starting.
-- [ ] I4. Audio failure does not prevent gameplay.
+- [x] I2. Saved local data is versioned and schema-validated.
+- [x] I3. Corrupt localStorage data does not prevent the game from starting.
+- [x] I4. Audio failure does not prevent gameplay.
 
 ## J. Quality and deployment
 

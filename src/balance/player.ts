@@ -46,6 +46,12 @@ export const MAX_LIVES = 3;
 /** Duration of post-respawn invulnerability (s). */
 export const INVULN_DURATION = 1.5;
 
+/** Player collision height while crouching (px; feet stay planted). */
+export const CROUCH_HEIGHT = 20;
+
+/** How long a one-way platform stays passable after pressing drop (s). */
+export const DROP_THROUGH_DURATION = 0.22;
+
 /** M1 sandbox arena logical bounds. */
 export const ARENA_WIDTH = 960;
 export const ARENA_HEIGHT = 540;

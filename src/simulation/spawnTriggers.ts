@@ -29,6 +29,18 @@ export function createSpawnTrigger(id: string, x0: number, x1: number, spawns: r
   return { id, x0, x1, spawns, triggered: false };
 }
 
+/** Build runtime trigger state from a level's trigger definitions. */
+export function createSpawnTriggers(defs: readonly SpawnTriggerDef[]): SpawnTrigger[] {
+  return defs.map((d) => createSpawnTrigger(d.id, d.x0, d.x1, d.spawns));
+}
+
+export interface SpawnTriggerDef {
+  id: string;
+  x0: number;
+  x1: number;
+  spawns: readonly SpawnSpec[];
+}
+
 export interface TriggerUpdate {
   triggers: SpawnTrigger[];
   /** Spawns admitted this step (already filtered by cap + safety). */

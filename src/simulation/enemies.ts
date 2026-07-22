@@ -1,4 +1,5 @@
 import { getEnemyDef, type EnemyDef, type EnemyKind } from '../balance/enemies';
+import { repositionDir } from './enemyReposition';
 
 /**
  * Deterministic enemy finite-state logic for the Runner and Sentry archetypes.
@@ -27,6 +28,11 @@ export interface EnemyState {
   facing: number;
   /** True while in the telegraph wind-up (drives the visual telegraph). */
   telegraphing: boolean;
+  /** Spawn/anchor point used by aerial patrols and as a home position. */
+  originX: number;
+  originY: number;
+  /** Monotonic patrol clock for bounded aerial movement (s). */
+  patrolTime: number;
 }
 
 export interface EnemyFireIntent {
@@ -36,6 +42,8 @@ export interface EnemyFireIntent {
   vx: number;
   vy: number;
   damage: number;
+  /** Gravity applied to this projectile (px/s^2); 0 for straight shots. */
+  arcGravity: number;
 }
 
 export interface EnemyStepResult {
@@ -54,7 +62,10 @@ export function createEnemyState(id: string, kind: EnemyKind, x: number, y: numb
     stateTimer: 0,
     fireCooldown: 0,
     facing: 1,
-    telegraphing: false
+    telegraphing: false,
+    originX: x,
+    originY: y,
+    patrolTime: 0
   };
 }
 
@@ -93,16 +104,32 @@ function fireIntentFor(enemy: EnemyState, def: EnemyDef, playerX: number, player
   const dx = playerX - enemy.x;
   const dy = playerY - enemy.y;
   const len = Math.hypot(dx, dy) || 1;
-  // Sentry leads slightly downward toward the player; Runner fires horizontally.
-  const vx = enemy.kind === 'sentry' ? (dx / len) * def.projectileSpeed : facing * def.projectileSpeed;
-  const vy = enemy.kind === 'sentry' ? (dy / len) * def.projectileSpeed : 0;
+  let vx: number;
+  let vy: number;
+  if (enemy.kind === 'sentry') {
+    // Leads straight toward the player.
+    vx = (dx / len) * def.projectileSpeed;
+    vy = (dy / len) * def.projectileSpeed;
+  } else if (enemy.kind === 'drone') {
+    // Fires downward with a slight horizontal lead - a readable aerial shot.
+    vx = Math.sign(dx || facing) * def.projectileSpeed * 0.35;
+    vy = def.projectileSpeed * 0.94;
+  } else if (enemy.kind === 'grenadier') {
+    // Lobs an arcing projectile toward the player's horizontal position.
+    vx = Math.sign(dx || facing) * def.projectileSpeed * 0.7;
+    vy = -def.projectileSpeed * 0.72;
+  } else {
+    vx = facing * def.projectileSpeed;
+    vy = 0;
+  }
   return {
     enemyId: enemy.id,
     x: enemy.x + facing * (def.width / 2),
     y: enemy.y + def.height / 2,
     vx,
     vy,
-    damage: def.projectileDamage
+    damage: def.projectileDamage,
+    arcGravity: def.arcGravity
   };
 }
 
@@ -128,35 +155,54 @@ export function stepEnemy(
   let state = enemy.state;
   let stateTimer = enemy.stateTimer + dt;
   let { x } = enemy;
+  let y = enemy.y;
   let facing = faceToward(enemy, playerX);
   let telegraphing = false;
+  const patrolTime = enemy.patrolTime + dt;
   let fireIntent: EnemyFireIntent | null = null;
+
+  const startTelegraph = (): void => {
+    state = 'telegraph';
+    stateTimer = 0;
+    telegraphing = true;
+  };
 
   switch (enemy.state) {
     case 'idle':
       if (inRange && cooldown <= 0 && canFire) {
-        state = 'telegraph';
-        stateTimer = 0;
-        telegraphing = true;
+        startTelegraph();
       } else if (enemy.kind === 'runner' && dist > def.preferredRange) {
         state = 'approach';
         stateTimer = 0;
+      } else if (enemy.kind === 'grenadier') {
+        // Keep distance from idle: back away (opposite the player) when too
+        // close, close in (toward the player) when too far.
+        const tooClose = dist < def.preferredRange - 24;
+        const tooFar = dist > def.preferredRange + 24;
+        // Reposition along the horizontal axis to hold the preferred range.
+        // Back away from the player when too close; close in when too far.
+        const dir = repositionDir(tooClose, tooFar, x, playerX);
+        if (dir !== 0) {
+          facing = dir;
+          x += dir * def.moveSpeed * dt;
+        }
       }
       break;
     case 'approach': {
-      const dir = playerX < enemy.x ? -1 : 1;
-      facing = dir;
-      const targetX = playerX - dir * def.preferredRange;
-      const stepX = x + dir * def.moveSpeed * dt;
-      // Clamp to the hold distance so the runner settles instead of oscillating.
-      x = dir > 0 ? Math.min(stepX, targetX) : Math.max(stepX, targetX);
-      if (inRange && cooldown <= 0 && canFire) {
-        state = 'telegraph';
-        stateTimer = 0;
-        telegraphing = true;
-      } else if (dist <= def.preferredRange) {
-        state = 'idle';
-        stateTimer = 0;
+      if (enemy.kind === 'runner') {
+        const dir = playerX < x ? -1 : 1;
+        facing = dir;
+        const targetX = playerX - dir * def.preferredRange;
+        const stepX = x + dir * def.moveSpeed * dt;
+        x = dir > 0 ? Math.min(stepX, targetX) : Math.max(stepX, targetX);
+        if (inRange && cooldown <= 0 && canFire) {
+          startTelegraph();
+        } else if (dist <= def.preferredRange) {
+          state = 'idle';
+          stateTimer = 0;
+        }
+      } else if (inRange && cooldown <= 0 && canFire) {
+        startTelegraph();
       }
       break;
     }
@@ -171,12 +217,18 @@ export function stepEnemy(
       }
       break;
     case 'fire':
-      // The shot was released on entry; settle back into a combat stance.
       state = enemy.kind === 'runner' ? 'approach' : 'idle';
       stateTimer = 0;
       break;
     default:
       break;
+  }
+
+  // Aerial patrol: bounded horizontal oscillation about the anchor (always on).
+  if (def.aerial) {
+    x = enemy.originX + Math.sin(patrolTime * def.patrolSpeed) * def.patrolAmplitude;
+    y = enemy.originY;
+    facing = faceToward({ ...enemy, x }, playerX);
   }
 
   const nextFireCooldown = state === 'fire' ? def.fireInterval : cooldown;
@@ -185,10 +237,12 @@ export function stepEnemy(
     enemy: {
       ...enemy,
       x,
+      y,
       facing,
       state,
       stateTimer,
       telegraphing,
+      patrolTime,
       fireCooldown: nextFireCooldown
     },
     fireIntent

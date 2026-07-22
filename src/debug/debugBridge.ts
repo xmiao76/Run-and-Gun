@@ -29,8 +29,15 @@ export interface GameDebugState {
 
 export type DebugCommandName =
   | 'startSandbox'
+  | 'startLevel1'
   | 'gotoTitle'
+  | 'pause'
+  | 'resume'
   | 'damagePlayer'
+  | 'damageBoss'
+  | 'defeatBoss'
+  | 'completeLevel'
+  | 'teleportPlayer'
   | 'spawnEnemyAt'
   | 'report';
 

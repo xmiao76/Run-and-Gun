@@ -16,6 +16,10 @@ export interface InputState {
   jumpPressed: boolean;
   fireHeld: boolean;
   firePressed: boolean;
+  /** Hold to crouch while grounded (optional; defaults to false). */
+  crouch?: boolean;
+  /** Edge/hold to drop through a one-way platform (optional; defaults to false). */
+  drop?: boolean;
 }
 
 export function createNeutralInput(): InputState {
@@ -25,7 +29,9 @@ export function createNeutralInput(): InputState {
     jumpHeld: false,
     jumpPressed: false,
     fireHeld: false,
-    firePressed: false
+    firePressed: false,
+    crouch: false,
+    drop: false
   };
 }
 
@@ -37,6 +43,8 @@ export function mergeInput(a: InputState, b: InputState): InputState {
     jumpHeld: a.jumpHeld || b.jumpHeld,
     jumpPressed: a.jumpPressed || b.jumpPressed,
     fireHeld: a.fireHeld || b.fireHeld,
-    firePressed: a.firePressed || b.firePressed
+    firePressed: a.firePressed || b.firePressed,
+    crouch: (a.crouch ?? false) || (b.crouch ?? false),
+    drop: (a.drop ?? false) || (b.drop ?? false)
   };
 }

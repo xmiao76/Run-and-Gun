@@ -14,18 +14,22 @@ interface RawKeyState {
   right: boolean;
   jump: boolean;
   fire: boolean;
+  down: boolean;
 }
 
 const JUMP_KEYS = new Set(['Space', 'KeyW', 'ArrowUp']);
 const FIRE_KEYS = new Set(['KeyJ', 'KeyK', 'Enter']);
+const DOWN_KEYS = new Set(['KeyS', 'ArrowDown']);
 
 const GAME_KEYS = new Set([
   'ArrowLeft',
   'ArrowRight',
   'ArrowUp',
+  'ArrowDown',
   'KeyA',
   'KeyD',
   'KeyW',
+  'KeyS',
   'Space',
   'KeyJ',
   'KeyK',
@@ -40,7 +44,7 @@ export interface KeyboardInput {
 }
 
 export function createKeyboardInput(): KeyboardInput {
-  const raw: RawKeyState = { left: false, right: false, jump: false, fire: false };
+  const raw: RawKeyState = { left: false, right: false, jump: false, fire: false, down: false };
 
   const onKeyDown = (event: KeyboardEvent): void => {
     if (!GAME_KEYS.has(event.code)) {
@@ -71,7 +75,9 @@ export function createKeyboardInput(): KeyboardInput {
         jumpHeld,
         jumpPressed: jumpHeld && !prev.jumpHeld,
         fireHeld,
-        firePressed: fireHeld && !prev.fireHeld
+        firePressed: fireHeld && !prev.fireHeld,
+        crouch: raw.down,
+        drop: raw.down
       };
     },
     attach(target: Window): void {
@@ -94,5 +100,7 @@ function applyKey(raw: RawKeyState, code: string, down: boolean): void {
     raw.jump = down;
   } else if (FIRE_KEYS.has(code)) {
     raw.fire = down;
+  } else if (DOWN_KEYS.has(code)) {
+    raw.down = down;
   }
 }
