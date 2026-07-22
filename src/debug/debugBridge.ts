@@ -31,6 +31,7 @@ export type DebugCommandName =
   | 'startSandbox'
   | 'gotoTitle'
   | 'damagePlayer'
+  | 'spawnEnemyAt'
   | 'report';
 
 export interface DebugInputState extends InputState {

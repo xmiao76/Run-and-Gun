@@ -35,18 +35,18 @@ Check a box only after recording verification evidence in PROGRESS.md.
 ## D. Weapons and projectiles
 
 - [ ] D1. Pulse Rifle, Scatter Blaster, and Rapid Carbine behave according to their data definitions.
-- [ ] D2. Weapon pickups change the active weapon and clearly communicate the result.
+- [x] D2. Weapon pickups change the active weapon and clearly communicate the result.
 - [ ] D3. Player and enemy projectiles use correct collision categories and ownership.
 - [ ] D4. Projectiles expire or are recycled and do not grow without bound during a ten-minute soak test.
-- [ ] D5. Scatter projectiles cannot multiply damage through duplicate collision callbacks in one simulation step.
+- [x] D5. Scatter projectiles cannot multiply damage through duplicate collision callbacks in one simulation step.
 
 ## E. Enemies
 
 - [ ] E1. Runner, Sentry, Drone, and Grenadier each have distinct tested behavior.
-- [ ] E2. Every damaging enemy action has a readable visual or timing telegraph.
-- [ ] E3. Level triggers cannot spawn an enemy on top of the player.
-- [ ] E4. Enemies do not remain alive indefinitely far outside the active level region.
-- [ ] E5. Attack concurrency is capped so ordinary encounters avoid unfair simultaneous attacks.
+- [x] E2. Every damaging enemy action has a readable visual or timing telegraph.
+- [x] E3. Level triggers cannot spawn an enemy on top of the player.
+- [x] E4. Enemies do not remain alive indefinitely far outside the active level region.
+- [x] E5. Attack concurrency is capped so ordinary encounters avoid unfair simultaneous attacks.
 
 ## F. Levels and checkpoints
 

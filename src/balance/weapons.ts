@@ -38,7 +38,7 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
     id: 'scatter',
     name: 'Scatter Blaster',
     cooldown: 0.4,
-    damage: 1,
+    damage: 0.5,
     projectileSpeed: 420,
     projectileLifetime: 0.9,
     spreadAngles: [-12, 0, 12]

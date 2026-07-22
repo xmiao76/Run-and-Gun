@@ -9,6 +9,11 @@ interface SandboxRuntime {
   invulnRemaining: number;
   weapon: string;
   projectileCount: number;
+  enemyProjectileCount: number;
+  enemyCount: number;
+  pickupCount: number;
+  enemies: { id: string; kind: string; state: string; x: number; telegraphing: boolean }[];
+  pickups: { id: string; weapon: string; x: number }[];
   checkpoint: string;
   score: number;
   gameOver: boolean;
@@ -88,6 +93,57 @@ test.describe('M1 deterministic sandbox', () => {
     await page.evaluate(() => window.__GAME_DEBUG__?.command('damagePlayer'));
     const blocked = await runtime(page);
     expect(blocked.lives).toBe(hit.lives);
+
+    expect(pageErrors).toEqual([]);
+  });
+});
+
+test.describe('M2 weapons, pickups, and enemies', () => {
+  test('collects a weapon pickup and spawns enemies from a trigger with bounded counts', async ({ page }) => {
+    const pageErrors: string[] = [];
+    page.on('pageerror', (e) => pageErrors.push(String(e)));
+
+    await page.goto('/?debug=1&renderer=canvas');
+    await expect(page.locator('canvas')).toBeVisible({ timeout: 15_000 });
+
+    await page.evaluate(() => window.__GAME_DEBUG__?.command('startSandbox'));
+    await page.waitForFunction(() => {
+      const s = window.__GAME_DEBUG__?.getState();
+      const r = s?.runtime as SandboxRuntime | null;
+      return s?.scene === 'sandbox' && r !== null && r.grounded === true;
+    });
+
+    const initial = await runtime(page);
+    expect(initial.weapon).toBe('pulse');
+    expect(initial.pickupCount).toBeGreaterThanOrEqual(1);
+    expect(initial.enemyCount).toBe(0);
+
+    // Walk right: first collect the scatter pickup (weapon changes)...
+    await page.evaluate(() => window.__GAME_DEBUG__?.input('holdRight'));
+    await page.waitForFunction(() => {
+      const r = window.__GAME_DEBUG__?.getState()?.runtime as SandboxRuntime | null;
+      return r !== null && r.weapon === 'scatter';
+    });
+    const armed = await runtime(page);
+    expect(armed.weapon).toBe('scatter');
+    expect(armed.pickupCount).toBe(0);
+
+    // ...then cross the spawn trigger so the Runner + Sentry appear.
+    await page.waitForFunction(() => {
+      const r = window.__GAME_DEBUG__?.getState()?.runtime as SandboxRuntime | null;
+      return r !== null && r.enemyCount >= 2;
+    });
+    await page.evaluate(() => window.__GAME_DEBUG__?.input('releaseRight'));
+
+    const spawned = await runtime(page);
+    const kinds = spawned.enemies.map((e) => e.kind).sort();
+    expect(kinds).toContain('runner');
+    expect(kinds).toContain('sentry');
+
+    // Active counts stay within configured bounds (E4/E5).
+    expect(spawned.enemyCount).toBeLessThanOrEqual(8);
+    expect(spawned.enemyProjectileCount).toBeLessThanOrEqual(64);
+    expect(spawned.projectileCount).toBeLessThanOrEqual(64);
 
     expect(pageErrors).toEqual([]);
   });

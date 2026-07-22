@@ -68,8 +68,8 @@ export function stepWeapon(state: WeaponState, dt: number, firePressed: boolean)
 }
 
 /** Advance projectile positions and age; returns only the still-live ones. */
-export function stepProjectiles(projectiles: readonly Projectile[], dt: number): Projectile[] {
-  const next: Projectile[] = [];
+export function stepProjectiles<T extends Projectile>(projectiles: readonly T[], dt: number): T[] {
+  const next: T[] = [];
   for (const p of projectiles) {
     const ttl = p.ttl - dt;
     if (ttl <= 0) {

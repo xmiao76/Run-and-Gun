@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { GROUND_Y, MOVE_SPEED, PIT_X0, SPAWN_X, SPAWN_Y } from '../../src/balance/player';
+import { GROUND_Y, MOVE_SPEED, PIT_X0, PLAYER_HEIGHT, SPAWN_X, SPAWN_Y } from '../../src/balance/player';
 import { createNeutralInput } from '../../src/input/InputState';
 import {
   createPlayerState,
@@ -63,7 +63,8 @@ describe('jumping and variable jump height', () => {
       }
     }
     expect(landed).toBe(true);
-    expect(state.y).toBe(GROUND_Y);
+    // y is the sprite top; standing on the ground puts the feet at GROUND_Y.
+    expect(state.y).toBe(GROUND_Y - PLAYER_HEIGHT);
   });
 });
 

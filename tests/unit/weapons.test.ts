@@ -67,6 +67,8 @@ describe('scatter blaster spread and no duplicate multiplication', () => {
     for (const p of result.projectiles) {
       expect(p.damage).toBe(def.damage);
     }
+    // Scatter's per-projectile damage is lower than the single-stream weapons.
+    expect(def.damage).toBeLessThan(getWeapon('pulse').damage);
   });
 });
 

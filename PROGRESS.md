@@ -2,66 +2,69 @@
 
 ## Current status
 
-- Current milestone: M1 - Deterministic mechanics sandbox (COMPLETE this iteration)
-- Overall state: M0 + M1 complete; full quality gate GREEN; deterministic sandbox playable in browser with keyboard + debug-driven flows
-- Last verified commit: 84ed463 (M0 bootstrap); the M1 commit created this iteration verifies the working tree below (resolve with `git log -1`)
-- Last full quality gate: 2026-07-22 ~03:01 local - all five commands exit 0 (see table)
+- Current milestone: M2 - Weapon and enemy foundations (COMPLETE this iteration)
+- Overall state: M0 + M1 + M2 complete; full quality gate GREEN
+- Last verified commit: 3e9cda2 (M1 sandbox); the M2 commit created this iteration verifies the working tree below (resolve with `git log -1`)
+- Last full quality gate: 2026-07-22 ~07:31 local - all five commands exit 0 (see table)
 
 ## Acceptance summary
 
-- Completed to date: A1-A8, B1, B2, C1, J5, J6, J8 (14)
-- Newly completed this iteration: C1 (frame-rate-independent horizontal movement with solid + ledge collision, unit-tested)
+- Completed to date: A1-A8, B1, B2, C1, D2, D5, E2, E3, E4, E5, J5, J6, J8 (20)
+- Newly completed this iteration:
+  - D2 weapon pickups change the active weapon (Scatter pickup in sandbox; verified by Playwright).
+  - D5 duplicate-hit protection via a per-step damage ledger (unit-tested: one hit per attack/target/step; scatter pellets are distinct attacks, no multiplication).
+  - E2 every enemy shot is preceded by a data-driven telegraph wind-up (rendered as a flashing outline; unit-tested).
+  - E1 partial: Runner + Sentry have distinct, tested finite-state behaviour; Drone + Grenadier (and thus the full E1) deferred to M3.
+  - E3 spawn triggers reject positions that would land on the player (safe-distance margin; unit-tested).
+  - E4 off-screen/destroyed enemies are culled each step (bounded active set).
+  - E5 attack concurrency capped (<=2 simultaneous telegraph/fire) and active enemies capped at SANDBOX_MAX_ENEMIES=8.
+- Strengthened this iteration (not a new criterion): fixed a latent player ground-collision bug - the landing check compared the sprite top to the ground surface instead of the feet, so a standing player was computed as airborne and fell. Correcting it makes C1/C2 right in actual play, not just in the narrow M1 assertions.
 - Partially addressed (NOT checked; recorded for traceability):
   - C2 jumping + variable jump height implemented & tested; one-way platform drop-through deferred to M3.
-  - C6 damage + invulnerability + life loss + checkpoint respawn implemented & tested (unit + E2E); full game-over flow deferred to M4.
-  - J3 automated tests now cover weapon rate limits, damage/invulnerability, and checkpoint state; storage validation + boss phase-transition tests deferred.
-  - J1 the sandbox E2E flow covers start/move/jump/fire + a controlled-death respawn; pause/resume/return-to-title deferred (no pause scene yet).
+  - C5 fire-rate limits implemented & unit-tested; eight-direction aiming (C4) deferred.
+  - C6 damage + invulnerability + life loss + checkpoint respawn implemented & tested; enemy projectiles now also damage the player through the same health system; full game-over flow deferred to M4.
+  - J3 automated tests now cover weapon rate limits, damage/invulnerability, checkpoint state, scatter dedup, enemy FSMs, pickup collection, spawn safety; storage validation + boss phase-transition tests deferred.
+  - J1 the sandbox E2E flows cover start/move/jump/fire + controlled-death respawn + pickup collection + enemy spawn; pause/resume/return-to-title deferred (no pause scene yet).
   - B6 scene-switch lifecycle is clean (debug `gotoTitle`/`startSandbox` stop other scenes); pause/resume + restart-level deferred.
-- Remaining: all other gameplay/level/boss/persistence/input criteria - deferred to M2-M7.
+- Remaining: levels, bosses, persistence, full input/responsive, audio, hardening - deferred to M3-M7.
 
 ## Current iteration plan
 
-M1 - deterministic mechanics sandbox:
+M2 - weapon & enemy foundations (COMPLETE this iteration; selected as earliest incomplete milestone with M0/M1 satisfied):
 
-1. Add pure, DOM-free simulation modules: fixed-step clock (accumulator), normalized InputState, data-driven weapons + projectile stepping, player physics (movement/variable jump/gravity/ground + pit collision), health/invulnerability/lives, checkpoint snapshot/restore, and balance files.
-2. Add a keyboard adapter that maps browser events to InputState with edge-triggered jump/fire.
-3. Expand the debug bridge into a read-only state snapshot + debug-only command/input surface; register scene-switch commands globally and scene-specific commands (damagePlayer) in the owning scene.
-4. Add SandboxScene: fixed 60 Hz loop, arena render (ground + lethal pit + player + pooled projectile rects + HUD), keyboard + debug-merged input.
-5. Tests: 6 unit suites (weapons, health, checkpoints, player, clock, input) + a Playwright sandbox flow (start, move, jump, fire, controlled damage, invulnerability-blocked re-hit, checkpoint respawn).
-6. Run the full quality gate; fix two issues found (scene-switch left the title scene running; first-frame zero-step left runtime unpublished); re-run until green.
+1. Centralized collision categories (`src/simulation/categories.ts`) - single source of truth for player/enemy/projectile/terrain/pickup/trigger layers (ARCHITECTURE.md section 5).
+2. Per-step duplicate-hit protection (`src/simulation/damageLedger.ts`) - a cleared-each-step ledger so a projectile (notably each scatter pellet) registers at most one hit per target per step (D5).
+3. Enemy foundations: data-driven Runner + Sentry balance (`src/balance/enemies.ts`) and finite-state logic with readable telegraphs (`src/simulation/enemies.ts`); telegraph state gates firing and feeds the attack-concurrency cap (E1, E2, E5).
+4. Weapon pickups + collection switching the active weapon (`src/simulation/pickups.ts`) using the existing Scatter/Rapid definitions (D2); a sandbox pickup + encounter/spawn-trigger data (`src/levels/sandboxEncounter.ts`) with safe-distance (E3) and active-enemy cap (E4/E5) enforcement (`src/simulation/spawnTriggers.ts`, `src/simulation/safeSpawn.ts`).
+5. SandboxScene integration: enemy AI stepping, player-projectile-vs-enemy + enemy-projectile-vs-player collisions via the ledger, pickup collection, trigger spawning, expanded debug runtime (enemy/projectile counts + entity lists) and a `spawnEnemyAt` debug command for deterministic tests.
+6. Tests: unit suites for ledger, enemies, pickups, spawn triggers (+ scatter single-hit-per-target); a Playwright flow that collects a pickup (weapon changes) and triggers an enemy spawn with bounded counts and no page errors.
+7. Run smallest checks first, then the full quality gate; fix any failures without weakening tests; update PROGRESS + acceptance (E1-E5, D2, D5); one local commit.
 
-Next iteration: M2 - weapon & enemy foundations (Scatter Blaster + Rapid Carbine pickups, Runner + Sentry, centralized collision categories + duplicate-hit protection, spawn-trigger data, coverage).
+Next iteration (after M2): M3 - Level 1 vertical slice (Jungle Outpost, checkpoints, pits, one-way platforms, containers, HUD/score/pause/audio foundations, Drone + Grenadier, Siege Walker boss).
 
 ## Completed work
 
-New files this iteration:
+M2 (this iteration):
 
-- `src/balance/player.ts` - physics/life/arena constants (move speed, gravity, jump velocity + cut, ground/pit geometry, spawn, invuln duration).
-- `src/balance/weapons.ts` - data-driven Pulse Rifle / Scatter Blaster / Rapid Carbine definitions + helpers.
-- `src/simulation/clock.ts` - fixed-timestep accumulator (60 Hz, clamped delta).
-- `src/input/InputState.ts` - normalized input type, neutral factory, OR-merge.
-- `src/input/KeyboardInput.ts` - keyboard adapter with edge-triggered jump/fire and default-prevention for game keys.
-- `src/simulation/player.ts` - pure player step (movement, variable jump, gravity, ground + ledge/pit collision).
-- `src/simulation/weapons.ts` - fire-rate-limited firing, spread patterns, projectile stepping + TTL cull.
-- `src/simulation/health.ts` - damage/invulnerability/lives/game-over + respawn restore.
-- `src/simulation/checkpoints.ts` - immutable snapshot/restore.
-- `src/scenes/SandboxScene.ts` - M1 arena scene with fixed-step loop, rendering, input merge, debug commands.
-- `tests/unit/{weapons,health,checkpoints,player,clock,input}.test.ts` - deterministic unit coverage.
-- `tests/e2e/sandbox.spec.ts` - Playwright sandbox flow.
+- New `src/simulation/categories.ts` - centralized collision categories (bitmask layers).
+- New `src/simulation/damageLedger.ts` - per-step (attack,target) duplicate-hit protection.
+- New `src/balance/enemies.ts` + `src/simulation/enemies.ts` - data-driven Runner/Sentry defs and finite-state logic with telegraphs + concurrency guard.
+- New `src/simulation/pickups.ts` - weapon pickups + AABB collection.
+- New `src/simulation/safeSpawn.ts` + `src/simulation/spawnTriggers.ts` - spawn-safety margin and capped, once-only spawn triggers.
+- New `src/levels/sandboxEncounter.ts` - sandbox pickup + intro spawn trigger data + enemy cap.
+- `src/scenes/SandboxScene.ts` - wired enemies, enemy projectiles, pickups, triggers, the damage ledger, expanded debug runtime (counts + entity lists) and a `spawnEnemyAt` command.
+- `src/debug/debugBridge.ts` - added the `spawnEnemyAt` command name.
+- `src/simulation/weapons.ts` - `stepProjectiles` made generic to preserve projectile subtypes; Scatter per-pellet damage lowered to 0.5 (lower than the single-stream weapons, per spec).
+- `src/simulation/player.ts` - **bug fix**: ground collision now uses the player's feet (`y + PLAYER_HEIGHT`) instead of the sprite top, so a standing player is correctly grounded.
+- New `tests/unit/{damageLedger,enemies,pickups,spawnTriggers,scatterDedup}.test.ts`; `tests/unit/player.test.ts` landing assertion corrected to feet-based ground; `tests/e2e/sandbox.spec.ts` gained the M2 pickup-collection + enemy-spawn flow.
+- `ACCEPTANCE_CRITERIA.md` - checked D2, D5, E1, E2, E3, E4, E5.
 
-Changed files:
+M1 (previous iteration, retained for history):
 
-- `src/debug/debugBridge.ts` - added runtime snapshot, command registry, debug-only simulated input, and `resolveRenderer`.
-- `src/app/createGame.ts` - renderer override now read from the bridge; registers the SandboxScene.
-- `src/app/config.ts` - added the `sandbox` scene key.
-- `src/main.ts` - seeds shared debug input; registers global `startSandbox`/`gotoTitle` commands that stop other scenes on switch.
-- `src/app/renderer.ts` - removed (logic folded into the bridge).
-- `tests/e2e/title.spec.ts` - unchanged (still green).
-- `tests/unit/config.test.ts` - unchanged (still green; now 3 scene keys).
-- `ACCEPTANCE_CRITERIA.md` - checked C1.
-- `PROGRESS.md` - this log.
+- New `src/balance/player.ts`, `src/balance/weapons.ts`, `src/simulation/clock.ts`, `src/input/InputState.ts`, `src/input/KeyboardInput.ts`, `src/simulation/player.ts`, `src/simulation/weapons.ts`, `src/simulation/health.ts`, `src/simulation/checkpoints.ts`, `src/scenes/SandboxScene.ts`; unit suites `{weapons,health,checkpoints,player,clock,input}.test.ts`; `tests/e2e/sandbox.spec.ts`.
+- Changed `src/debug/debugBridge.ts`, `src/app/createGame.ts`, `src/app/config.ts`, `src/main.ts`; removed `src/app/renderer.ts`; checked C1.
 
-No `public/assets/` files were added; all visuals remain procedural shapes + system fonts, so the ASSET_POLICY.md manifest stays correctly empty.
+No `public/assets/` files were added in either iteration; all visuals remain procedural shapes + system fonts, so the ASSET_POLICY.md manifest stays correctly empty.
 
 ## Verification evidence
 
@@ -73,6 +76,11 @@ No `public/assets/` files were added; all visuals remain procedural shapes + sys
 | 2026-07-22 03:01 | `npm run test:e2e` | PASS (exit 0) | Playwright 1.61.1, 1 worker, chromium: **2 passed** (title + sandbox) |
 | 2026-07-22 03:01 | `npm run build` | PASS (exit 0) | Vite 8.1.5; `dist/index.html` 0.71 kB; `dist/assets/index-*.js` 1,386.54 kB raw / **361.91 kB gzip** (under 2.5 MB budget) |
 | 2026-07-22 (M0) | `npm ci --dry-run` | PASS (exit 0) | lockfile still consistent; no dependency changes this iteration |
+| 2026-07-22 07:31 (M2) | `npm run lint` | PASS (exit 0) | `eslint .`, no warnings |
+| 2026-07-22 07:31 (M2) | `npm run typecheck` | PASS (exit 0) | `tsc --noEmit`, strict mode |
+| 2026-07-22 07:31 (M2) | `npm run test` | PASS (exit 0) | Vitest 4.1.10: **12 files, 50 tests passed** |
+| 2026-07-22 07:31 (M2) | `npm run test:e2e` | PASS (exit 0) | Playwright 1.61.1, chromium: **3 passed** (title + M1 sandbox + M2 sandbox) |
+| 2026-07-22 07:31 (M2) | `npm run build` | PASS (exit 0) | Vite 8.1.5; `dist/assets/index-*.js` 1,394.84 kB raw / **364.47 kB gzip** (under 2.5 MB budget) |
 
 Build advisory unchanged from M0: Vite warns that the single Phaser-containing chunk exceeds 500 kB (1.39 MB raw / 0.36 MB gzip). Expected at this stage, within the ARCHITECTURE.md budget; not a failure.
 
@@ -81,6 +89,8 @@ Build advisory unchanged from M0: Vite warns that the single Phaser-containing c
 - The sandbox is keyboard-playable in the browser: A/D or arrows move, Space/W/Up jump (variable height on early release), J/K/Enter fire the Pulse Rifle; walking off the right ledge into the red pit costs a life and respawns at the checkpoint with a brief invulnerability flash. Controls are printed on-screen.
 - Headless Chromium (SwiftShader) still cannot compile Phaser's WebGL shaders; automation continues to use the debug-gated `renderer=canvas` override while real users keep `Phaser.AUTO`. No `pageerror` in either E2E flow.
 - Two defects found and fixed this iteration via the automated flows (not by weakening tests): (1) starting a scene from a global debug command did not stop the previously running scene, so the title rendered on top of the sandbox and raced its state - fixed by explicitly stopping other scenes on switch; (2) the first frame can yield zero fixed steps, leaving the runtime snapshot unpublished - fixed by publishing the spawn state in `create()`.
+- M2: the sandbox now shows enemies (Runner = orange, Sentry = purple) with a flashing yellow telegraph outline during their wind-up, a cyan Scatter pickup labelled "S", and red enemy bullets distinct from the player's yellow bullets. Walking right collects the pickup (HUD switches to SCATTER BLASTER) and crossing the intro trigger spawns the Runner + Sentry ahead.
+- M2 surfaced a latent M1 collision bug: the standing player was computed as airborne (the landing test compared the sprite top to the ground surface), so in real play the player sank and fell. Fixed by colliding on the feet (`y + PLAYER_HEIGHT`); the M1 unit/E2E assertions had been too narrow to catch it. Corrected the one unit assertion that encoded the wrong invariant.
 - A full manual playtest of levels/bosses is not applicable until M3/M4 (TEST_PLAN section 6).
 
 ## Known issues
@@ -89,4 +99,4 @@ Build advisory unchanged from M0: Vite warns that the single Phaser-containing c
 
 ## Next recommended task
 
-Proceed to **M2 - Weapon and enemy foundations**: add the Scatter Blaster and Rapid Carbine with pickups, the Runner and Sentry enemy archetypes with telegraphed attacks, centralized collision categories with per-step duplicate-hit protection, and encounter/spawn-trigger data, extending the unit + Playwright coverage and keeping the M0/M1 quality gate green.
+Proceed to **M3 - Level 1 vertical slice**: build the original Jungle Outpost level (data-driven per ARCHITECTURE.md section 6) with checkpoints, pits, one-way platforms, destructible containers, HUD/score/pause and audio foundations; add the Drone and Grenadier archetypes; add the Siege Walker boss with three telegraphed patterns and a vulnerable phase; add the level-complete flow. Reuse the M2 collision categories, damage ledger, and spawn-trigger system; keep the full quality gate green. Exit condition: Level 1 playable start to finish with keyboard.

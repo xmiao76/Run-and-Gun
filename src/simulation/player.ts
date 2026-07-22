@@ -16,6 +16,7 @@ import {
   MOVE_SPEED,
   PIT_X0,
   PIT_X1,
+  PLAYER_HEIGHT,
   PLAYER_WIDTH
 } from '../balance/player';
 import type { InputState } from '../input/InputState';
@@ -81,12 +82,15 @@ export function stepPlayer(state: PlayerState, input: InputState, dt: number): P
   }
 
   const support = groundAt(x);
+  const feet = y + PLAYER_HEIGHT;
+  const prevFeet = state.y + PLAYER_HEIGHT;
   if (support === null) {
     // No ground under the new position (the pit): unsupported, so fall.
     grounded = false;
-  } else if (y >= support && state.y <= support) {
-    // Crossing or resting on the ground plane from above: land.
-    y = support;
+  } else if (feet >= support && prevFeet <= support + 0.001) {
+    // Feet crossing or resting on the ground plane from above: land. The tiny
+    // epsilon on prevFeet keeps a resting player (feet == support) grounded.
+    y = support - PLAYER_HEIGHT;
     vy = 0;
     grounded = true;
   } else {
