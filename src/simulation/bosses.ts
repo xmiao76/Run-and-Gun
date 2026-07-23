@@ -1,14 +1,16 @@
 import { getBossDef, type BossDef, type BossId, type BossPattern } from '../balance/bosses';
 
 /**
- * Deterministic boss finite-state logic for the Siege Walker.
+ * Deterministic boss finite-state logic.
  *
- * Pure over immutable state. The boss cycles through three telegraphed attack
- * patterns and, after every `patternsPerCycle` attacks, enters a vulnerable
- * window during which it can take damage; otherwise it is immune. Every state
- * is time-bounded, so phase transitions cannot deadlock (G3), and health
- * reaches zero exactly once (G4). The scene converts action intents into
- * hazards/projectiles/movement.
+ * Pure over immutable state. The Siege Walker cycles three telegraphed attack
+ * patterns and becomes vulnerable after every `patternsPerCycle` attacks. The
+ * Reactor Warden has multiple phases; while a phase still has live
+ * subcomponents the boss is immune and only attacks, and it becomes vulnerable
+ * once the scene reports the phase's subcomponents cleared (G2). After the
+ * vulnerable window it advances to the next phase. Every state is time-bounded,
+ * so phase transitions cannot deadlock (G3), and health reaches zero exactly
+ * once after the final phase (G4).
  */
 
 export type BossStateName = 'enter' | 'idle' | 'telegraph' | 'attack' | 'vulnerable' | 'dead';
@@ -31,6 +33,10 @@ export interface BossState {
   telegraphing: boolean;
   /** True once the boss has been activated by the arena trigger. */
   active: boolean;
+  /** Current phase index (0-based). */
+  phase: number;
+  /** Time spent in the current phase (s). */
+  phaseTimer: number;
 }
 
 export type BossActionKind = 'shockwave' | 'burst' | 'none';
@@ -66,7 +72,9 @@ export function createBossState(id: BossId): BossState {
     vulnerable: false,
     facing: -1,
     telegraphing: false,
-    active: false
+    active: false,
+    phase: 0,
+    phaseTimer: 0
   };
 }
 
@@ -78,12 +86,22 @@ export function currentPattern(boss: BossState, def: BossDef): BossPattern {
   return def.patterns[boss.patternIndex % def.patterns.length];
 }
 
+/** True when the def uses destructible subcomponents to gate vulnerability. */
+export function bossHasSubcomponents(def: BossDef): boolean {
+  return def.phases.length > 0;
+}
+
+/** Number of subcomponents in a given phase (0 when the phase/def has none). */
+export function phaseSubcomponentCount(def: BossDef, phase: number): number {
+  return def.phases[phase]?.subcomponents.length ?? 0;
+}
+
 /** Activate the boss when the player enters the arena (idempotent). */
 export function activateBoss(boss: BossState): BossState {
   if (boss.active || !isBossAlive(boss)) {
     return boss;
   }
-  return { ...boss, active: true, state: 'enter', stateTimer: 0 };
+  return { ...boss, active: true, state: 'enter', stateTimer: 0, phaseTimer: 0 };
 }
 
 /**
@@ -101,8 +119,19 @@ export function damageBoss(boss: BossState, amount: number): { boss: BossState; 
   return { boss: { ...boss, health }, applied: true };
 }
 
-/** Advance the boss by `dt`. Movement during a charge is applied by the scene via the returned state's x. */
-export function stepBoss(boss: BossState, playerX: number, playerY: number, dt: number): BossStepResult {
+/**
+ * Advance the boss by `dt`. `subcomponentsCleared` tells the boss whether the
+ * current phase's destructible parts are all gone (only meaningful for bosses
+ * with phases). Movement during a charge is applied by the scene via the
+ * returned state's x.
+ */
+export function stepBoss(
+  boss: BossState,
+  playerX: number,
+  playerY: number,
+  dt: number,
+  subcomponentsCleared = false
+): BossStepResult {
   if (!boss.active) {
     return { boss, action: { kind: 'none', x: boss.x, y: boss.y }, justDied: false };
   }
@@ -111,29 +140,33 @@ export function stepBoss(boss: BossState, playerX: number, playerY: number, dt: 
   }
   const def = getBossDef(boss.id);
   const stateTimer = boss.stateTimer + dt;
+  const phaseTimer = boss.phaseTimer + dt;
   let { state } = boss;
   let { patternIndex } = boss;
   let attacksInCycle = boss.attacksInCycle;
+  let { phase } = boss;
   let vulnerable = false;
   let telegraphing = false;
   let { x } = boss;
   const facing = playerX < x ? -1 : 1;
   let action: BossActionIntent = { kind: 'none', x, y: boss.y };
   let justDied = false;
-  const nextStateTimer = 0;
   let carryTimer = stateTimer;
+
+  const hasPhases = bossHasSubcomponents(def);
+  const lastPhase = phase >= def.phaseCount - 1;
 
   switch (boss.state) {
     case 'enter':
       if (stateTimer >= 0.6) {
         state = 'idle';
-        carryTimer = nextStateTimer;
+        carryTimer = 0;
       }
       break;
     case 'idle':
       if (stateTimer >= 0.3) {
         state = 'telegraph';
-        carryTimer = nextStateTimer;
+        carryTimer = 0;
         telegraphing = true;
       }
       break;
@@ -141,7 +174,7 @@ export function stepBoss(boss: BossState, playerX: number, playerY: number, dt: 
       telegraphing = true;
       if (stateTimer >= def.telegraphDuration) {
         state = 'attack';
-        carryTimer = nextStateTimer;
+        carryTimer = 0;
         const pattern = currentPattern(boss, def);
         if (pattern === 'stomp') {
           action = { kind: 'shockwave', x, y: def.groundY };
@@ -157,24 +190,40 @@ export function stepBoss(boss: BossState, playerX: number, playerY: number, dt: 
         x = facing < 0 ? Math.max(x, limit) : Math.min(x, limit);
       }
       if (stateTimer >= def.attackDuration) {
-        attacksInCycle += 1;
-        if (attacksInCycle >= def.patternsPerCycle) {
-          state = 'vulnerable';
-          attacksInCycle = 0;
-        } else {
+        carryTimer = 0;
+        if (hasPhases && !subcomponentsCleared) {
+          // Phase still guarded: keep attacking, never become vulnerable yet.
           patternIndex += 1;
           state = 'idle';
-          x = def.homeX; // reposition after a non-charge attack
+          x = def.homeX;
+        } else {
+          attacksInCycle += 1;
+          if (attacksInCycle >= def.patternsPerCycle) {
+            state = 'vulnerable';
+            attacksInCycle = 0;
+          } else {
+            patternIndex += 1;
+            state = 'idle';
+            x = def.homeX;
+          }
         }
-        carryTimer = nextStateTimer;
       }
       break;
     case 'vulnerable':
       vulnerable = true;
       if (stateTimer >= def.vulnerableDuration) {
-        state = 'idle';
-        carryTimer = nextStateTimer;
-        x = def.homeX;
+        carryTimer = 0;
+        if (hasPhases && !lastPhase) {
+          phase += 1;
+          patternIndex = 0;
+          state = 'idle';
+          x = def.homeX;
+        } else {
+          // No more phases: the core is exposed; keep cycling attacks until dead.
+          patternIndex += 1;
+          state = 'idle';
+          x = def.homeX;
+        }
       }
       break;
     default:
@@ -191,7 +240,9 @@ export function stepBoss(boss: BossState, playerX: number, playerY: number, dt: 
     attacksInCycle,
     vulnerable,
     telegraphing,
-    active: true
+    active: true,
+    phase,
+    phaseTimer
   };
 
   if (next.health <= 0 && boss.state !== 'dead') {

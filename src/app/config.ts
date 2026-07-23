@@ -26,7 +26,8 @@ export const SCENE_KEYS = {
   title: 'title',
   sandbox: 'sandbox',
   level: 'level',
-  results: 'results'
+  results: 'results',
+  gameOver: 'gameOver'
 } as const;
 
 export type SceneKey = (typeof SCENE_KEYS)[keyof typeof SCENE_KEYS];

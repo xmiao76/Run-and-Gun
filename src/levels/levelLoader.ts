@@ -47,6 +47,25 @@ export function validateLevel(level: LevelDef): LevelValidationIssue[] {
       issues.push({ path: `level.oneWays[${i}]`, message: 'one-way rect must have positive finite size' });
     }
   });
+  (level.movingPlatforms ?? []).forEach((m, i) => {
+    if (!rectValid({ x: m.x, y: m.y, width: m.width, height: m.height })) {
+      issues.push({ path: `level.movingPlatforms[${i}]`, message: 'moving platform must have positive finite size' });
+    }
+    if (m.axis !== 'x' && m.axis !== 'y') {
+      issues.push({ path: `level.movingPlatforms[${i}].axis`, message: 'axis must be "x" or "y"' });
+    }
+    if (!(m.max > m.min) || !(m.speed > 0)) {
+      issues.push({ path: `level.movingPlatforms[${i}]`, message: 'max must exceed min and speed must be positive' });
+    }
+  });
+  (level.doors ?? []).forEach((d, i) => {
+    if (!rectValid(d.rect)) {
+      issues.push({ path: `level.doors[${i}].rect`, message: 'door rect must have positive finite size' });
+    }
+    if (!rectValid(d.openTrigger)) {
+      issues.push({ path: `level.doors[${i}].openTrigger`, message: 'door openTrigger must have positive finite size' });
+    }
+  });
   if (!(level.completionX > 0) || level.completionX > level.width) {
     issues.push({ path: 'level.completionX', message: 'completionX must be within (0, width]' });
   }

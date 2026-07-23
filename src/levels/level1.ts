@@ -92,6 +92,8 @@ export const LEVEL_1: LevelDef = {
   checkpoints,
   triggers,
   pickups,
+  movingPlatforms: [],
+  doors: [],
   boss: { id: 'siegeWalker', x0: 2560, x1: 2640, spawnX: 2880 },
   completionX: 3180
 };

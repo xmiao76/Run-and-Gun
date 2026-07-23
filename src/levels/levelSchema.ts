@@ -44,6 +44,30 @@ export interface BossArenaDef {
   spawnX: number;
 }
 
+export interface MovingPlatformDef {
+  id: string;
+  /** Top-left origin of the platform at its minimum extent. */
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  /** Axis of travel. */
+  axis: 'x' | 'y';
+  /** Minimum and maximum top-left coordinate along the axis. */
+  min: number;
+  max: number;
+  /** Travel speed (px/s). */
+  speed: number;
+}
+
+export interface DoorDef {
+  id: string;
+  /** Solid body when closed. */
+  rect: Rect;
+  /** World region; while the player overlaps it the door is open (passable). */
+  openTrigger: Rect;
+}
+
 export interface LevelDef {
   id: string;
   name: string;
@@ -56,6 +80,8 @@ export interface LevelDef {
   checkpoints: CheckpointDef[];
   triggers: LevelTriggerDef[];
   pickups: LevelPickupDef[];
+  movingPlatforms: MovingPlatformDef[];
+  doors: DoorDef[];
   boss: BossArenaDef;
   /** World x the player must reach (with the boss dead) to complete the level. */
   completionX: number;

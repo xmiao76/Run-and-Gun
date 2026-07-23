@@ -2,39 +2,56 @@
 
 ## Current status
 
-- Current milestone: M3 - Level 1 vertical slice (COMPLETE this iteration)
-- Overall state: M0 + M1 + M2 + M3 complete; full quality gate GREEN
-- Last verified commit: c748a1c (M2); the M3 commit created this iteration verifies the working tree below (resolve with `git log -1`)
-- Last full quality gate: 2026-07-22 ~08:1x local - all five commands exit 0 (see table)
+- Current milestone: M4 - Level 2 and final flow (COMPLETE this iteration)
+- Overall state: M0-M4 complete; full quality gate GREEN
+- Last verified commit: d4f3086 (M3); the M4 commit created this iteration verifies the working tree below (resolve with `git log -1`)
+- Last full quality gate: 2026-07-22 21:31 local - all five commands exit 0 (see table)
 
 ## Acceptance summary
 
-- Completed to date: A1-A8, B1-B3, C1, C3, D2, D5, E2-E5, F3, F4, F6, G1, G3, G4, I2-I4, J5, J6, J8 (31)
-- Newly completed this iteration (M3):
-  - B3 New Game (title Enter/Space or debug startLevel1) starts Level 1 in a controlled playable state (HUD, lives, running sim; Playwright-verified).
-  - C3 crouch changes the collision height (feet planted) and is keyboard-mapped (S / ArrowDown); unit-tested.
-  - F3 Level 1 defines three functioning checkpoints with last-reached tracking (unit-tested).
-  - F4 pit fall + lethal-hazard contact route through the same documented life-loss flow (handleDeath) used by the sandbox (E2E-proven mechanism).
-  - F6 Jungle Outpost layout is original/data-authored; no Contra reproduction (consistent with J8 scan).
-  - G1 Siege Walker has three telegraphed patterns (shockwave stomp, projectile burst, charge) + a vulnerable phase (unit-tested).
-  - G3 boss phase transitions are time-bounded; a long-run unit test asserts no state persists (no deadlock).
-  - G4 boss health bar shows only while the boss is active+alive; health reaches zero exactly once (justDied; unit-tested).
-  - I2 settings are versioned + schema-validated (parseSettings; unit-tested).
-  - I3 corrupt/absent localStorage falls back to defaults without throwing (StorageService; unit-tested).
-  - I4 AudioService is failure-safe (no-op when the context is unavailable/suspended; unit-tested + integrated).
-- Strengthened earlier this milestone: keyboard crouch/drop-through wiring + on-screen controls hint; a deterministic `completeLevel` debug command for the completion-flow E2E.
+- Completed to date: A1-A8, B1-B3, B6, C1, C3, C5, C6, D1, D2, D5, E1-E5, F1-F4, F6, G1-G5, I2-I4, J2, J3, J5, J6, J8 (42)
+- Newly completed this iteration (M4):
+  - F2 Level 2 (Fortress Interior) is complete from start through the Reactor Warden (E2E: Level 1 -> results -> Level 2 -> boss defeat -> final completion screen).
+  - F1 Level 1's completion path is now exercised end-to-end in the sequencing E2E (structurally complete; boss fights remain verified at FSM/unit level - see playtest note).
+  - G2 Reactor Warden has two phases, each gated by destructible subcomponents; immune while guarded, vulnerable when cleared (unit-tested + integrated).
+  - G5 boss defeat clears hostile projectiles (death-transition handler), so none are active during the completion sequence.
+  - C5 fire-rate limits are enforced in `stepWeapon` regardless of input frequency (unit-tested since M1).
+  - C6 the full life-loss loop is E2E-verified: pit death -> checkpoint respawn with invulnerability; game over -> restart-level (R) and return-to-title (T) with no stale state.
+  - B6 pause/resume (M3 E2E) + restart-level + return-to-title (M4 E2E) all verified clean; the scene-instance reuse bug that broke restarts was found and fixed.
+  - D1 all three weapons behave per their data definitions (rate, spread angles, damage, TTL; unit-tested).
+  - E1 all four archetypes (Runner, Sentry, Drone, Grenadier) now have distinct, unit-tested finite-state behaviour.
+  - J2 Playwright verifies a checkpoint respawn flow (pit death -> respawn at last checkpoint with invulnerability).
+  - J3 automated tests now cover all five areas: weapon rate limits, damage/invulnerability, checkpoint state, storage validation, and boss phase transitions.
+- Strengthened this iteration: fixed a scene-instance-reuse crash (stale render-pool arrays after `scene.start` restarts indexed past the level data and killed the game loop); cleared pools on `create()`.
 - Partially addressed (NOT checked; recorded for traceability):
-  - C2 jumping + variable jump height + one-way drop-through implemented & unit-tested; a full in-level one-way E2E deferred.
-  - C5 fire-rate limits + D1 three-weapon data behaviour implemented & unit-tested; in-play demonstration across all states/levels deferred.
-  - C6 damage/invuln/death/life-loss/checkpoint respawn implemented; level game-over overlay present; a level-specific game-over E2E deferred to M4.
-  - E1 Runner + Sentry + Drone + Grenadier all have distinct tested FSM behaviour now; E1 still left open pending in-level integration evidence for Drone/Grenadier.
-  - B5 settings schema includes volume/mute/reduced-flash/controls and pause toggles mutate in-session settings; cross-reload persistence (I1/B5) deferred to M5.
-  - B6 pause/resume verified without stale state; return-to-title from pause + restart-level UI deferred.
-  - F1 Level 1 is built start-to-boss with a completion hand-off, but a full human keyboard playthrough is not yet verified.
-  - J3 now also covers storage validation + boss phase transitions; remaining J3 items (full checkpoint-state coverage) deferred.
-- Remaining: Level 2 + Reactor Warden, full playthroughs, gamepad/touch/responsive, best-score persistence, audio polish, soak/hardening - deferred to M4-M7.
+  - C2 jumping + variable jump height + one-way drop-through implemented & unit-tested; an in-level one-way E2E deferred.
+  - B5/I1 settings schema + StorageService exist and pause toggles mutate in-session settings, but cross-reload load/save wiring is deferred to M5.
+  - F5 doors + moving platforms + level transitions verified trap-free; destructible containers still unimplemented.
+  - D3 collision categories are centralized and projectile ownership is explicit, but the category bitmask is not yet consulted by collision code.
+  - C7 respawn places the player on ground at checkpoints and clears projectiles, but no test yet asserts non-overlap with enemies at respawn.
+  - J1 the E2E suite collectively covers start/move/jump/fire/pause/resume/return-to-title, but no single consolidated smoke test yet.
+  - J4 soak test deferred to M7.
+  - H1 keyboard is fully wired with an on-screen hint; a full human playthrough remains a manual-playtest item.
+- Remaining: input/responsive/persistence polish (M5), original asset + audio polish (M6), soak + hardening + final playtest (M7).
 
 ## Current iteration plan
+
+M4 - Level 2 + final flow (selected: earliest incomplete milestone; M0-M3 prerequisites satisfied). Plan, reusing the M3 level schema/loader, platformer, boss FSM, damage ledger, and debug bridge:
+
+1. Schema/loader: add `movingPlatforms` (axis/bounds/speed), `doors` (closed solid + open trigger region), and validate them; keep `loadLevel` throwing on malformed data.
+2. Boss: add `reactorWarden` to `balance/bosses.ts` with `phaseCount` + per-phase `subcomponents`; extend `simulation/bosses.ts` so the boss is immune until the current phase's subcomponents are destroyed (scene passes `subcomponentsCleared`), then a vulnerable window, then next phase; health reaches zero once after the last phase (G2, G3, G4).
+3. Sim modules: `simulation/movingPlatforms.ts` (bounded oscillation + per-step delta for player riding) and `simulation/doors.ts` (open/closed; closed = solid; opens on trigger overlap) - both pure + unit-tested.
+4. `levels/level2.ts` - original Fortress Interior: moving platforms over pits, a door gated by a trigger, hazards, >=2 checkpoints, pickups, enemy remix (no new archetype), Reactor Warden arena, completion point (F2, F5, F6).
+5. `LevelScene` integration: parameterize by `currentLevelIndex` (registry); merge dynamic solids (moving platforms + closed doors) into the platformer call; apply platform-riding delta; step doors/subcomponents; player bullets damage subcomponents via the ledger; render new entities; extend game-over overlay to R=restart + T=title; add debug commands `setCurrentLevel`/`triggerGameOver`/`completeLevel`/`damageBoss`.
+6. Flow: `GameOverScene` (restart-level / return-to-title) and `ResultsScene` advances to the next level or shows final completion when no levels remain (B6, C6, final screen).
+7. Tests: unit suites for movingPlatforms, doors, boss subcomponent phase gating, level2 validation; Playwright flows for checkpoint respawn (J2), game-over + restart/title (C6/B6), and Level 2 -> final completion (F2/G2).
+8. Run smallest checks first, then the full gate; fix failures without weakening tests; update PROGRESS + acceptance; one local commit. Exit condition: both levels playable in sequence (deterministic flows verified).
+
+M4 status: COMPLETE this iteration. Full quality gate GREEN (lint 0, typecheck 0, test 99/99, e2e 7/7, build 373.08 kB gzip). The E2E suite verifies both levels in sequence: Level 1 completes into Level 2, and Level 2 completes into the final completion screen (M4 exit condition). One significant debugging episode: scene restarts crashed because Phaser reuses the scene instance while my `create()` pushed into instance render-pool arrays without clearing them (out-of-bounds reads killed the game loop). The fix was correct early, but verification was poisoned by a stale `vite preview` process from an earlier manual probe lingering on port 4173 - with `reuseExistingServer: true`, the Playwright webServer and my probes kept serving the pre-fix bundle. Killing the stale process confirmed the fix. Lesson recorded: probe servers must be torn down; do not trust `reuseExistingServer` when a manual server may be alive.
+
+Next iteration (after M4): M5 - input/responsive/persistence polish (gamepad, touch, responsive scaling + fullscreen, settings load/save across reload, best-score persistence, reduced-flash + focus-loss handling).
+
+## M3 (completed) iteration plan
 
 M3 - Level 1 vertical slice (selected: earliest incomplete milestone; M0-M2 prerequisites satisfied). Plan, reusing M1/M2 abstractions (damage ledger, health, weapons, input, spawn triggers, enemy FSM, clock):
 
@@ -69,7 +86,22 @@ Next iteration (after M2): M3 - Level 1 vertical slice (Jungle Outpost, checkpoi
 
 ## Completed work
 
-M3 (this iteration):
+M4 (this iteration):
+
+- `src/levels/levelSchema.ts` - added `MovingPlatformDef` + `DoorDef` + LevelDef fields; `src/levels/levelLoader.ts` validates them; `src/levels/level1.ts` supplies the new (empty) fields.
+- New `src/levels/level2.ts` - original Fortress Interior (moving platforms, a trigger-gated door, hazards, 3 checkpoints, pickups, enemy remix, Reactor Warden arena).
+- New `src/levels/levels.ts` - ordered `LEVELS` registry driving level sequencing.
+- `src/balance/bosses.ts` - Reactor Warden def (2 phases, per-phase destructible subcomponents); BossDef extended (`phaseCount`, `phases`).
+- New `src/simulation/movingPlatforms.ts` - bounded oscillation + per-step delta (player riding); `src/simulation/doors.ts` - open/closed doors with `closedDoorRects`.
+- `src/simulation/bosses.ts` - phase/subcomponent gating (`subcomponentsCleared` param, phase advance, no deadlock); Siege Walker behaviour preserved (M3 tests still green).
+- `src/scenes/LevelScene.ts` - parameterized by `currentLevelIndex`; dynamic solids (moving platforms + closed doors) merged into the platformer call; platform-riding delta; door + subcomponent stepping; bullets damage subcomponents via the ledger; boss death transition clears hostile projectiles (G5); render pools for new entities; **fix**: clear render-pool arrays on `create()` (scene-instance reuse crash); game-over now transitions to the new scene.
+- New `src/scenes/GameOverScene.ts` - game-over screen (score, R restart-level, T return-to-title).
+- `src/scenes/ResultsScene.ts` - advances to the next level, or shows MISSION COMPLETE (final) and returns to title.
+- `src/app/config.ts` + `src/app/createGame.ts` - `gameOver` scene key + registration; `src/main.ts` - `startLevel2` command + `currentLevelIndex` seeding; `src/debug/debugBridge.ts` - `startLevel2`/`triggerGameOver` command names; `src/scenes/TitleScene.ts` - resets level index on start.
+- New `tests/unit/{movingPlatforms,doors,bossesPhase}.test.ts`; `tests/unit/levelLoader.test.ts` extended (level2 + moving platform/door validation); new `tests/e2e/level2.spec.ts` (checkpoint respawn, game-over restart/title, Level 1 -> Level 2 -> final screen).
+- `ACCEPTANCE_CRITERIA.md` - checked F1, F2, G2, G5, C5, C6, B6, D1, E1, J2, J3.
+
+M3 (previous iteration, retained for history):
 
 - New `src/levels/levelSchema.ts` + `src/levels/levelLoader.ts` - data-driven level types + validation (bounds, spawn in-bounds, >=2 checkpoints, boss arena, completionX) with validate-or-throw.
 - New `src/levels/level1.ts` - original Jungle Outpost (ground segments + pits, one-way platforms, hazards, 3 checkpoints, pickups, 3 spawn triggers, Siege Walker arena, completion point).
@@ -128,6 +160,11 @@ No `public/assets/` files were added in either iteration; all visuals remain pro
 | 2026-07-22 14:23 (M3) | `npm run test` | PASS (exit 0) | Vitest 4.1.10: **19 files, 84 tests passed** |
 | 2026-07-22 14:23 (M3) | `npm run test:e2e` | PASS (exit 0) | Playwright 1.61.1, chromium: **4 passed** (title + M1 sandbox + M2 sandbox + level1) |
 | 2026-07-22 14:23 (M3) | `npm run build` | PASS (exit 0) | Vite 8.1.5; `dist/assets/index-*.js` 1,421.40 kB raw / **370.91 kB gzip** (under 2.5 MB budget) |
+| 2026-07-22 21:31 (M4) | `npm run lint` | PASS (exit 0) | `eslint .`, no warnings |
+| 2026-07-22 21:31 (M4) | `npm run typecheck` | PASS (exit 0) | `tsc --noEmit`, strict mode |
+| 2026-07-22 21:31 (M4) | `npm run test` | PASS (exit 0) | Vitest 4.1.10: **22 files, 99 tests passed** |
+| 2026-07-22 21:31 (M4) | `npm run test:e2e` | PASS (exit 0) | Playwright 1.61.1, chromium: **7 passed** (title + M1/M2 sandbox + level1 + level2) |
+| 2026-07-22 21:31 (M4) | `npm run build` | PASS (exit 0) | Vite 8.1.5; `dist/assets/index-*.js` 1,429.92 kB raw / **373.08 kB gzip** (under 2.5 MB budget) |
 
 Build advisory unchanged from M0: Vite warns that the single Phaser-containing chunk exceeds 500 kB (1.39 MB raw / 0.36 MB gzip). Expected at this stage, within the ARCHITECTURE.md budget; not a failure.
 
@@ -141,6 +178,8 @@ Build advisory unchanged from M0: Vite warns that the single Phaser-containing c
 - A full manual playtest of levels/bosses is not applicable until M3/M4 (TEST_PLAN section 6).
 - M3: Level 1 loads from the title screen (Enter/Space) with a scrolling camera, dark-green ground segments, blue one-way platforms, red-outlined pit markers, the HUD (lives/weapon/score) and an on-screen controls hint including crouch/drop-through (S / ArrowDown). Esc pauses (overlay shows mute + reduced-flash toggles) and Esc resumes. The Siege Walker renders as a brown block with a yellow telegraph outline during wind-ups and a top-centre health bar only while active; the deterministic `completeLevel` debug command plays the short completion beat and hands off to the results screen ("LEVEL COMPLETE" + score). A full human keyboard playthrough of the level is the M4 follow-up (F1).
 - M3 debugging note: the Grenadier reposition direction was hard to settle by inspection because the world x-convention (right = +x, verified against the player) made several ternary formulations look right while behaving opposite; isolating the rule into `enemyReposition.ts` with branch-marker diagnostics and a dedicated unit test resolved it cleanly.
+- M4: Level 2 renders an industrial interior (olive moving platforms traversing the pit and a vertical lift, an orange door that turns translucent while open, cyan Reactor Warden turrets, and the phase-gated core). The game-over screen (score + R/T actions) and the final MISSION COMPLETE screen are keyboard-navigable. Boss-fight playthroughs are verified at FSM/unit level; a full human keyboard playthrough of both levels remains a manual-playtest item for M7 (TEST_PLAN section 6).
+- M4 debugging note: a scene-restart crash (Phaser reuses the scene instance; un-cleared render-pool arrays indexed past the level data and killed the game loop) was masked for several runs by a stale `vite preview` from an early manual probe - the Playwright `reuseExistingServer` option reused it, so the fixed bundle never ran. Always tear down manual probe servers; treat "the fix didn't change anything" as a signal to check what is actually being served.
 
 ## Known issues
 
@@ -148,4 +187,4 @@ Build advisory unchanged from M0: Vite warns that the single Phaser-containing c
 
 ## Next recommended task
 
-Proceed to **M4 - Level 2 vertical slice + final flows**: build the original Fortress Interior level (moving platforms, doors, hazards, denser remixes of the four enemies - no new archetype), add the Reactor Warden boss (two phases + destructible subcomponents), wire the final-completion and game-over screens, and add the level-specific game-over + checkpoint-respawn E2E flows plus a verified human keyboard playthrough of Level 1 (closes F1, F2, G2, G5, C6, J1/J2). Reuse the M3 level schema/loader, platformer, boss FSM, and debug bridge; keep the full quality gate green.
+Proceed to **M5 - Input, responsive UI, and persistence**: complete gamepad support (Gamepad API normalization into the shared InputState), touch controls for phone-sized viewports, responsive scaling verification + fullscreen, settings load/save across reload (wire StorageService into boot + pause), best-score persistence with schema validation, the reduced-flash option applied to telegraph flashes, and focus-loss input neutralization. Targets H1-H5, B4, B5, I1 and the consolidated J1 smoke test. Reuse the input adapter, settings schema, and debug bridge; keep the full quality gate green.

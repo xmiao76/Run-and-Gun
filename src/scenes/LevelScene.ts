@@ -18,7 +18,9 @@ import {
 import { createKeyboardInput, type KeyboardInput } from '../input/KeyboardInput';
 import { createNeutralInput, mergeInput, type InputState } from '../input/InputState';
 import { loadLevel, type LevelDef } from '../levels/levelLoader';
-import { LEVEL_1 } from '../levels/level1';
+import { type Rect } from '../levels/levelSchema';
+import { LEVELS } from '../levels/levels';
+import { getBossDef } from '../balance/bosses';
 import {
   advanceCheckpoint,
   resolveCheckpoint,
@@ -50,12 +52,25 @@ import {
 } from '../simulation/platformer';
 import {
   activateBoss,
+  bossHasSubcomponents,
   createBossState,
   damageBoss,
   isBossAlive,
   stepBoss,
   type BossState
 } from '../simulation/bosses';
+import {
+  createMovingPlatformStates,
+  movingPlatformRect,
+  stepMovingPlatform,
+  type MovingPlatformState
+} from '../simulation/movingPlatforms';
+import {
+  closedDoorRects,
+  createDoorStates,
+  stepDoor,
+  type DoorState
+} from '../simulation/doors';
 import {
   createSpawnTriggers,
   updateSpawnTriggers,
@@ -88,6 +103,18 @@ interface EnemyBullet {
   arcGravity: number;
 }
 
+/** A destructible boss subcomponent (e.g. a Reactor Warden turret). */
+interface SubcomponentState {
+  id: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  health: number;
+  score: number;
+  alive: boolean;
+}
+
 /**
  * Level 1 gameplay scene. Wires the data-driven level (platforms, one-way
  * platforms, hazards, checkpoints, spawn triggers, pickups, boss) into the
@@ -97,6 +124,7 @@ interface EnemyBullet {
  */
 export class LevelScene extends Phaser.Scene {
   private level!: LevelDef;
+  private levelIndex = 0;
   private player!: PlatformerState;
   private health!: HealthState;
   private weapon!: WeaponState;
@@ -118,15 +146,21 @@ export class LevelScene extends Phaser.Scene {
   private paused = false;
   private prevEsc = false;
   private completionTimer = -1;
-  private gameOver = false;
-  private prevR = false;
   private prevM = false;
   private prevF = false;
   private settings: Settings = { ...DEFAULT_SETTINGS };
+  private movingPlatforms: MovingPlatformState[] = [];
+  private doors: DoorState[] = [];
+  private subcomponents: SubcomponentState[] = [];
+  private lastBossPhase = 0;
+  private bossDeathHandled = false;
 
   private solidRects: Phaser.GameObjects.Rectangle[] = [];
   private oneWayRects: Phaser.GameObjects.Rectangle[] = [];
   private hazardRects: Phaser.GameObjects.Rectangle[] = [];
+  private movingPlatformRects: Phaser.GameObjects.Rectangle[] = [];
+  private doorRects: Phaser.GameObjects.Rectangle[] = [];
+  private subcomponentRects: Phaser.GameObjects.Rectangle[] = [];
   private enemyRects: Phaser.GameObjects.Rectangle[] = [];
   private telegraphRects: Phaser.GameObjects.Rectangle[] = [];
   private enemyBulletRects: Phaser.GameObjects.Rectangle[] = [];
@@ -147,7 +181,24 @@ export class LevelScene extends Phaser.Scene {
   }
 
   public create(): void {
-    this.level = loadLevel(LEVEL_1);
+    const idx = (this.registry.get('currentLevelIndex') as number | undefined) ?? 0;
+    this.levelIndex = Math.min(Math.max(idx, 0), LEVELS.length - 1);
+    this.level = loadLevel(LEVELS[this.levelIndex]);
+    // Phaser reuses the scene instance across scene.start calls, so pooled
+    // render arrays must be cleared before they are rebuilt; otherwise they
+    // would hold stale entries from the previous run and index out of bounds.
+    this.solidRects = [];
+    this.oneWayRects = [];
+    this.hazardRects = [];
+    this.movingPlatformRects = [];
+    this.doorRects = [];
+    this.subcomponentRects = [];
+    this.enemyRects = [];
+    this.telegraphRects = [];
+    this.enemyBulletRects = [];
+    this.playerBulletRects = [];
+    this.pickupRects = [];
+    this.pickupLabels = [];
     this.resetRun();
     this.buildStaticVisuals();
     this.playerRect = this.add.rectangle(0, 0, PLAYER_WIDTH, PLAYER_HEIGHT, 0x44dd66);
@@ -237,6 +288,11 @@ export class LevelScene extends Phaser.Scene {
     this.pickups = this.level.pickups.map((p) => ({ id: p.id, x: p.x, y: p.y, width: 18, height: 18, weapon: p.weapon, collected: false }));
     this.triggers = createSpawnTriggers(this.level.triggers);
     this.boss = createBossState(this.level.boss.id);
+    this.movingPlatforms = createMovingPlatformStates(this.level.movingPlatforms);
+    this.doors = createDoorStates(this.level.doors);
+    this.lastBossPhase = 0;
+    this.bossDeathHandled = false;
+    this.buildSubcomponents();
     this.score = 0;
     this.lastCheckpointId = this.level.checkpoints[0].id;
     this.checkpoint = snapshotCheckpoint({
@@ -255,7 +311,30 @@ export class LevelScene extends Phaser.Scene {
     this.nextId = 1;
     this.paused = false;
     this.completionTimer = -1;
-    this.gameOver = false;
+  }
+
+  private buildSubcomponents(): void {
+    const def = getBossDef(this.level.boss.id);
+    this.subcomponents = [];
+    if (!bossHasSubcomponents(def)) {
+      return;
+    }
+    const phaseDef = def.phases[this.boss.phase];
+    if (!phaseDef) {
+      return;
+    }
+    for (const s of phaseDef.subcomponents) {
+      this.subcomponents.push({
+        id: s.id,
+        x: this.boss.x + s.dx,
+        y: this.boss.y + s.dy,
+        width: s.width,
+        height: s.height,
+        health: s.health,
+        score: s.score,
+        alive: true
+      });
+    }
   }
 
   private registerDebugCommands(): void {
@@ -294,14 +373,22 @@ export class LevelScene extends Phaser.Scene {
       if (!this.boss.active) {
         this.boss = activateBoss(this.boss);
       }
+      // Debug/test affordance: force the vulnerable window, then apply a
+      // lethal hit so the deterministic completion flow can be exercised.
+      this.boss = { ...this.boss, vulnerable: true };
       this.boss = damageBoss(this.boss, this.boss.health).boss;
       this.publishRuntime();
       return { ok: true };
     });
     registerCommand('completeLevel', () => {
-      if (this.completionTimer < 0 && !this.gameOver) {
+      if (this.completionTimer < 0 && !this.health.gameOver) {
         this.completionTimer = COMPLETION_DELAY;
       }
+      this.publishRuntime();
+      return { ok: true };
+    });
+    registerCommand('triggerGameOver', () => {
+      this.health = { lives: 0, invuln: 0, gameOver: true };
       this.publishRuntime();
       return { ok: true };
     });
@@ -336,14 +423,8 @@ export class LevelScene extends Phaser.Scene {
     const debug = this.readDebugInput();
     this.stepInput = mergeInput(this.keyboard.build(this.stepInput), debug);
 
-    if (this.gameOver) {
-      const r = LevelScene.isDown('KeyR');
-      if (r && !this.prevR) {
-        this.resetRun();
-      }
-      this.prevR = r;
-      this.clearPressedEdges();
-      this.publishRuntime();
+    if (this.health.gameOver) {
+      this.goToGameOver();
       return;
     }
 
@@ -361,11 +442,40 @@ export class LevelScene extends Phaser.Scene {
 
     this.health = tickInvuln(this.health, FIXED_DT);
 
-    const playerResult = stepPlatformer(this.player, this.stepInput, FIXED_DT, this.level.solids, this.level.oneWays, {
+    // Advance moving platforms and doors, then merge them into the solid set.
+    const platformDeltas: { rect: Rect; deltaX: number; deltaY: number }[] = [];
+    this.movingPlatforms = this.movingPlatforms.map((mp) => {
+      const step = stepMovingPlatform(mp, FIXED_DT);
+      platformDeltas.push({ rect: movingPlatformRect(step.state), deltaX: step.deltaX, deltaY: step.deltaY });
+      return step.state;
+    });
+    const playerTop = this.player.y - currentHeight(this.player);
+    this.doors = this.doors.map((d) => stepDoor(d, this.player.x, playerTop, PLAYER_WIDTH, currentHeight(this.player)));
+    const dynamicSolids = [
+      ...this.level.solids,
+      ...platformDeltas.map((p) => p.rect),
+      ...closedDoorRects(this.doors)
+    ];
+
+    const playerResult = stepPlatformer(this.player, this.stepInput, FIXED_DT, dynamicSolids, this.level.oneWays, {
       levelWidth: this.level.width,
       deathFallY: DEATH_FALL_Y
     });
     this.player = playerResult.player;
+
+    // Carry a grounded rider with the platform it stands on.
+    if (this.player.grounded) {
+      for (const p of platformDeltas) {
+        if (
+          (p.deltaX !== 0 || p.deltaY !== 0) &&
+          this.overlapsX(this.player.x, PLAYER_WIDTH, p.rect) &&
+          Math.abs(this.player.y - p.rect.y) < 2
+        ) {
+          this.player = { ...this.player, x: this.player.x + p.deltaX, y: this.player.y + p.deltaY };
+          break;
+        }
+      }
+    }
 
     if (this.stepInput.jumpPressed && this.player.grounded) {
       this.sfx('jump');
@@ -378,10 +488,17 @@ export class LevelScene extends Phaser.Scene {
     }
     this.stepBossLogic();
 
+    // Rebuild subcomponents when the boss advances to a new phase.
+    if (this.boss.phase !== this.lastBossPhase) {
+      this.lastBossPhase = this.boss.phase;
+      this.buildSubcomponents();
+    }
+
     this.stepTriggers();
     this.stepEnemies();
     this.stepEnemyBullets();
     this.resolvePlayerBulletsVsEnemies();
+    this.resolvePlayerBulletsVsSubcomponents();
     this.resolvePlayerBulletsVsBoss();
     this.resolveEnemyBulletsVsPlayer();
     this.resolvePickups();
@@ -431,10 +548,18 @@ export class LevelScene extends Phaser.Scene {
     if (!this.boss.active) {
       return;
     }
+    const def = getBossDef(this.level.boss.id);
+    const cleared = bossHasSubcomponents(def) ? this.subcomponents.every((s) => !s.alive) : false;
     const h = currentHeight(this.player);
     const playerCenterY = this.player.y - h / 2;
-    const result = stepBoss(this.boss, this.player.x, playerCenterY, FIXED_DT);
+    const result = stepBoss(this.boss, this.player.x, playerCenterY, FIXED_DT, cleared);
     this.boss = result.boss;
+    if (!isBossAlive(this.boss) && !this.bossDeathHandled) {
+      // G5: no hostile projectiles survive into the completion sequence.
+      this.bossDeathHandled = true;
+      this.enemyBullets = [];
+      this.sfx('explosion');
+    }
     if (result.action.kind === 'shockwave') {
       this.sfx('explosion');
     }
@@ -538,6 +663,38 @@ export class LevelScene extends Phaser.Scene {
     this.playerBullets = surviving;
   }
 
+  private resolvePlayerBulletsVsSubcomponents(): void {
+    const def = getBossDef(this.level.boss.id);
+    if (!bossHasSubcomponents(def) || !this.boss.active) {
+      return;
+    }
+    const surviving: PlayerBullet[] = [];
+    for (const bullet of this.playerBullets) {
+      let consumed = false;
+      for (let i = 0; i < this.subcomponents.length; i++) {
+        const s = this.subcomponents[i];
+        if (!s.alive || !this.bulletHitsRect(bullet.x, bullet.y, 8, 4, s.x, s.y, s.width, s.height)) {
+          continue;
+        }
+        if (!recordHit(this.ledger, bullet.id, s.id)) {
+          continue;
+        }
+        const health = s.health - bullet.damage;
+        this.subcomponents[i] = { ...s, health, alive: health > 0 };
+        if (health <= 0) {
+          this.score += s.score;
+          this.sfx('hit');
+        }
+        consumed = true;
+        break;
+      }
+      if (!consumed) {
+        surviving.push(bullet);
+      }
+    }
+    this.playerBullets = surviving;
+  }
+
   private resolvePlayerBulletsVsBoss(): void {
     if (!isBossAlive(this.boss)) {
       return;
@@ -607,7 +764,7 @@ export class LevelScene extends Phaser.Scene {
     const damage = applyDamage(this.health, INVULN_DURATION);
     this.health = damage.health;
     if (this.health.gameOver) {
-      this.gameOver = true;
+      // The game-over scene transition fires at the top of the next step.
       return;
     }
     const cp = resolveCheckpoint(this.level.checkpoints, this.lastCheckpointId);
@@ -615,6 +772,15 @@ export class LevelScene extends Phaser.Scene {
     this.weapon = createWeaponState(this.checkpoint.weapon);
     this.playerBullets = [];
     this.enemyBullets = [];
+  }
+
+  private goToGameOver(): void {
+    this.registry.set('lastScore', this.score);
+    this.scene.start(SCENE_KEYS.gameOver);
+  }
+
+  private overlapsX(x: number, w: number, r: Rect): boolean {
+    return x < r.x + r.width && x + w > r.x;
   }
 
   private bulletHitsRect(bx: number, by: number, bw: number, bh: number, rx: number, ry: number, rw: number, rh: number): boolean {
@@ -652,6 +818,7 @@ export class LevelScene extends Phaser.Scene {
   private publishRuntime(): void {
     reportRuntime({
       level: this.level.id,
+      levelIndex: this.levelIndex,
       playerX: Math.round(this.player.x * 100) / 100,
       playerY: Math.round(this.player.y * 100) / 100,
       grounded: this.player.grounded,
@@ -666,9 +833,11 @@ export class LevelScene extends Phaser.Scene {
       bossActive: this.boss.active,
       bossHealth: this.boss.health,
       bossState: this.boss.state,
+      bossPhase: this.boss.phase,
       bossVulnerable: this.boss.vulnerable,
+      subcomponentsAlive: this.subcomponents.filter((s) => s.alive).length,
       paused: this.paused,
-      gameOver: this.gameOver,
+      gameOver: this.health.gameOver,
       completing: this.completionTimer >= 0,
       score: this.score
     });
@@ -708,6 +877,24 @@ export class LevelScene extends Phaser.Scene {
     this.hazardRects.forEach((rect, i) => {
       const r = this.level.hazards[i];
       rect.setPosition(r.x - this.cameraX, r.y);
+    });
+
+    this.syncPool(this.movingPlatformRects, this.movingPlatforms.length, 12, 12, 0x5a7a3a);
+    this.movingPlatforms.forEach((mp, i) => {
+      const rect = this.movingPlatformRects[i];
+      const r = movingPlatformRect(mp);
+      rect.setSize(r.width, r.height);
+      rect.setVisible(true);
+      rect.setPosition(r.x - this.cameraX, r.y);
+    });
+
+    this.syncPool(this.doorRects, this.doors.length, 16, 96, 0xcc7733);
+    this.doors.forEach((d, i) => {
+      const rect = this.doorRects[i];
+      rect.setSize(d.rect.width, d.rect.height);
+      rect.setVisible(true);
+      rect.setAlpha(d.open ? 0.25 : 1);
+      rect.setPosition(d.rect.x - this.cameraX, d.rect.y);
     });
 
     const h = currentHeight(this.player);
@@ -765,23 +952,36 @@ export class LevelScene extends Phaser.Scene {
       label.setText(pickupLetter(p.weapon));
     });
 
+    const bossDef = getBossDef(this.level.boss.id);
     if (this.boss.active && isBossAlive(this.boss)) {
       this.bossRect?.setVisible(true);
+      this.bossRect?.setSize(bossDef.width, bossDef.height);
       this.bossRect?.setPosition(this.boss.x - this.cameraX, this.boss.y);
       this.bossRect?.setFillStyle(this.boss.vulnerable ? 0xddaa44 : 0x884422);
       this.bossTeleRect?.setVisible(this.boss.telegraphing);
+      this.bossTeleRect?.setSize(bossDef.width + 8, bossDef.height + 8);
       this.bossTeleRect?.setPosition(this.boss.x - this.cameraX - 4, this.boss.y - 4);
     } else {
       this.bossRect?.setVisible(false);
       this.bossTeleRect?.setVisible(false);
     }
 
+    this.syncPool(this.subcomponentRects, this.subcomponents.length, 18, 18, 0x66ffcc);
+    this.subcomponents.forEach((s, i) => {
+      const rect = this.subcomponentRects[i];
+      const show = this.boss.active && s.alive;
+      rect.setVisible(show);
+      if (show) {
+        rect.setSize(s.width, s.height);
+        rect.setPosition(s.x - this.cameraX, s.y);
+      }
+    });
+
     const showBossBar = this.boss.active && isBossAlive(this.boss);
     this.bossBarBack?.setVisible(showBossBar);
     this.bossBarFill?.setVisible(showBossBar);
     if (showBossBar && this.bossBarFill) {
-      const max = 12;
-      this.bossBarFill.setSize((300 * Math.max(0, this.boss.health)) / max, 10);
+      this.bossBarFill.setSize((300 * Math.max(0, this.boss.health)) / bossDef.health, 10);
     }
 
     const def = getWeapon(this.weapon.id);
@@ -789,8 +989,6 @@ export class LevelScene extends Phaser.Scene {
 
     if (this.completionTimer >= 0) {
       this.showOverlay('LEVEL COMPLETE', '');
-    } else if (this.gameOver) {
-      this.showOverlay('GAME OVER', 'PRESS R TO RETRY');
     } else {
       this.hideOverlay();
     }

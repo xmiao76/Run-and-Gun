@@ -32,6 +32,12 @@ registerCommand('startSandbox', () => {
   return { ok: true, scene: SCENE_KEYS.sandbox };
 });
 registerCommand('startLevel1', () => {
+  game.registry.set('currentLevelIndex', 0);
+  switchToScene(SCENE_KEYS.level);
+  return { ok: true, scene: SCENE_KEYS.level };
+});
+registerCommand('startLevel2', () => {
+  game.registry.set('currentLevelIndex', 1);
   switchToScene(SCENE_KEYS.level);
   return { ok: true, scene: SCENE_KEYS.level };
 });

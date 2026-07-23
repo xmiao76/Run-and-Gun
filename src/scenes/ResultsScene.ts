@@ -1,10 +1,12 @@
 import Phaser from 'phaser';
 import { LOGICAL_WIDTH, SCENE_KEYS } from '../app/config';
+import { LEVELS } from '../levels/levels';
 import { reportRuntime, reportScene } from '../debug/debugBridge';
 
 /**
- * Level-complete / results screen. Shows the score recorded by the level and
- * returns to the title on Enter/Space. Non-interactive gameplay; no simulation.
+ * Level-complete / final-completion screen. After a non-final level it offers
+ * the next level; after the last level it shows mission completion. Enter or
+ * Space continues.
  */
 export class ResultsScene extends Phaser.Scene {
   private onContinue?: (e: KeyboardEvent) => void;
@@ -16,17 +18,33 @@ export class ResultsScene extends Phaser.Scene {
   public create(): void {
     reportScene(SCENE_KEYS.results);
     const score = (this.registry.get('lastScore') as number | undefined) ?? 0;
-    reportRuntime({ score, scene: SCENE_KEYS.results });
+    const idx = (this.registry.get('currentLevelIndex') as number | undefined) ?? 0;
+    const final = idx >= LEVELS.length - 1;
+    reportRuntime({ score, final, scene: SCENE_KEYS.results });
 
     const cx = LOGICAL_WIDTH / 2;
     this.add
-      .text(cx, 200, 'LEVEL COMPLETE', { fontFamily: 'monospace', fontSize: '44px', color: '#9be8a0', fontStyle: 'bold' })
+      .text(cx, 190, final ? 'MISSION COMPLETE' : 'LEVEL COMPLETE', {
+        fontFamily: 'monospace',
+        fontSize: '44px',
+        color: final ? '#ffd970' : '#9be8a0',
+        fontStyle: 'bold'
+      })
       .setOrigin(0.5);
+    if (final) {
+      this.add
+        .text(cx, 250, 'ALL SECTORS CLEAR', { fontFamily: 'monospace', fontSize: '20px', color: '#e8f1ff' })
+        .setOrigin(0.5);
+    }
     this.add
-      .text(cx, 270, 'SCORE ' + score, { fontFamily: 'monospace', fontSize: '26px', color: '#e8f1ff' })
+      .text(cx, final ? 296 : 270, 'SCORE ' + score, { fontFamily: 'monospace', fontSize: '26px', color: '#e8f1ff' })
       .setOrigin(0.5);
     const prompt = this.add
-      .text(cx, 340, 'PRESS ENTER OR SPACE', { fontFamily: 'monospace', fontSize: '18px', color: '#8fa3c7' })
+      .text(cx, 350, final ? 'PRESS ENTER OR SPACE - TITLE' : 'PRESS ENTER OR SPACE - NEXT LEVEL', {
+        fontFamily: 'monospace',
+        fontSize: '18px',
+        color: '#8fa3c7'
+      })
       .setOrigin(0.5);
     this.tweens.add({ targets: prompt, alpha: 0.3, duration: 700, yoyo: true, repeat: -1 });
 
@@ -35,7 +53,13 @@ export class ResultsScene extends Phaser.Scene {
         return;
       }
       e.preventDefault();
-      this.scene.start(SCENE_KEYS.title);
+      if (final) {
+        this.registry.set('currentLevelIndex', 0);
+        this.scene.start(SCENE_KEYS.title);
+      } else {
+        this.registry.set('currentLevelIndex', idx + 1);
+        this.scene.start(SCENE_KEYS.level);
+      }
     };
     window.addEventListener('keydown', this.onContinue);
   }

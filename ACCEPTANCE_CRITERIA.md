@@ -20,7 +20,7 @@ Check a box only after recording verification evidence in PROGRESS.md.
 - [x] B3. New Game starts Level 1 in a controlled playable state.
 - [ ] B4. Help accurately lists keyboard, gamepad, and touch controls.
 - [ ] B5. Settings persist volume, mute, reduced-flash, and control preferences.
-- [ ] B6. Pause, resume, restart-level, and return-to-title work without stale state.
+- [x] B6. Pause, resume, restart-level, and return-to-title work without stale state.
 
 ## C. Player mechanics
 
@@ -28,13 +28,13 @@ Check a box only after recording verification evidence in PROGRESS.md.
 - [ ] C2. Jumping, landing, variable jump height, and one-way platform drop-through are reliable.
 - [x] C3. Crouching changes the player's pose and collision behavior safely.
 - [ ] C4. Eight-direction aiming and firing work in standing, moving, crouching, and airborne states.
-- [ ] C5. Fire-rate limits prevent input frequency from bypassing weapon balance.
-- [ ] C6. Player damage, temporary invulnerability, death, life loss, checkpoint respawn, and game over are correct.
+- [x] C5. Fire-rate limits prevent input frequency from bypassing weapon balance.
+- [x] C6. Player damage, temporary invulnerability, death, life loss, checkpoint respawn, and game over are correct.
 - [ ] C7. The player never respawns inside a solid tile, hazard, enemy, or active projectile.
 
 ## D. Weapons and projectiles
 
-- [ ] D1. Pulse Rifle, Scatter Blaster, and Rapid Carbine behave according to their data definitions.
+- [x] D1. Pulse Rifle, Scatter Blaster, and Rapid Carbine behave according to their data definitions.
 - [x] D2. Weapon pickups change the active weapon and clearly communicate the result.
 - [ ] D3. Player and enemy projectiles use correct collision categories and ownership.
 - [ ] D4. Projectiles expire or are recycled and do not grow without bound during a ten-minute soak test.
@@ -42,7 +42,7 @@ Check a box only after recording verification evidence in PROGRESS.md.
 
 ## E. Enemies
 
-- [ ] E1. Runner, Sentry, Drone, and Grenadier each have distinct tested behavior.
+- [x] E1. Runner, Sentry, Drone, and Grenadier each have distinct tested behavior.
 - [x] E2. Every damaging enemy action has a readable visual or timing telegraph.
 - [x] E3. Level triggers cannot spawn an enemy on top of the player.
 - [x] E4. Enemies do not remain alive indefinitely far outside the active level region.
@@ -50,8 +50,8 @@ Check a box only after recording verification evidence in PROGRESS.md.
 
 ## F. Levels and checkpoints
 
-- [ ] F1. Level 1 is complete from start through the Siege Walker boss.
-- [ ] F2. Level 2 is complete from start through the Reactor Warden boss.
+- [x] F1. Level 1 is complete from start through the Siege Walker boss.
+- [x] F2. Level 2 is complete from start through the Reactor Warden boss.
 - [x] F3. Each level includes at least two functioning checkpoints.
 - [x] F4. Falling into a pit or touching a lethal hazard follows the same documented life-loss flow.
 - [ ] F5. Doors, moving platforms, destructible containers, and level transitions do not trap the player in an invalid state.
@@ -60,10 +60,10 @@ Check a box only after recording verification evidence in PROGRESS.md.
 ## G. Bosses
 
 - [x] G1. Siege Walker has three telegraphed patterns and a vulnerable phase.
-- [ ] G2. Reactor Warden has two phases and destructible subcomponents.
+- [x] G2. Reactor Warden has two phases and destructible subcomponents.
 - [x] G3. Boss phase transitions are deterministic and cannot deadlock.
 - [x] G4. Boss health UI appears only when appropriate and reaches zero exactly once.
-- [ ] G5. Boss defeat cannot leave hostile projectiles active during the completion sequence.
+- [x] G5. Boss defeat cannot leave hostile projectiles active during the completion sequence.
 
 ## H. Input and responsive behavior
 
@@ -83,8 +83,8 @@ Check a box only after recording verification evidence in PROGRESS.md.
 ## J. Quality and deployment
 
 - [ ] J1. A Playwright smoke test starts a game, moves, jumps, fires, pauses, resumes, and returns to title.
-- [ ] J2. Playwright verifies at least one checkpoint respawn flow.
-- [ ] J3. Automated tests cover weapon rate limits, damage/invulnerability, checkpoint state, storage validation, and boss phase transitions.
+- [x] J2. Playwright verifies at least one checkpoint respawn flow.
+- [x] J3. Automated tests cover weapon rate limits, damage/invulnerability, checkpoint state, storage validation, and boss phase transitions.
 - [ ] J4. A ten-minute automated or scripted soak test shows bounded enemy/projectile counts and no uncaught errors.
 - [x] J5. `dist/` works when served as static files with SPA fallback behavior configured if needed.
 - [x] J6. Cloudflare Pages settings are documented as build command `npm run build` and output directory `dist`.

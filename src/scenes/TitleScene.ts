@@ -70,6 +70,7 @@ export class TitleScene extends Phaser.Scene {
       e.preventDefault();
       const audio = this.registry.get('audio') as AudioService | undefined;
       audio?.unlock();
+      this.registry.set('currentLevelIndex', 0);
       this.scene.start(SCENE_KEYS.level);
     };
     window.addEventListener('keydown', this.onStart);
