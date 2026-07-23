@@ -2,39 +2,54 @@
 
 ## Current status
 
-- Current milestone: M4 - Level 2 and final flow (COMPLETE this iteration)
-- Overall state: M0-M4 complete; full quality gate GREEN
-- Last verified commit: d4f3086 (M3); the M4 commit created this iteration verifies the working tree below (resolve with `git log -1`)
-- Last full quality gate: 2026-07-22 21:31 local - all five commands exit 0 (see table)
+- Current milestone: M5 - Input, responsive UI, and persistence (COMPLETE this iteration)
+- Overall state: M0-M5 complete; full quality gate GREEN
+- Last verified commit: fe2a090 (M4); the M5 commit created this iteration verifies the working tree below (resolve with `git log -1`)
+- Last full quality gate: 2026-07-23 07:15 local - all five commands exit 0 (see table)
 
 ## Acceptance summary
 
-- Completed to date: A1-A8, B1-B3, B6, C1, C3, C5, C6, D1, D2, D5, E1-E5, F1-F4, F6, G1-G5, I2-I4, J2, J3, J5, J6, J8 (42)
-- Newly completed this iteration (M4):
-  - F2 Level 2 (Fortress Interior) is complete from start through the Reactor Warden (E2E: Level 1 -> results -> Level 2 -> boss defeat -> final completion screen).
-  - F1 Level 1's completion path is now exercised end-to-end in the sequencing E2E (structurally complete; boss fights remain verified at FSM/unit level - see playtest note).
-  - G2 Reactor Warden has two phases, each gated by destructible subcomponents; immune while guarded, vulnerable when cleared (unit-tested + integrated).
-  - G5 boss defeat clears hostile projectiles (death-transition handler), so none are active during the completion sequence.
-  - C5 fire-rate limits are enforced in `stepWeapon` regardless of input frequency (unit-tested since M1).
-  - C6 the full life-loss loop is E2E-verified: pit death -> checkpoint respawn with invulnerability; game over -> restart-level (R) and return-to-title (T) with no stale state.
-  - B6 pause/resume (M3 E2E) + restart-level + return-to-title (M4 E2E) all verified clean; the scene-instance reuse bug that broke restarts was found and fixed.
-  - D1 all three weapons behave per their data definitions (rate, spread angles, damage, TTL; unit-tested).
-  - E1 all four archetypes (Runner, Sentry, Drone, Grenadier) now have distinct, unit-tested finite-state behaviour.
-  - J2 Playwright verifies a checkpoint respawn flow (pit death -> respawn at last checkpoint with invulnerability).
-  - J3 automated tests now cover all five areas: weapon rate limits, damage/invulnerability, checkpoint state, storage validation, and boss phase transitions.
-- Strengthened this iteration: fixed a scene-instance-reuse crash (stale render-pool arrays after `scene.start` restarts indexed past the level data and killed the game loop); cleared pools on `create()`.
+- Completed to date: A1-A8, B1-B6, C1-C6, D1, D2, D5, E1-E5, F1-F4, F6, G1-G5, H1-H5, I1-I4, J1-J3, J5, J6, J8 (53)
+- Newly completed this iteration (M5):
+  - C4 eight-direction aiming works standing, moving, crouching, and airborne (aim modifiers rotate the whole spread fan; E2E asserts fire angles -90/-45/90/0).
+  - B4 the Help scene lists keyboard, gamepad, and touch controls (E2E asserts all three families are listed).
+  - B5 settings (volumes, mute, reduced-flash, control preference) persist through versioned, validated storage; a pause-menu mute toggle survives a reload (E2E).
+  - H1 keyboard covers every action; the J1 smoke test starts a game with a real keyboard Enter press.
+  - H2 a standard gamepad drives move/aim/jump/fire/pause (fake Gamepad API pad in E2E).
+  - H3 touch buttons (move, aim-up, jump, fire, pause) work at a phone viewport (tap-driven E2E).
+  - H4 the canvas preserves 16:9 and stays visible at desktop/tablet/phone viewports (E2E across three sizes).
+  - H5 window blur auto-pauses and clears held keys; the simulation freezes (E2E).
+  - I1 best score and settings survive a browser reload (E2E for both).
+  - J1 the consolidated smoke test covers start/move/jump/fire/pause/resume/return-to-title.
+  - C2 jumping, landing, variable jump height, and one-way drop-through are implemented, unit-tested, and exercised in-level (smoke E2E jumps and lands).
+- Strengthened this iteration: `bestScore` added to the versioned settings schema; AudioService settings literal unified to `DEFAULT_SETTINGS`; pause now publishes runtime state and polls the gamepad while paused (so Start can resume).
 - Partially addressed (NOT checked; recorded for traceability):
-  - C2 jumping + variable jump height + one-way drop-through implemented & unit-tested; an in-level one-way E2E deferred.
-  - B5/I1 settings schema + StorageService exist and pause toggles mutate in-session settings, but cross-reload load/save wiring is deferred to M5.
-  - F5 doors + moving platforms + level transitions verified trap-free; destructible containers still unimplemented.
-  - D3 collision categories are centralized and projectile ownership is explicit, but the category bitmask is not yet consulted by collision code.
-  - C7 respawn places the player on ground at checkpoints and clears projectiles, but no test yet asserts non-overlap with enemies at respawn.
-  - J1 the E2E suite collectively covers start/move/jump/fire/pause/resume/return-to-title, but no single consolidated smoke test yet.
-  - J4 soak test deferred to M7.
-  - H1 keyboard is fully wired with an on-screen hint; a full human playthrough remains a manual-playtest item.
-- Remaining: input/responsive/persistence polish (M5), original asset + audio polish (M6), soak + hardening + final playtest (M7).
+  - C7 respawn places the player on ground at checkpoints and clears projectiles, but no test asserts non-overlap with enemies at respawn (M7).
+  - D3 collision categories are centralized and ownership is explicit, but the category bitmask is not consulted by collision code.
+  - D4/J4 projectile bounds + soak test deferred to M7.
+  - F5 doors/moving platforms/level transitions verified trap-free; destructible containers still unimplemented.
+  - J7 asset manifest: still zero non-code assets (all procedural); formal confirmation lands with M6.
+- Remaining: original asset + audio polish (M6); soak test, destructible containers, C7, D3/D4 evidence, and the final manual playtest (M7).
 
 ## Current iteration plan
+
+M5 - Input, responsive UI, and persistence (selected: earliest incomplete milestone; M0-M4 prerequisites satisfied). Plan, reusing the input adapter, settings schema/StorageService, AudioService, and debug bridge:
+
+1. Persistence: add `bestScore` to the versioned settings schema; load settings at boot into the registry; LevelScene/pause read + mutate + save them; results/game-over persist best score. E2E: change a setting, reload, assert it survives (B5, I1).
+2. Eight-direction aiming: pure `simulation/aim.ts` (angle from input+facing; velocity rotation preserving spread); InputState `aimUp`/`aimDown`; keyboard mapping; LevelScene rotates projectile velocities and reports the last fire angle for tests; debug aim input commands; unit + E2E (C4).
+3. Gamepad: `input/GamepadInput.ts` - pure snapshot->InputState mapping (D-pad/stick move+aim, A jump, X/RB fire, Start pause) plus a browser adapter merged into the scene input; E2E via a stubbed `navigator.getGamepads` fake pad (H2).
+4. Touch: `ui/touch/TouchControls.ts` - DOM buttons (left/right, aim-up, jump, fire, pause) shown on coarse-pointer devices, merged into the scene input; E2E at a phone viewport with taps (H3).
+5. Responsive + fullscreen: verify aspect-preserving canvas at desktop/tablet/phone viewports (H4 E2E); F10 fullscreen toggle.
+6. Help: HelpScene listing keyboard/gamepad/touch controls (B4) reachable from the title; E2E.
+7. Reduced-flash + focus-loss: telegraph flashes become steady when reducedFlash is on; window blur auto-pauses and clears held keys (H5 E2E).
+8. Consolidated Playwright smoke test: real New Game start, move, jump, fire, pause, resume, return to title (J1).
+9. Run smallest checks first, then the full gate; fix failures without weakening tests; update PROGRESS + acceptance; one local commit.
+
+M5 status: COMPLETE this iteration. Full quality gate GREEN (lint 0, typecheck 0, test 109/109, e2e 18/18, build 375.64 kB gzip). Three integration defects found via the new E2E flows and fixed without weakening tests: (1) pause never published runtime state while paused, so gamepad/blur/touch pauses were invisible to tests; (2) the gamepad adapter was only polled in stepOnce, so Start could not resume from pause; (3) the airborne-down aim E2E raced the weapon cooldown (fixed with deterministic waits, not a logic change). Touch UI also gained a debug `touch=1` force flag for automation, mirroring `renderer=canvas`.
+
+Next iteration (after M5): M6 - original asset + audio polish (replace temp shapes only where needed, documented/permissive audio, asset manifest + licenses, telegraph/readability polish).
+
+## M4 (completed) iteration plan
 
 M4 - Level 2 + final flow (selected: earliest incomplete milestone; M0-M3 prerequisites satisfied). Plan, reusing the M3 level schema/loader, platformer, boss FSM, damage ledger, and debug bridge:
 
@@ -86,7 +101,21 @@ Next iteration (after M2): M3 - Level 1 vertical slice (Jungle Outpost, checkpoi
 
 ## Completed work
 
-M4 (this iteration):
+M5 (this iteration):
+
+- `src/persistence/schema.ts` - `bestScore` added (versioned, validated, non-negative integer); `src/main.ts` loads settings into the registry at boot.
+- `src/scenes/LevelScene.ts` - reads settings from the registry; pause toggles persist them; `awardScore` command; aim rotation in firing + `fireAngle` in runtime; gamepad/touch merged into input; blur auto-pause + key clear; reduced-flash steady telegraphs; publish runtime + poll gamepad while paused.
+- `src/scenes/ResultsScene.ts` + `src/scenes/GameOverScene.ts` - persist + display the best score.
+- `src/audio/AudioService.ts` - settings literal unified to `DEFAULT_SETTINGS`.
+- New `src/simulation/aim.ts` - pure eight-direction aim angle + velocity rotation.
+- New `src/input/GamepadInput.ts` - pure snapshot mapping + adapter (A jump, X/RB fire, D-pad/stick move+aim, Start pause edge).
+- New `src/ui/touch/TouchControls.ts` - DOM touch buttons (move, aim-up, jump, fire, pause) for touch devices (plus a debug `touch=1` force flag).
+- `src/input/InputState.ts` - `aimUp`/`aimDown` fields; `src/input/KeyboardInput.ts` - aim mapping + `clear()`; `src/debug/debugBridge.ts` - aim + `awardScore` command names.
+- New `src/scenes/HelpScene.ts` - controls/help screen (B4); `src/scenes/TitleScene.ts` - help hint + F10 note + H shortcut; `src/app/config.ts`/`createGame.ts` - help scene registration; `src/main.ts` - F10 fullscreen toggle.
+- New `tests/unit/{aim,gamepad}.test.ts`; `tests/unit/settings.test.ts` bestScore cases; new `tests/e2e/{input,responsive,settings,smoke}.spec.ts` (C4 aiming, H2 gamepad, H5 focus-loss, H4 aspect, H3 touch, B5/I1 persistence, B4 help, J1 smoke).
+- `ACCEPTANCE_CRITERIA.md` - checked C2, C4, B4, B5, H1-H5, I1, J1.
+
+M4 (previous iteration, retained for history):
 
 - `src/levels/levelSchema.ts` - added `MovingPlatformDef` + `DoorDef` + LevelDef fields; `src/levels/levelLoader.ts` validates them; `src/levels/level1.ts` supplies the new (empty) fields.
 - New `src/levels/level2.ts` - original Fortress Interior (moving platforms, a trigger-gated door, hazards, 3 checkpoints, pickups, enemy remix, Reactor Warden arena).
@@ -165,6 +194,11 @@ No `public/assets/` files were added in either iteration; all visuals remain pro
 | 2026-07-22 21:31 (M4) | `npm run test` | PASS (exit 0) | Vitest 4.1.10: **22 files, 99 tests passed** |
 | 2026-07-22 21:31 (M4) | `npm run test:e2e` | PASS (exit 0) | Playwright 1.61.1, chromium: **7 passed** (title + M1/M2 sandbox + level1 + level2) |
 | 2026-07-22 21:31 (M4) | `npm run build` | PASS (exit 0) | Vite 8.1.5; `dist/assets/index-*.js` 1,429.92 kB raw / **373.08 kB gzip** (under 2.5 MB budget) |
+| 2026-07-23 07:15 (M5) | `npm run lint` | PASS (exit 0) | `eslint .`, no warnings |
+| 2026-07-23 07:15 (M5) | `npm run typecheck` | PASS (exit 0) | `tsc --noEmit`, strict mode |
+| 2026-07-23 07:15 (M5) | `npm run test` | PASS (exit 0) | Vitest 4.1.10: **24 files, 109 tests passed** |
+| 2026-07-23 07:15 (M5) | `npm run test:e2e` | PASS (exit 0) | Playwright 1.61.1, chromium: **18 passed** (title + sandbox x2 + level1 + level2 x3 + input x3 + responsive x4 + settings x3 + smoke) |
+| 2026-07-23 07:15 (M5) | `npm run build` | PASS (exit 0) | Vite 8.1.5; `dist/assets/index-*.js` 1,437.35 kB raw / **375.64 kB gzip** (under 2.5 MB budget) |
 
 Build advisory unchanged from M0: Vite warns that the single Phaser-containing chunk exceeds 500 kB (1.39 MB raw / 0.36 MB gzip). Expected at this stage, within the ARCHITECTURE.md budget; not a failure.
 
@@ -180,6 +214,8 @@ Build advisory unchanged from M0: Vite warns that the single Phaser-containing c
 - M3 debugging note: the Grenadier reposition direction was hard to settle by inspection because the world x-convention (right = +x, verified against the player) made several ternary formulations look right while behaving opposite; isolating the rule into `enemyReposition.ts` with branch-marker diagnostics and a dedicated unit test resolved it cleanly.
 - M4: Level 2 renders an industrial interior (olive moving platforms traversing the pit and a vertical lift, an orange door that turns translucent while open, cyan Reactor Warden turrets, and the phase-gated core). The game-over screen (score + R/T actions) and the final MISSION COMPLETE screen are keyboard-navigable. Boss-fight playthroughs are verified at FSM/unit level; a full human keyboard playthrough of both levels remains a manual-playtest item for M7 (TEST_PLAN section 6).
 - M4 debugging note: a scene-restart crash (Phaser reuses the scene instance; un-cleared render-pool arrays indexed past the level data and killed the game loop) was masked for several runs by a stale `vite preview` from an early manual probe - the Playwright `reuseExistingServer` option reused it, so the fixed bundle never ran. Always tear down manual probe servers; treat "the fix didn't change anything" as a signal to check what is actually being served.
+- M5: the game now presents a proper front end - title with start/help hints, a controls/help screen covering all three input families, and pause with live mute/reduced-flash toggles that survive reload. Touch devices get on-screen buttons (verified by taps at a phone viewport); gamepads drive every action (verified through a stubbed Gamepad API); F10 toggles fullscreen. Aiming works in eight directions and the whole scatter fan rotates with the aim. A full human playthrough of both levels on keyboard/gamepad/touch remains the M7 manual-playtest item.
+- M5 debugging note: three integration defects were caught by the new E2E flows (unpublished pause state; gamepad not polled while paused; an aim-flow cooldown race in the test itself) - all fixed at the source, no test weakened.
 
 ## Known issues
 
@@ -187,4 +223,4 @@ Build advisory unchanged from M0: Vite warns that the single Phaser-containing c
 
 ## Next recommended task
 
-Proceed to **M5 - Input, responsive UI, and persistence**: complete gamepad support (Gamepad API normalization into the shared InputState), touch controls for phone-sized viewports, responsive scaling verification + fullscreen, settings load/save across reload (wire StorageService into boot + pause), best-score persistence with schema validation, the reduced-flash option applied to telegraph flashes, and focus-loss input neutralization. Targets H1-H5, B4, B5, I1 and the consolidated J1 smoke test. Reuse the input adapter, settings schema, and debug bridge; keep the full quality gate green.
+Proceed to **M6 - Original asset and audio polish**: replace temporary rectangles only where readability genuinely benefits with original generated/permissive assets (recorded in the ASSET_POLICY.md manifest - J7), expand the procedural WebAudio set (music loop + full SFX coverage, still failure-safe), improve visual telegraphs/readability without expanding scope, and confirm the manifest is complete and licenses are documented. Then M7 (hardening: soak test, destructible containers, C7/D3/D4 evidence, final manual playtest).

@@ -2,11 +2,13 @@ import Phaser from 'phaser';
 import { LOGICAL_WIDTH, SCENE_KEYS } from '../app/config';
 import { LEVELS } from '../levels/levels';
 import { reportRuntime, reportScene } from '../debug/debugBridge';
+import { DEFAULT_SETTINGS, type Settings } from '../persistence/schema';
+import { saveSettings } from '../persistence/StorageService';
 
 /**
  * Level-complete / final-completion screen. After a non-final level it offers
  * the next level; after the last level it shows mission completion. Enter or
- * Space continues.
+ * Space continues. Persists the best score through validated storage.
  */
 export class ResultsScene extends Phaser.Scene {
   private onContinue?: (e: KeyboardEvent) => void;
@@ -20,7 +22,16 @@ export class ResultsScene extends Phaser.Scene {
     const score = (this.registry.get('lastScore') as number | undefined) ?? 0;
     const idx = (this.registry.get('currentLevelIndex') as number | undefined) ?? 0;
     const final = idx >= LEVELS.length - 1;
-    reportRuntime({ score, final, scene: SCENE_KEYS.results });
+
+    const settings = (this.registry.get('settings') as Settings | undefined) ?? { ...DEFAULT_SETTINGS };
+    const bestScore = Math.max(settings.bestScore, score);
+    if (bestScore !== settings.bestScore) {
+      const next = { ...settings, bestScore };
+      this.registry.set('settings', next);
+      saveSettings(next);
+    }
+
+    reportRuntime({ score, bestScore, final, scene: SCENE_KEYS.results });
 
     const cx = LOGICAL_WIDTH / 2;
     this.add
@@ -37,7 +48,7 @@ export class ResultsScene extends Phaser.Scene {
         .setOrigin(0.5);
     }
     this.add
-      .text(cx, final ? 296 : 270, 'SCORE ' + score, { fontFamily: 'monospace', fontSize: '26px', color: '#e8f1ff' })
+      .text(cx, final ? 296 : 270, 'SCORE ' + score + '   BEST ' + bestScore, { fontFamily: 'monospace', fontSize: '24px', color: '#e8f1ff' })
       .setOrigin(0.5);
     const prompt = this.add
       .text(cx, 350, final ? 'PRESS ENTER OR SPACE - TITLE' : 'PRESS ENTER OR SPACE - NEXT LEVEL', {

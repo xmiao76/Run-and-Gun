@@ -24,6 +24,7 @@ export const LOGICAL_HEIGHT = 540;
 export const SCENE_KEYS = {
   boot: 'boot',
   title: 'title',
+  help: 'help',
   sandbox: 'sandbox',
   level: 'level',
   results: 'results',

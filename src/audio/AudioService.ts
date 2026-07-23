@@ -7,7 +7,7 @@
  * method is a silent no-op so gameplay is never blocked (I4).
  */
 
-import { type Settings } from '../persistence/schema';
+import { DEFAULT_SETTINGS, type Settings } from '../persistence/schema';
 
 export type SfxName = 'jump' | 'shoot' | 'hit' | 'pickup' | 'explosion' | 'complete';
 
@@ -56,7 +56,7 @@ export function createAudioService(contextFactory: () => MinimalContext | null =
   let master: MinimalGain | null = null;
   let musicOsc: MinimalOscillator | null = null;
   let musicGain: MinimalGain | null = null;
-  let settings: Settings = { version: 1, musicVolume: 0.6, sfxVolume: 0.8, mute: false, reducedFlash: false, controls: 'keyboard' };
+  let settings: Settings = { ...DEFAULT_SETTINGS };
 
   function ensure(): boolean {
     if (ctx) {

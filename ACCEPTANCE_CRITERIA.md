@@ -18,16 +18,16 @@ Check a box only after recording verification evidence in PROGRESS.md.
 - [x] B1. The site loads without an uncaught browser console error.
 - [x] B2. The title screen displays the original title Operation Iron Echo.
 - [x] B3. New Game starts Level 1 in a controlled playable state.
-- [ ] B4. Help accurately lists keyboard, gamepad, and touch controls.
-- [ ] B5. Settings persist volume, mute, reduced-flash, and control preferences.
+- [x] B4. Help accurately lists keyboard, gamepad, and touch controls.
+- [x] B5. Settings persist volume, mute, reduced-flash, and control preferences.
 - [x] B6. Pause, resume, restart-level, and return-to-title work without stale state.
 
 ## C. Player mechanics
 
 - [x] C1. Horizontal movement is frame-rate independent and respects solid collisions.
-- [ ] C2. Jumping, landing, variable jump height, and one-way platform drop-through are reliable.
+- [x] C2. Jumping, landing, variable jump height, and one-way platform drop-through are reliable.
 - [x] C3. Crouching changes the player's pose and collision behavior safely.
-- [ ] C4. Eight-direction aiming and firing work in standing, moving, crouching, and airborne states.
+- [x] C4. Eight-direction aiming and firing work in standing, moving, crouching, and airborne states.
 - [x] C5. Fire-rate limits prevent input frequency from bypassing weapon balance.
 - [x] C6. Player damage, temporary invulnerability, death, life loss, checkpoint respawn, and game over are correct.
 - [ ] C7. The player never respawns inside a solid tile, hazard, enemy, or active projectile.
@@ -67,22 +67,22 @@ Check a box only after recording verification evidence in PROGRESS.md.
 
 ## H. Input and responsive behavior
 
-- [ ] H1. Keyboard controls are fully playable.
-- [ ] H2. A standard gamepad is fully playable after connection and user interaction.
-- [ ] H3. Touch controls allow movement, jump, aim/fire, pause, and basic completion on a phone-sized viewport.
-- [ ] H4. The canvas preserves aspect ratio and remains visible at common desktop, tablet, and phone viewports.
-- [ ] H5. Losing window focus pauses or safely neutralizes held inputs.
+- [x] H1. Keyboard controls are fully playable.
+- [x] H2. A standard gamepad is fully playable after connection and user interaction.
+- [x] H3. Touch controls allow movement, jump, aim/fire, pause, and basic completion on a phone-sized viewport.
+- [x] H4. The canvas preserves aspect ratio and remains visible at common desktop, tablet, and phone viewports.
+- [x] H5. Losing window focus pauses or safely neutralizes held inputs.
 
 ## I. Persistence and resilience
 
-- [ ] I1. Best score and settings survive a browser reload.
+- [x] I1. Best score and settings survive a browser reload.
 - [x] I2. Saved local data is versioned and schema-validated.
 - [x] I3. Corrupt localStorage data does not prevent the game from starting.
 - [x] I4. Audio failure does not prevent gameplay.
 
 ## J. Quality and deployment
 
-- [ ] J1. A Playwright smoke test starts a game, moves, jumps, fires, pauses, resumes, and returns to title.
+- [x] J1. A Playwright smoke test starts a game, moves, jumps, fires, pauses, resumes, and returns to title.
 - [x] J2. Playwright verifies at least one checkpoint respawn flow.
 - [x] J3. Automated tests cover weapon rate limits, damage/invulnerability, checkpoint state, storage validation, and boss phase transitions.
 - [ ] J4. A ten-minute automated or scripted soak test shows bounded enemy/projectile counts and no uncaught errors.

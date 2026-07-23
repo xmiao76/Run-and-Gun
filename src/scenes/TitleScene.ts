@@ -53,6 +53,14 @@ export class TitleScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     this.add
+      .text(centerX, 366, 'H - HELP / CONTROLS      F10 - FULLSCREEN', {
+        fontFamily: 'monospace',
+        fontSize: '14px',
+        color: '#5c6c8c'
+      })
+      .setOrigin(0.5);
+
+    this.add
       .text(12, LOGICAL_HEIGHT - 16, 'v' + GAME_VERSION + ' - Operation Iron Echo', {
         fontFamily: 'monospace',
         fontSize: '14px',
@@ -64,6 +72,11 @@ export class TitleScene extends Phaser.Scene {
     this.tweens.add({ targets: prompt, alpha: 0.3, duration: 700, yoyo: true, repeat: -1 });
 
     this.onStart = (e: KeyboardEvent): void => {
+      if (e.code === 'KeyH') {
+        e.preventDefault();
+        this.scene.start(SCENE_KEYS.help);
+        return;
+      }
       if (e.code !== 'Enter' && e.code !== 'Space') {
         return;
       }

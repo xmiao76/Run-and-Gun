@@ -39,6 +39,7 @@ export type DebugCommandName =
   | 'defeatBoss'
   | 'completeLevel'
   | 'triggerGameOver'
+  | 'awardScore'
   | 'teleportPlayer'
   | 'spawnEnemyAt'
   | 'report';
@@ -64,6 +65,10 @@ export type InputCommandName =
   | 'jumpRelease'
   | 'firePress'
   | 'fireRelease'
+  | 'holdAimUp'
+  | 'releaseAimUp'
+  | 'holdAimDown'
+  | 'releaseAimDown'
   | 'resetInput';
 
 declare global {
@@ -159,6 +164,18 @@ function applyInputCommand(name: InputCommandName): void {
       break;
     case 'fireRelease':
       debugInput.fireHeld = false;
+      break;
+    case 'holdAimUp':
+      debugInput.aimUp = true;
+      break;
+    case 'releaseAimUp':
+      debugInput.aimUp = false;
+      break;
+    case 'holdAimDown':
+      debugInput.aimDown = true;
+      break;
+    case 'releaseAimDown':
+      debugInput.aimDown = false;
       break;
     case 'resetInput':
       Object.assign(debugInput, createNeutralInput());

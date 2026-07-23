@@ -11,12 +11,15 @@ import { GAME_VERSION, LOGICAL_HEIGHT, LOGICAL_WIDTH, SCENE_KEYS } from '../app/
 import { type AudioService } from '../audio/AudioService';
 import {
   getDebugInput,
+  isDebugEnabled,
   registerCommand,
   reportRuntime,
   reportScene
 } from '../debug/debugBridge';
 import { createKeyboardInput, type KeyboardInput } from '../input/KeyboardInput';
+import { createGamepadInput, type GamepadInput } from '../input/GamepadInput';
 import { createNeutralInput, mergeInput, type InputState } from '../input/InputState';
+import { createTouchControls, isTouchDevice, type TouchControls } from '../ui/touch/TouchControls';
 import { loadLevel, type LevelDef } from '../levels/levelLoader';
 import { type Rect } from '../levels/levelSchema';
 import { LEVELS } from '../levels/levels';
@@ -42,6 +45,7 @@ import {
   type EnemyFireIntent,
   type EnemyState
 } from '../simulation/enemies';
+import { aimAngle, rotateVelocity } from '../simulation/aim';
 import { applyDamage, createHealthState, tickInvuln, type HealthState } from '../simulation/health';
 import { collectPickups, type Pickup } from '../simulation/pickups';
 import {
@@ -84,6 +88,7 @@ import {
   type WeaponState
 } from '../simulation/weapons';
 import { DEFAULT_SETTINGS, type Settings } from '../persistence/schema';
+import { saveSettings } from '../persistence/StorageService';
 
 const MAX_ENEMIES = 12;
 const MAX_PROJECTILES = 96;
@@ -138,9 +143,13 @@ export class LevelScene extends Phaser.Scene {
   private checkpoint!: CheckpointData;
   private lastCheckpointId = '';
   private cameraX = 0;
+  private lastFireAngle = 0;
   private clock: ClockState = createClock();
   private stepInput: InputState = createNeutralInput();
   private keyboard: KeyboardInput = createKeyboardInput();
+  private gamepad: GamepadInput = createGamepadInput();
+  private touch: TouchControls | null = null;
+  private onBlur: (() => void) | null = null;
   private ledger: DamageLedger = createDamageLedger();
   private nextId = 1;
   private paused = false;
@@ -231,8 +240,16 @@ export class LevelScene extends Phaser.Scene {
     this.overlaySubText.setVisible(false);
     this.keyboard.attach(window);
     LevelScene.attachKeys();
+    this.touch = this.shouldShowTouchControls() ? createTouchControls() : null;
+    this.onBlur = (): void => {
+      // H5: losing window focus pauses and neutralizes held inputs.
+      this.paused = true;
+      this.keyboard.clear();
+    };
+    window.addEventListener('blur', this.onBlur);
     this.registerDebugCommands();
     reportScene(SCENE_KEYS.level);
+    this.settings = (this.registry.get('settings') as Settings | undefined) ?? { ...DEFAULT_SETTINGS };
     this.publishRuntime();
     const audio = this.registry.get('audio') as AudioService | undefined;
     audio?.setSettings(this.settings);
@@ -242,19 +259,31 @@ export class LevelScene extends Phaser.Scene {
   public shutdown(): void {
     this.keyboard.detach(window);
     LevelScene.detachKeys();
+    if (this.onBlur) {
+      window.removeEventListener('blur', this.onBlur);
+      this.onBlur = null;
+    }
+    if (this.touch) {
+      this.touch.destroy();
+      this.touch = null;
+    }
     const audio = this.registry.get('audio') as AudioService | undefined;
     audio?.setMusic(false);
   }
 
   public override update(_time: number, deltaMs: number): void {
-    const esc = this.keyboardEsc();
+    const esc = this.keyboardEsc() || this.gamepad.pauseEdge() || (this.touch?.consumePauseEdge() ?? false);
     if (esc && !this.prevEsc) {
       this.paused = !this.paused;
     }
     this.prevEsc = esc;
 
     if (this.paused) {
+      // Keep the gamepad Start-button edge tracking alive while paused so it
+      // can resume the game (stepOnce, which normally polls it, is frozen).
+      this.gamepad.build();
       this.handlePauseInput();
+      this.publishRuntime();
       this.render();
       this.renderPauseOverlay();
       return;
@@ -270,6 +299,17 @@ export class LevelScene extends Phaser.Scene {
 
   private keyboardEsc(): boolean {
     return LevelScene.isDown('Escape');
+  }
+
+  /** Real touch devices always get touch controls; a debug `touch` query param forces them for automation. */
+  private shouldShowTouchControls(): boolean {
+    if (isTouchDevice()) {
+      return true;
+    }
+    if (!isDebugEnabled()) {
+      return false;
+    }
+    return new URLSearchParams(window.location.search).has('touch');
   }
 
   private makeId(prefix: string): string {
@@ -392,6 +432,12 @@ export class LevelScene extends Phaser.Scene {
       this.publishRuntime();
       return { ok: true };
     });
+    registerCommand('awardScore', (payload) => {
+      const amount = typeof payload === 'number' ? payload : 0;
+      this.score += Math.max(0, Math.floor(amount));
+      this.publishRuntime();
+      return { ok: true, score: this.score };
+    });
     registerCommand('report', () => {
       this.publishRuntime();
       return { ok: true };
@@ -408,7 +454,9 @@ export class LevelScene extends Phaser.Scene {
       fireHeld: d.fireHeld,
       firePressed: d.firePressed,
       crouch: d.crouch,
-      drop: d.drop
+      drop: d.drop,
+      aimUp: d.aimUp,
+      aimDown: d.aimDown
     };
     d.jumpPressed = false;
     d.firePressed = false;
@@ -421,7 +469,9 @@ export class LevelScene extends Phaser.Scene {
 
   private stepOnce(): void {
     const debug = this.readDebugInput();
-    this.stepInput = mergeInput(this.keyboard.build(this.stepInput), debug);
+    const touchInput = this.touch ? this.touch.read() : createNeutralInput();
+    const device = mergeInput(this.keyboard.build(this.stepInput), this.gamepad.build());
+    this.stepInput = mergeInput(device, mergeInput(debug, touchInput));
 
     if (this.health.gameOver) {
       this.goToGameOver();
@@ -533,12 +583,19 @@ export class LevelScene extends Phaser.Scene {
     }
     if (fireResult.projectiles.length > 0) {
       const h = currentHeight(this.player);
-      const spawned = fireResult.projectiles.map((p): PlayerBullet => ({
-        ...p,
-        id: this.makeId('pb'),
-        x: this.player.x + (this.player.facing > 0 ? PLAYER_WIDTH : 0),
-        y: this.player.y - h / 2
-      }));
+      const angle = aimAngle(this.stepInput, this.player.facing, this.player.grounded);
+      this.lastFireAngle = angle;
+      const spawned = fireResult.projectiles.map((p): PlayerBullet => {
+        const rotated = rotateVelocity(p.vx, p.vy, angle);
+        return {
+          ...p,
+          vx: rotated.vx,
+          vy: rotated.vy,
+          id: this.makeId('pb'),
+          x: this.player.x + (this.player.facing > 0 ? PLAYER_WIDTH : 0),
+          y: this.player.y - h / 2
+        };
+      });
       this.playerBullets = this.playerBullets.concat(spawned).slice(-MAX_PROJECTILES);
     }
     this.playerBullets = stepProjectiles(this.playerBullets, FIXED_DT);
@@ -804,15 +861,22 @@ export class LevelScene extends Phaser.Scene {
     const m = LevelScene.isDown('KeyM');
     if (m && !this.prevM) {
       this.settings = { ...this.settings, mute: !this.settings.mute };
-      const audio = this.registry.get('audio') as AudioService | undefined;
-      audio?.setSettings(this.settings);
+      this.persistSettings();
     }
     this.prevM = m;
     const f = LevelScene.isDown('KeyF');
     if (f && !this.prevF) {
       this.settings = { ...this.settings, reducedFlash: !this.settings.reducedFlash };
+      this.persistSettings();
     }
     this.prevF = f;
+  }
+
+  private persistSettings(): void {
+    this.registry.set('settings', this.settings);
+    saveSettings(this.settings);
+    const audio = this.registry.get('audio') as AudioService | undefined;
+    audio?.setSettings(this.settings);
   }
 
   private publishRuntime(): void {
@@ -826,6 +890,7 @@ export class LevelScene extends Phaser.Scene {
       lives: this.health.lives,
       invuln: this.health.invuln > 0,
       weapon: this.weapon.id,
+      fireAngle: this.lastFireAngle,
       enemyCount: this.enemies.length,
       projectileCount: this.playerBullets.length,
       enemyProjectileCount: this.enemyBullets.length,
@@ -937,7 +1002,8 @@ export class LevelScene extends Phaser.Scene {
       tele.setPosition(e.x - this.cameraX - 4, e.y - 4);
       tele.setVisible(e.telegraphing);
       if (e.telegraphing) {
-        tele.setAlpha(0.5 + 0.5 * Math.sin(performance.now() / 60));
+        // Reduced-flash option: steady outline instead of a pulsing one.
+        tele.setAlpha(this.settings.reducedFlash ? 0.9 : 0.5 + 0.5 * Math.sin(performance.now() / 60));
       }
     });
 

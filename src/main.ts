@@ -2,6 +2,7 @@ import { SCENE_KEYS } from './app/config';
 import { createGame } from './app/createGame';
 import { createAudioService } from './audio/AudioService';
 import { getDebugInput, installDebugBridge, registerCommand } from './debug/debugBridge';
+import { loadSettings } from './persistence/StorageService';
 
 installDebugBridge();
 
@@ -14,6 +15,27 @@ game.registry.set('debugInput', getDebugInput());
 // Failure-safe audio; scenes pull it from the registry and call unlock() on
 // the first user gesture. Stored as a singleton so settings persist in-session.
 game.registry.set('audio', createAudioService());
+
+// Versioned, validated settings (volumes, mute, reduced-flash, controls, best
+// score); corrupt or absent storage falls back to defaults.
+game.registry.set('settings', loadSettings());
+
+// Optional fullscreen toggle (F10), failure-safe per the presentation spec.
+window.addEventListener('keydown', (e) => {
+  if (e.code !== 'F10') {
+    return;
+  }
+  e.preventDefault();
+  try {
+    if (document.fullscreenElement) {
+      void document.exitFullscreen();
+    } else {
+      void document.documentElement.requestFullscreen();
+    }
+  } catch {
+    /* fullscreen unavailable; ignore */
+  }
+});
 
 // Scene-switching commands are global so they are available from any scene
 // (e.g. starting a level from the title screen). Scene-specific commands such

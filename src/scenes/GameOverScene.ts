@@ -1,10 +1,13 @@
 import Phaser from 'phaser';
 import { LOGICAL_WIDTH, SCENE_KEYS } from '../app/config';
 import { reportRuntime, reportScene } from '../debug/debugBridge';
+import { DEFAULT_SETTINGS, type Settings } from '../persistence/schema';
+import { saveSettings } from '../persistence/StorageService';
 
 /**
  * Game-over screen (GAME_REQUIREMENTS.md section 11). Shown when all lives are
- * lost. R restarts the current level; T returns to the title screen.
+ * lost. R restarts the current level; T returns to the title screen. Persists
+ * the best score through validated storage.
  */
 export class GameOverScene extends Phaser.Scene {
   private onKey?: (e: KeyboardEvent) => void;
@@ -16,14 +19,21 @@ export class GameOverScene extends Phaser.Scene {
   public create(): void {
     reportScene(SCENE_KEYS.gameOver);
     const score = (this.registry.get('lastScore') as number | undefined) ?? 0;
-    reportRuntime({ score, scene: SCENE_KEYS.gameOver });
+    const settings = (this.registry.get('settings') as Settings | undefined) ?? { ...DEFAULT_SETTINGS };
+    const bestScore = Math.max(settings.bestScore, score);
+    if (bestScore !== settings.bestScore) {
+      const next = { ...settings, bestScore };
+      this.registry.set('settings', next);
+      saveSettings(next);
+    }
+    reportRuntime({ score, bestScore, scene: SCENE_KEYS.gameOver });
 
     const cx = LOGICAL_WIDTH / 2;
     this.add
       .text(cx, 190, 'GAME OVER', { fontFamily: 'monospace', fontSize: '46px', color: '#ff7777', fontStyle: 'bold' })
       .setOrigin(0.5);
     this.add
-      .text(cx, 260, 'SCORE ' + score, { fontFamily: 'monospace', fontSize: '24px', color: '#e8f1ff' })
+      .text(cx, 260, 'SCORE ' + score + '   BEST ' + bestScore, { fontFamily: 'monospace', fontSize: '22px', color: '#e8f1ff' })
       .setOrigin(0.5);
     const prompt = this.add
       .text(cx, 340, 'R RESTART LEVEL      T TITLE', { fontFamily: 'monospace', fontSize: '18px', color: '#8fa3c7' })

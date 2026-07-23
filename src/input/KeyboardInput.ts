@@ -41,6 +41,8 @@ export interface KeyboardInput {
   build(prev: InputState): InputState;
   attach(target: Window): void;
   detach(target: Window): void;
+  /** Neutralizes all held keys (e.g. on window focus loss). */
+  clear(): void;
 }
 
 export function createKeyboardInput(): KeyboardInput {
@@ -77,7 +79,9 @@ export function createKeyboardInput(): KeyboardInput {
         fireHeld,
         firePressed: fireHeld && !prev.fireHeld,
         crouch: raw.down,
-        drop: raw.down
+        drop: raw.down,
+        aimUp: raw.jump,
+        aimDown: raw.down
       };
     },
     attach(target: Window): void {
@@ -87,6 +91,13 @@ export function createKeyboardInput(): KeyboardInput {
     detach(target: Window): void {
       target.removeEventListener('keydown', onKeyDown);
       target.removeEventListener('keyup', onKeyUp);
+    },
+    clear(): void {
+      raw.left = false;
+      raw.right = false;
+      raw.jump = false;
+      raw.fire = false;
+      raw.down = false;
     }
   };
 }

@@ -18,6 +18,8 @@ export interface Settings {
   mute: boolean;
   reducedFlash: boolean;
   controls: ControlScheme;
+  /** Highest score achieved across runs (persisted). */
+  bestScore: number;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -26,7 +28,8 @@ export const DEFAULT_SETTINGS: Settings = {
   sfxVolume: 0.8,
   mute: false,
   reducedFlash: false,
-  controls: 'keyboard'
+  controls: 'keyboard',
+  bestScore: 0
 };
 
 function volume(value: unknown, fallback: number): number {
@@ -50,6 +53,7 @@ export function parseSettings(raw: unknown): Settings {
     sfxVolume: volume(r.sfxVolume, DEFAULT_SETTINGS.sfxVolume),
     mute: typeof r.mute === 'boolean' ? r.mute : DEFAULT_SETTINGS.mute,
     reducedFlash: typeof r.reducedFlash === 'boolean' ? r.reducedFlash : DEFAULT_SETTINGS.reducedFlash,
-    controls: isControlScheme(r.controls) ? r.controls : DEFAULT_SETTINGS.controls
+    controls: isControlScheme(r.controls) ? r.controls : DEFAULT_SETTINGS.controls,
+    bestScore: typeof r.bestScore === 'number' && Number.isFinite(r.bestScore) && r.bestScore >= 0 ? Math.floor(r.bestScore) : 0
   };
 }

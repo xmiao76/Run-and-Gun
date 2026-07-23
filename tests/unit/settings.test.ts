@@ -34,6 +34,13 @@ describe('settings validation', () => {
     expect(s.reducedFlash).toBe(true);
     expect(s.controls).toBe('gamepad');
   });
+
+  it('validates bestScore as a non-negative integer with fallback to zero', () => {
+    expect(parseSettings({ bestScore: 2500 }).bestScore).toBe(2500);
+    expect(parseSettings({ bestScore: -50 }).bestScore).toBe(0);
+    expect(parseSettings({ bestScore: 'lots' }).bestScore).toBe(0);
+    expect(parseSettings({}).bestScore).toBe(0);
+  });
 });
 
 describe('storage service', () => {
