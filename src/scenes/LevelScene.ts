@@ -177,6 +177,7 @@ export class LevelScene extends Phaser.Scene {
   private pickupRects: Phaser.GameObjects.Rectangle[] = [];
   private pickupLabels: Phaser.GameObjects.Text[] = [];
   private playerRect?: Phaser.GameObjects.Rectangle;
+  private barrelRect?: Phaser.GameObjects.Rectangle;
   private bossRect?: Phaser.GameObjects.Rectangle;
   private bossTeleRect?: Phaser.GameObjects.Rectangle;
   private hudText?: Phaser.GameObjects.Text;
@@ -212,6 +213,8 @@ export class LevelScene extends Phaser.Scene {
     this.buildStaticVisuals();
     this.playerRect = this.add.rectangle(0, 0, PLAYER_WIDTH, PLAYER_HEIGHT, 0x44dd66);
     this.playerRect.setOrigin(0, 0);
+    this.barrelRect = this.add.rectangle(0, 0, 18, 4, 0x1e5c2e);
+    this.barrelRect.setOrigin(0, 0.5);
     this.bossRect = this.add.rectangle(0, 0, 64, 56, 0x884422);
     this.bossRect.setOrigin(0, 0);
     this.bossRect.setVisible(false);
@@ -500,7 +503,13 @@ export class LevelScene extends Phaser.Scene {
       return step.state;
     });
     const playerTop = this.player.y - currentHeight(this.player);
-    this.doors = this.doors.map((d) => stepDoor(d, this.player.x, playerTop, PLAYER_WIDTH, currentHeight(this.player)));
+    this.doors = this.doors.map((d) => {
+      const next = stepDoor(d, this.player.x, playerTop, PLAYER_WIDTH, currentHeight(this.player));
+      if (!d.open && next.open) {
+        this.sfx('door');
+      }
+      return next;
+    });
     const dynamicSolids = [
       ...this.level.solids,
       ...platformDeltas.map((p) => p.rect),
@@ -610,6 +619,9 @@ export class LevelScene extends Phaser.Scene {
     const h = currentHeight(this.player);
     const playerCenterY = this.player.y - h / 2;
     const result = stepBoss(this.boss, this.player.x, playerCenterY, FIXED_DT, cleared);
+    if (!this.boss.telegraphing && result.boss.telegraphing) {
+      this.sfx('telegraph');
+    }
     this.boss = result.boss;
     if (!isBossAlive(this.boss) && !this.bossDeathHandled) {
       // G5: no hostile projectiles survive into the completion sequence.
@@ -665,6 +677,9 @@ export class LevelScene extends Phaser.Scene {
     this.enemies = this.enemies.map((enemy) => {
       const canFire = activeAttacks < 2;
       const result = stepEnemy(enemy, this.player.x, this.player.y, FIXED_DT, canFire);
+      if (!enemy.telegraphing && result.enemy.telegraphing) {
+        this.sfx('telegraph');
+      }
       if (result.fireIntent) {
         intents.push(result.fireIntent);
       }
@@ -829,6 +844,7 @@ export class LevelScene extends Phaser.Scene {
     this.weapon = createWeaponState(this.checkpoint.weapon);
     this.playerBullets = [];
     this.enemyBullets = [];
+    this.sfx('respawn');
   }
 
   private goToGameOver(): void {
@@ -920,7 +936,7 @@ export class LevelScene extends Phaser.Scene {
       this.oneWayRects.push(rect);
     }
     for (const r of this.level.hazards) {
-      const rect = this.add.rectangle(0, 0, r.width, r.height, 0x3a1010);
+      const rect = this.add.rectangle(0, 0, r.width, r.height, 0x140808);
       rect.setOrigin(0, 0);
       rect.setStrokeStyle(2, 0xff5555);
       this.hazardRects.push(rect);
@@ -966,6 +982,17 @@ export class LevelScene extends Phaser.Scene {
     this.playerRect.setSize(PLAYER_WIDTH, h);
     this.playerRect.setPosition(this.player.x - this.cameraX, this.player.y - h);
     this.playerRect.setFillStyle(this.health.invuln > 0 ? 0x99ff99 : 0x44dd66);
+
+    // Aim-direction barrel indicator for readable eight-direction firing.
+    if (this.barrelRect) {
+      const angleDeg = aimAngle(this.stepInput, this.player.facing, this.player.grounded);
+      const radians = (angleDeg * Math.PI) / 180;
+      const centerX = this.player.x - this.cameraX + PLAYER_WIDTH / 2;
+      const centerY = this.player.y - h / 2;
+      this.barrelRect.setRotation(radians);
+      this.barrelRect.setPosition(centerX + Math.cos(radians) * 8, centerY + Math.sin(radians) * 8);
+      this.barrelRect.setFillStyle(this.health.invuln > 0 ? 0x7cd48c : 0x1e5c2e);
+    }
 
     this.syncPool(this.playerBulletRects, this.playerBullets.length, 8, 4, 0xffe066);
     this.playerBulletRects.forEach((rect, i) => {
@@ -1013,6 +1040,7 @@ export class LevelScene extends Phaser.Scene {
     visiblePickups.forEach((p, i) => {
       const rect = this.pickupRects[i];
       const label = this.pickupLabels[i];
+      rect.setFillStyle(pickupColor(p.weapon));
       rect.setPosition(p.x - this.cameraX, p.y);
       label.setPosition(p.x - this.cameraX + 9, p.y + 9);
       label.setText(pickupLetter(p.weapon));
@@ -1185,4 +1213,14 @@ function pickupLetter(weapon: string): string {
     return 'R';
   }
   return 'P';
+}
+
+function pickupColor(weapon: string): number {
+  if (weapon === 'scatter') {
+    return 0x33ddff;
+  }
+  if (weapon === 'rapid') {
+    return 0xff66cc;
+  }
+  return 0xffd970;
 }

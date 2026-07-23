@@ -9,7 +9,7 @@
 
 import { DEFAULT_SETTINGS, type Settings } from '../persistence/schema';
 
-export type SfxName = 'jump' | 'shoot' | 'hit' | 'pickup' | 'explosion' | 'complete';
+export type SfxName = 'jump' | 'shoot' | 'hit' | 'pickup' | 'explosion' | 'complete' | 'telegraph' | 'door' | 'respawn';
 
 const SFX: Record<SfxName, { freq: number; duration: number; type: OscillatorType }> = {
   jump: { freq: 420, duration: 0.12, type: 'square' },
@@ -17,8 +17,28 @@ const SFX: Record<SfxName, { freq: number; duration: number; type: OscillatorTyp
   hit: { freq: 160, duration: 0.14, type: 'sawtooth' },
   pickup: { freq: 880, duration: 0.12, type: 'triangle' },
   explosion: { freq: 90, duration: 0.3, type: 'sawtooth' },
-  complete: { freq: 660, duration: 0.4, type: 'triangle' }
+  complete: { freq: 660, duration: 0.4, type: 'triangle' },
+  telegraph: { freq: 520, duration: 0.16, type: 'sawtooth' },
+  door: { freq: 240, duration: 0.2, type: 'square' },
+  respawn: { freq: 330, duration: 0.25, type: 'triangle' }
 };
+
+/**
+ * Original background-music pattern (bass with a light arpeggio accent),
+ * composed for this project - not transcribed from any existing work.
+ */
+const MUSIC_PATTERN: { bass: number; arp: number | null }[] = [
+  { bass: 110.0, arp: 220.0 },
+  { bass: 110.0, arp: null },
+  { bass: 164.81, arp: 329.63 },
+  { bass: 110.0, arp: null },
+  { bass: 98.0, arp: 220.0 },
+  { bass: 110.0, arp: null },
+  { bass: 82.41, arp: 196.0 },
+  { bass: 98.0, arp: null }
+];
+const MUSIC_STEP = 0.25;
+const MUSIC_LOOP_MS = MUSIC_PATTERN.length * MUSIC_STEP * 1000;
 
 interface MinimalContext {
   currentTime: number;
@@ -54,8 +74,8 @@ export interface AudioService {
 export function createAudioService(contextFactory: () => MinimalContext | null = defaultContextFactory): AudioService {
   let ctx: MinimalContext | null = null;
   let master: MinimalGain | null = null;
-  let musicOsc: MinimalOscillator | null = null;
-  let musicGain: MinimalGain | null = null;
+  let musicTimer: ReturnType<typeof setInterval> | null = null;
+  let musicNodes: MinimalOscillator[] = [];
   let settings: Settings = { ...DEFAULT_SETTINGS };
 
   function ensure(): boolean {
@@ -77,6 +97,66 @@ export function createAudioService(contextFactory: () => MinimalContext | null =
     }
   }
 
+  function scheduleNote(freq: number, time: number, duration: number, type: OscillatorType, volume: number): void {
+    if (!ctx || !master) {
+      return;
+    }
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, time);
+    gain.gain.setValueAtTime(volume, time);
+    gain.gain.linearRampToValueAtTime(0, time + duration);
+    osc.connect(gain);
+    gain.connect(master);
+    osc.start(time);
+    osc.stop(time + duration + 0.02);
+    musicNodes.push(osc);
+  }
+
+  function scheduleLoop(): void {
+    if (!ctx) {
+      return;
+    }
+    const t0 = ctx.currentTime + 0.05;
+    MUSIC_PATTERN.forEach((step, i) => {
+      const t = t0 + i * MUSIC_STEP;
+      scheduleNote(step.bass, t, MUSIC_STEP * 0.9, 'triangle', settings.musicVolume * 0.1);
+      if (step.arp !== null) {
+        scheduleNote(step.arp, t + 0.06, MUSIC_STEP * 0.5, 'square', settings.musicVolume * 0.045);
+      }
+    });
+  }
+
+  function startMusic(): void {
+    if (!ensure() || !ctx || !master || musicTimer !== null) {
+      return;
+    }
+    try {
+      scheduleLoop();
+      musicTimer = setInterval(scheduleLoop, MUSIC_LOOP_MS);
+    } catch {
+      musicTimer = null;
+    }
+  }
+
+  function stopMusic(): void {
+    if (musicTimer !== null) {
+      clearInterval(musicTimer);
+      musicTimer = null;
+    }
+    if (ctx) {
+      for (const osc of musicNodes) {
+        try {
+          osc.stop(ctx.currentTime);
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+    musicNodes = [];
+  }
+
   return {
     unlock(): void {
       if (ensure() && ctx && ctx.state === 'suspended') {
@@ -91,9 +171,6 @@ export function createAudioService(contextFactory: () => MinimalContext | null =
       settings = next;
       if (master && ctx) {
         master.gain.setValueAtTime(settings.mute ? 0 : 1, ctx.currentTime);
-      }
-      if (musicGain && ctx) {
-        musicGain.gain.setValueAtTime(settings.mute ? 0 : settings.musicVolume * 0.15, ctx.currentTime);
       }
     },
     playSfx(name: SfxName): void {
@@ -117,39 +194,14 @@ export function createAudioService(contextFactory: () => MinimalContext | null =
       }
     },
     setMusic(on: boolean): void {
-      if (!ensure() || !ctx || !master) {
-        return;
-      }
-      try {
-        if (on && !musicOsc) {
-          musicOsc = ctx.createOscillator();
-          musicGain = ctx.createGain();
-          musicOsc.type = 'triangle';
-          musicOsc.frequency.setValueAtTime(110, ctx.currentTime);
-          musicGain.gain.setValueAtTime(settings.mute ? 0 : settings.musicVolume * 0.15, ctx.currentTime);
-          musicOsc.connect(musicGain);
-          musicGain.connect(master);
-          musicOsc.start(ctx.currentTime);
-        } else if (!on && musicOsc) {
-          musicOsc.stop(ctx.currentTime);
-          musicOsc = null;
-          musicGain = null;
-        }
-      } catch {
-        musicOsc = null;
-        musicGain = null;
+      if (on) {
+        startMusic();
+      } else {
+        stopMusic();
       }
     },
     stop(): void {
-      try {
-        if (musicOsc && ctx) {
-          musicOsc.stop(ctx.currentTime);
-        }
-      } catch {
-        /* ignore */
-      }
-      musicOsc = null;
-      musicGain = null;
+      stopMusic();
     }
   };
 }

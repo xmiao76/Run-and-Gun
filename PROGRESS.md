@@ -2,36 +2,40 @@
 
 ## Current status
 
-- Current milestone: M5 - Input, responsive UI, and persistence (COMPLETE this iteration)
-- Overall state: M0-M5 complete; full quality gate GREEN
-- Last verified commit: fe2a090 (M4); the M5 commit created this iteration verifies the working tree below (resolve with `git log -1`)
-- Last full quality gate: 2026-07-23 07:15 local - all five commands exit 0 (see table)
+- Current milestone: M6 - Original asset and audio polish (COMPLETE this iteration)
+- Overall state: M0-M6 complete; full quality gate GREEN
+- Last verified commit: eb43d5f (M5); the M6 commit created this iteration verifies the working tree below (resolve with `git log -1`)
+- Last full quality gate: 2026-07-23 12:39 local - all five commands exit 0 (see table)
 
 ## Acceptance summary
 
-- Completed to date: A1-A8, B1-B6, C1-C6, D1, D2, D5, E1-E5, F1-F4, F6, G1-G5, H1-H5, I1-I4, J1-J3, J5, J6, J8 (53)
-- Newly completed this iteration (M5):
-  - C4 eight-direction aiming works standing, moving, crouching, and airborne (aim modifiers rotate the whole spread fan; E2E asserts fire angles -90/-45/90/0).
-  - B4 the Help scene lists keyboard, gamepad, and touch controls (E2E asserts all three families are listed).
-  - B5 settings (volumes, mute, reduced-flash, control preference) persist through versioned, validated storage; a pause-menu mute toggle survives a reload (E2E).
-  - H1 keyboard covers every action; the J1 smoke test starts a game with a real keyboard Enter press.
-  - H2 a standard gamepad drives move/aim/jump/fire/pause (fake Gamepad API pad in E2E).
-  - H3 touch buttons (move, aim-up, jump, fire, pause) work at a phone viewport (tap-driven E2E).
-  - H4 the canvas preserves 16:9 and stays visible at desktop/tablet/phone viewports (E2E across three sizes).
-  - H5 window blur auto-pauses and clears held keys; the simulation freezes (E2E).
-  - I1 best score and settings survive a browser reload (E2E for both).
-  - J1 the consolidated smoke test covers start/move/jump/fire/pause/resume/return-to-title.
-  - C2 jumping, landing, variable jump height, and one-way drop-through are implemented, unit-tested, and exercised in-level (smoke E2E jumps and lands).
-- Strengthened this iteration: `bestScore` added to the versioned settings schema; AudioService settings literal unified to `DEFAULT_SETTINGS`; pause now publishes runtime state and polls the gamepad while paused (so Start can resume).
+- Completed to date: A1-A8, B1-B6, C1-C6, D1, D2, D5, E1-E5, F1-F4, F6, G1-G5, H1-H5, I1-I4, J1-J3, J5, J6, J7, J8 (54)
+- Newly completed this iteration (M6):
+  - J7 ASSET_POLICY.md now documents every non-code asset with provenance + license: the project-created SVG favicon (the only asset file), procedural sprites/terrain/pickups/effects, system monospace font usage, and the WebAudio-synthesized music + SFX (all project-created, no external sources).
+- Also this milestone (polish, no new criteria):
+  - Original sequenced WebAudio music loop (8-step bass + arpeggio pattern composed for this project) replacing the drone; new telegraph/door/respawn SFX wired into the level scene; the service stays fully failure-safe (unit-tested).
+  - Readability polish: aim-direction barrel indicator on the player, per-weapon pickup colors, darker pit interiors (verified in a captured gameplay screenshot with zero page errors).
 - Partially addressed (NOT checked; recorded for traceability):
   - C7 respawn places the player on ground at checkpoints and clears projectiles, but no test asserts non-overlap with enemies at respawn (M7).
   - D3 collision categories are centralized and ownership is explicit, but the category bitmask is not consulted by collision code.
   - D4/J4 projectile bounds + soak test deferred to M7.
   - F5 doors/moving platforms/level transitions verified trap-free; destructible containers still unimplemented.
-  - J7 asset manifest: still zero non-code assets (all procedural); formal confirmation lands with M6.
-- Remaining: original asset + audio polish (M6); soak test, destructible containers, C7, D3/D4 evidence, and the final manual playtest (M7).
+- Remaining: M7 hardening + Cloudflare readiness (C7, D3, D4, F5, J4 soak test, console-error sweep, final manual playtest, deployment-docs confirmation).
 
 ## Current iteration plan
+
+M6 - Original asset and audio polish (selected: earliest incomplete milestone; M0-M5 prerequisites satisfied). Plan, staying strictly within ASSET_POLICY.md (original/procedural/permissive only; no Contra expression):
+
+1. Asset manifest (J7): document every non-code asset class in ASSET_POLICY.md with provenance + license (procedural shapes, system font usage, WebAudio-synthesized music/SFX), and add one real project-created asset file - an original SVG favicon referenced from index.html.
+2. Audio polish: replace the single drone with an original sequenced WebAudio music loop (short original bass + arpeggio pattern, low volume, no recognizable melody) plus SFX for telegraph wind-up, door open, and respawn; keep the service fully failure-safe; extend unit tests.
+3. Readability polish (no scope expansion): an aim-direction barrel indicator on the player, per-weapon pickup colors, darker pit interiors for contrast; capture a Level 1 gameplay screenshot as PROGRESS evidence.
+4. Run smallest checks first, then the full gate; fix failures without weakening tests; update PROGRESS + acceptance (J7); one local commit.
+
+M6 status: COMPLETE this iteration. Full quality gate GREEN (lint 0, typecheck 0, test 111/111, e2e 18/18, build 376.05 kB gzip). The asset manifest documents every non-code asset class (one project-created SVG favicon + all procedural sprites/terrain/font/audio); audio gained an original sequenced music loop and three new wired SFX; readability polish (barrel indicator, per-weapon pickup colors, darker pits) was verified in a captured Level 1 gameplay screenshot with zero page errors.
+
+Next iteration (after M6): M7 - hardening + Cloudflare readiness (C7 respawn-safety test, D3/D4 evidence, F5 destructible containers, J4 ten-minute soak test, console-error sweep, final manual playtest, deployment-docs confirmation).
+
+## M5 (completed) iteration plan
 
 M5 - Input, responsive UI, and persistence (selected: earliest incomplete milestone; M0-M4 prerequisites satisfied). Plan, reusing the input adapter, settings schema/StorageService, AudioService, and debug bridge:
 
@@ -101,7 +105,16 @@ Next iteration (after M2): M3 - Level 1 vertical slice (Jungle Outpost, checkpoi
 
 ## Completed work
 
-M5 (this iteration):
+M6 (this iteration):
+
+- `ASSET_POLICY.md` - manifest now documents every non-code asset class with provenance + license (J7).
+- New `public/assets/images/favicon.svg` - original hand-authored shield + echo-wave favicon; `index.html` references it.
+- `src/audio/AudioService.ts` - original sequenced music loop (8-step bass + arpeggio) replacing the drone; new `telegraph`/`door`/`respawn` SFX; `musicTimer`/`musicNodes` lifecycle with clean stop/restart.
+- `src/scenes/LevelScene.ts` - wires the new SFX (enemy/boss telegraph wind-up, door open, respawn); aim-direction barrel indicator; per-weapon pickup colors; darker pit fills.
+- `tests/unit/audio.test.ts` - coverage for all nine SFX names + music loop scheduling/stop/restart.
+- `ACCEPTANCE_CRITERIA.md` - checked J7.
+
+M5 (previous iteration, retained for history):
 
 - `src/persistence/schema.ts` - `bestScore` added (versioned, validated, non-negative integer); `src/main.ts` loads settings into the registry at boot.
 - `src/scenes/LevelScene.ts` - reads settings from the registry; pause toggles persist them; `awardScore` command; aim rotation in firing + `fireAngle` in runtime; gamepad/touch merged into input; blur auto-pause + key clear; reduced-flash steady telegraphs; publish runtime + poll gamepad while paused.
@@ -199,6 +212,12 @@ No `public/assets/` files were added in either iteration; all visuals remain pro
 | 2026-07-23 07:15 (M5) | `npm run test` | PASS (exit 0) | Vitest 4.1.10: **24 files, 109 tests passed** |
 | 2026-07-23 07:15 (M5) | `npm run test:e2e` | PASS (exit 0) | Playwright 1.61.1, chromium: **18 passed** (title + sandbox x2 + level1 + level2 x3 + input x3 + responsive x4 + settings x3 + smoke) |
 | 2026-07-23 07:15 (M5) | `npm run build` | PASS (exit 0) | Vite 8.1.5; `dist/assets/index-*.js` 1,437.35 kB raw / **375.64 kB gzip** (under 2.5 MB budget) |
+| 2026-07-23 12:39 (M6) | `npm run lint` | PASS (exit 0) | `eslint .`, no warnings |
+| 2026-07-23 12:39 (M6) | `npm run typecheck` | PASS (exit 0) | `tsc --noEmit`, strict mode |
+| 2026-07-23 12:39 (M6) | `npm run test` | PASS (exit 0) | Vitest 4.1.10: **24 files, 111 tests passed** |
+| 2026-07-23 12:39 (M6) | `npm run test:e2e` | PASS (exit 0) | Playwright 1.61.1, chromium: **18 passed** |
+| 2026-07-23 12:39 (M6) | `npm run build` | PASS (exit 0) | Vite 8.1.5; `dist/assets/index-*.js` 1,438.60 kB raw / **376.05 kB gzip** (under 2.5 MB budget) |
+| 2026-07-23 12:39 (M6) | Level 1 gameplay screenshot (production preview, canvas renderer) | PASS | Player + barrel indicator with an aim-up bullet in flight, per-weapon pickup color, darker red-outlined pit, HUD + controls hint; **zero page errors** |
 
 Build advisory unchanged from M0: Vite warns that the single Phaser-containing chunk exceeds 500 kB (1.39 MB raw / 0.36 MB gzip). Expected at this stage, within the ARCHITECTURE.md budget; not a failure.
 
@@ -216,6 +235,7 @@ Build advisory unchanged from M0: Vite warns that the single Phaser-containing c
 - M4 debugging note: a scene-restart crash (Phaser reuses the scene instance; un-cleared render-pool arrays indexed past the level data and killed the game loop) was masked for several runs by a stale `vite preview` from an early manual probe - the Playwright `reuseExistingServer` option reused it, so the fixed bundle never ran. Always tear down manual probe servers; treat "the fix didn't change anything" as a signal to check what is actually being served.
 - M5: the game now presents a proper front end - title with start/help hints, a controls/help screen covering all three input families, and pause with live mute/reduced-flash toggles that survive reload. Touch devices get on-screen buttons (verified by taps at a phone viewport); gamepads drive every action (verified through a stubbed Gamepad API); F10 toggles fullscreen. Aiming works in eight directions and the whole scatter fan rotates with the aim. A full human playthrough of both levels on keyboard/gamepad/touch remains the M7 manual-playtest item.
 - M5 debugging note: three integration defects were caught by the new E2E flows (unpublished pause state; gamepad not polled while paused; an aim-flow cooldown race in the test itself) - all fixed at the source, no test weakened.
+- M6: presentation is now documentably original end-to-end - the only asset file is a hand-authored SVG favicon; everything else is procedural code output (documented in the ASSET_POLICY.md manifest). The level scene has an original sequenced music loop plus telegraph/door/respawn cues, an aim-direction barrel indicator, per-weapon pickup colors, and darker pit interiors. The captured gameplay screenshot shows the aim-up barrel + bullet, colored pickup, and pit contrast with zero console errors.
 
 ## Known issues
 
@@ -223,4 +243,4 @@ Build advisory unchanged from M0: Vite warns that the single Phaser-containing c
 
 ## Next recommended task
 
-Proceed to **M6 - Original asset and audio polish**: replace temporary rectangles only where readability genuinely benefits with original generated/permissive assets (recorded in the ASSET_POLICY.md manifest - J7), expand the procedural WebAudio set (music loop + full SFX coverage, still failure-safe), improve visual telegraphs/readability without expanding scope, and confirm the manifest is complete and licenses are documented. Then M7 (hardening: soak test, destructible containers, C7/D3/D4 evidence, final manual playtest).
+Proceed to **M7 - Hardening and Cloudflare readiness**: close the last acceptance criteria - C7 (respawn-safety overlap test), D3 (wire collision-category bits into collision code or justify the ownership model), D4 (projectile-bounds soak evidence), F5 (destructible containers), J4 (ten-minute soak test with bounded counts) - then run a console-error sweep, confirm the static build + Cloudflare Pages docs, perform the final manual playtest checklist, and record final evidence in PROGRESS.md. Do not deploy.

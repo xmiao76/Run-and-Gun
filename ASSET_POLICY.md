@@ -27,7 +27,12 @@ Maintain the table below for every non-code asset. Temporary procedural shapes a
 
 | File | Description | Creator/source | License | Modification notes |
 |---|---|---|---|---|
-| _Add rows as assets are introduced_ | | | | |
+| `public/assets/images/favicon.svg` | Site favicon: shield + echo-wave motif | Hand-authored SVG created specifically for this project | Project-created; may be redistributed and modified within this repository | None |
+| _(procedural)_ player, enemy, and boss sprites | Colored rectangles, outlines, and text glyphs drawn at runtime (no image files) | Generated procedurally by project code (Phaser primitives in scene render code) | Project-created | N/A |
+| _(procedural)_ terrain, platforms, doors, pickups, projectiles, telegraph outlines | Rectangles and stroked outlines drawn at runtime (no image files) | Generated procedurally by project code | Project-created | N/A |
+| _(system)_ UI text font | The generic `monospace` system font family used for all text; no font files are shipped | Operating-system / browser built-in resource | N/A - no asset is bundled or redistributed | N/A |
+| _(procedural)_ background music | Sequenced WebAudio oscillator pattern synthesized at runtime (no audio files) | Generated procedurally by project code (`src/audio/AudioService.ts`); an original pattern, not transcribed from any existing work | Project-created | N/A |
+| _(procedural)_ sound effects | WebAudio oscillator blips synthesized at runtime (no audio files) | Generated procedurally by project code (`src/audio/AudioService.ts`) | Project-created | N/A |
 
 Do not use an asset whose provenance or redistribution rights are uncertain.
 

@@ -88,5 +88,5 @@ Check a box only after recording verification evidence in PROGRESS.md.
 - [ ] J4. A ten-minute automated or scripted soak test shows bounded enemy/projectile counts and no uncaught errors.
 - [x] J5. `dist/` works when served as static files with SPA fallback behavior configured if needed.
 - [x] J6. Cloudflare Pages settings are documented as build command `npm run build` and output directory `dist`.
-- [ ] J7. ASSET_POLICY.md contains provenance and license notes for every non-code asset.
+- [x] J7. ASSET_POLICY.md contains provenance and license notes for every non-code asset.
 - [x] J8. The production UI, source assets, and metadata contain no Contra title, logo, characters, extracted assets, ROM data, or copied level layouts.

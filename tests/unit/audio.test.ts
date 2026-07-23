@@ -64,4 +64,29 @@ describe('audio service (failure-safe)', () => {
       audio.stop();
     }).not.toThrow();
   });
+
+  it('plays every sound effect name, including telegraph, door, and respawn', () => {
+    const probe: Probe = { oscillators: 0, resumes: 0 };
+    const audio = createAudioService(mockContextFactory(probe) as never);
+    audio.setSettings({ ...DEFAULT_SETTINGS, mute: false });
+    for (const name of ['jump', 'shoot', 'hit', 'pickup', 'explosion', 'complete', 'telegraph', 'door', 'respawn'] as const) {
+      audio.playSfx(name);
+    }
+    expect(probe.oscillators).toBe(9);
+  });
+
+  it('schedules an original music loop and stops it cleanly', () => {
+    const probe: Probe = { oscillators: 0, resumes: 0 };
+    const audio = createAudioService(mockContextFactory(probe) as never);
+    audio.setSettings({ ...DEFAULT_SETTINGS, mute: false, musicVolume: 0.6 });
+    audio.setMusic(true);
+    // The first 8-step loop (8 bass + 4 arpeggio accents) is scheduled immediately.
+    expect(probe.oscillators).toBe(12);
+    audio.setMusic(false);
+    expect(() => audio.stop()).not.toThrow();
+    // Restarting after a stop schedules a fresh loop.
+    audio.setMusic(true);
+    expect(probe.oscillators).toBe(24);
+    audio.setMusic(false);
+  });
 });
