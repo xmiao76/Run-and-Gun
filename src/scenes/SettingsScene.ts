@@ -4,6 +4,7 @@ import { reportRuntime, reportScene } from '../debug/debugBridge';
 import { type AudioService } from '../audio/AudioService';
 import { DEFAULT_SETTINGS, type Settings } from '../persistence/schema';
 import { saveSettings } from '../persistence/StorageService';
+import { hookShutdown } from './sceneLifecycle';
 
 /**
  * Settings screen (GAME_REQUIREMENTS.md section 11). Adjusts music and SFX
@@ -62,6 +63,7 @@ export class SettingsScene extends Phaser.Scene {
       this.publish();
     };
     window.addEventListener('keydown', this.onKey);
+    hookShutdown(this.events, () => this.shutdown());
   }
 
   private adjust(code: string, s: Settings): Settings | null {

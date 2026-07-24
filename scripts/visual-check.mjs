@@ -40,6 +40,38 @@ async function main() {
   await page.waitForTimeout(200);
   await page.screenshot({ path: 'test-results/shots/room-zoom.png' });
 
+  // Reset zoom, then capture the Level 1 player poses.
+  await page.evaluate(() => {
+    const canvas = document.querySelector('canvas');
+    if (canvas) {
+      canvas.style.transform = '';
+    }
+  });
+  await page.evaluate(() => window.__GAME_DEBUG__?.command('startLevel1'));
+  await page.waitForFunction(() => window.__GAME_DEBUG__?.getState()?.runtime?.level === 'jungle-outpost');
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: 'test-results/shots/level-idle.png' });
+
+  await page.evaluate(() => window.__GAME_DEBUG__?.input('holdAimUp'));
+  await page.waitForTimeout(250);
+  await page.screenshot({ path: 'test-results/shots/level-aim-up.png' });
+  await page.evaluate(() => window.__GAME_DEBUG__?.input('releaseAimUp'));
+
+  await page.keyboard.down('s');
+  await page.waitForTimeout(250);
+  await page.screenshot({ path: 'test-results/shots/level-crouch.png' });
+  await page.keyboard.up('s');
+
+  await page.evaluate(() => window.__GAME_DEBUG__?.input('holdRight'));
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: 'test-results/shots/level-run.png' });
+  await page.evaluate(() => window.__GAME_DEBUG__?.input('releaseRight'));
+
+  // Death pose during the death pause.
+  await page.evaluate(() => window.__GAME_DEBUG__?.command('teleportPlayer', { x: 780, y: 800 }));
+  await page.waitForFunction(() => window.__GAME_DEBUG__?.getState()?.runtime?.dying === true);
+  await page.screenshot({ path: 'test-results/shots/level-death.png' });
+
   await browser.close();
 }
 

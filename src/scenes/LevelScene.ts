@@ -81,6 +81,9 @@ import {
   type DoorState
 } from '../simulation/doors';
 import { respawnPosition } from '../simulation/safeSpawn';
+import { ensureGameTextures } from '../art/textures';
+import { selectPlayerPose, playerPoseTexture, type PlayerPoseKey } from '../art/playerPose';
+import { hookShutdown } from './sceneLifecycle';
 import {
   spawnParticles,
   stepParticles,
@@ -121,6 +124,12 @@ import { saveSettings } from '../persistence/StorageService';
 const MAX_ENEMIES = 12;
 const MAX_PROJECTILES = 96;
 const COMPLETION_DELAY = 1.2;
+/** Seconds the death pose holds before the respawn (classic arcade death pause). */
+const DEATH_DURATION = 0.9;
+/** Seconds the hurt flinch pose shows after a damaging hit. */
+const HURT_DURATION = 0.3;
+/** Milliseconds per leg-swap in the player run cycle. */
+const RUN_FRAME_MS = 140;
 
 interface PlayerBullet extends Projectile {
   id: string;
@@ -220,8 +229,10 @@ export class LevelScene extends Phaser.Scene {
   private playerBulletRects: Phaser.GameObjects.Rectangle[] = [];
   private pickupRects: Phaser.GameObjects.Rectangle[] = [];
   private pickupLabels: Phaser.GameObjects.Text[] = [];
-  private playerRect?: Phaser.GameObjects.Rectangle;
-  private barrelRect?: Phaser.GameObjects.Rectangle;
+  private playerImage?: Phaser.GameObjects.Image;
+  private animTimeMs = 0;
+  private deathTimer = -1;
+  private hurtTimer = 0;
   private bossRect?: Phaser.GameObjects.Rectangle;
   private bossTeleRect?: Phaser.GameObjects.Rectangle;
   private bossZoneRect?: Phaser.GameObjects.Rectangle;
@@ -259,11 +270,10 @@ export class LevelScene extends Phaser.Scene {
     this.particleRects = [];
     this.carrierRects = [];
     this.resetRun();
+    ensureGameTextures(this);
     this.buildStaticVisuals();
-    this.playerRect = this.add.rectangle(0, 0, PLAYER_WIDTH, PLAYER_HEIGHT, 0x44dd66);
-    this.playerRect.setOrigin(0, 0);
-    this.barrelRect = this.add.rectangle(0, 0, 18, 4, 0x1e5c2e);
-    this.barrelRect.setOrigin(0, 0.5);
+    // Feet-anchored so poses with different heights (stand/crouch/death) stay planted.
+    this.playerImage = this.add.image(0, 0, 'art/player-idle').setOrigin(0, 1);
     this.bossRect = this.add.rectangle(0, 0, 64, 56, 0x884422);
     this.bossRect.setOrigin(0, 0);
     this.bossRect.setVisible(false);
@@ -303,6 +313,7 @@ export class LevelScene extends Phaser.Scene {
     };
     window.addEventListener('blur', this.onBlur);
     this.registerDebugCommands();
+    hookShutdown(this.events, () => this.shutdown());
     reportScene(SCENE_KEYS.level);
     this.settings = (this.registry.get('settings') as Settings | undefined) ?? { ...DEFAULT_SETTINGS };
     this.publishRuntime();
@@ -349,6 +360,7 @@ export class LevelScene extends Phaser.Scene {
     for (let i = 0; i < result.steps; i++) {
       this.stepOnce();
     }
+    this.animTimeMs += deltaMs;
     this.render();
   }
 
@@ -411,6 +423,9 @@ export class LevelScene extends Phaser.Scene {
     this.nextId = 1;
     this.paused = false;
     this.completionTimer = -1;
+    this.deathTimer = -1;
+    this.hurtTimer = 0;
+    this.animTimeMs = 0;
     this.maxEnemiesSeen = 0;
     this.maxPlayerBulletsSeen = 0;
     this.maxEnemyBulletsSeen = 0;
@@ -566,6 +581,20 @@ export class LevelScene extends Phaser.Scene {
       return;
     }
 
+    // Death pause: the world holds while the death pose plays out, then the
+    // life loss applies and the player respawns (or the run ends).
+    if (this.deathTimer >= 0) {
+      this.deathTimer -= FIXED_DT;
+      if (this.deathTimer < 0) {
+        this.finishDeath();
+      }
+      this.clearPressedEdges();
+      this.publishRuntime();
+      return;
+    }
+
+    this.hurtTimer = Math.max(0, this.hurtTimer - FIXED_DT);
+
     this.health = tickInvuln(this.health, FIXED_DT);
 
     // Advance moving platforms and doors, then merge them into the solid set.
@@ -650,7 +679,7 @@ export class LevelScene extends Phaser.Scene {
     this.cameraX = Math.min(Math.max(this.player.x - LOGICAL_WIDTH / 2, 0), Math.max(0, this.level.width - LOGICAL_WIDTH));
 
     if (this.hazardTouchesPlayer() || playerResult.died) {
-      this.handleDeath();
+      this.startDeath();
     }
 
     if (isBossAlive(this.boss) === false && this.boss.active && this.player.x >= this.level.completionX && this.completionTimer < 0) {
@@ -1050,6 +1079,7 @@ export class LevelScene extends Phaser.Scene {
     this.health = damage.health;
     if (damage.applied) {
       this.sfx('hit');
+      this.hurtTimer = HURT_DURATION;
     }
   }
 
@@ -1064,10 +1094,24 @@ export class LevelScene extends Phaser.Scene {
     return false;
   }
 
-  private handleDeath(): void {
+  /**
+   * Begins the death sequence: burst effect + death pause. The life loss and
+   * respawn are deferred to finishDeath() so the death pose gets its moment;
+   * tests observe the life decrement exactly when the respawn lands.
+   */
+  private startDeath(): void {
+    if (this.deathTimer >= 0) {
+      return;
+    }
+    this.deathTimer = DEATH_DURATION;
+    this.spawnFx([{ kind: 'burst', x: this.player.x + PLAYER_WIDTH / 2, y: this.player.y - PLAYER_HEIGHT / 2 }]);
+    this.sfx('explosion');
+  }
+
+  /** Applies the life loss at the end of the death pause, then respawns at the checkpoint or ends the run. */
+  private finishDeath(): void {
     const damage = applyDamage(this.health, INVULN_DURATION);
     this.health = damage.health;
-    this.spawnFx([{ kind: 'burst', x: this.player.x + PLAYER_WIDTH / 2, y: this.player.y - PLAYER_HEIGHT / 2 }]);
     if (this.health.gameOver) {
       // The game-over scene transition fires at the top of the next step.
       return;
@@ -1143,6 +1187,8 @@ export class LevelScene extends Phaser.Scene {
       playerY: Math.round(this.player.y * 100) / 100,
       grounded: this.player.grounded,
       crouching: this.player.crouching,
+      playerPose: this.currentPose(),
+      dying: this.deathTimer >= 0,
       lives: this.health.lives,
       invuln: this.health.invuln > 0,
       weapon: this.weapon.id,
@@ -1194,7 +1240,7 @@ export class LevelScene extends Phaser.Scene {
   }
 
   private render(): void {
-    if (!this.playerRect || !this.hudText) {
+    if (!this.playerImage || !this.hudText) {
       return;
     }
     this.solidRects.forEach((rect, i) => {
@@ -1238,21 +1284,7 @@ export class LevelScene extends Phaser.Scene {
       }
     });
 
-    const h = currentHeight(this.player);
-    this.playerRect.setSize(PLAYER_WIDTH, h);
-    this.playerRect.setPosition(this.player.x - this.cameraX, this.player.y - h);
-    this.playerRect.setFillStyle(this.health.invuln > 0 ? 0x99ff99 : 0x44dd66);
-
-    // Aim-direction barrel indicator for readable eight-direction firing.
-    if (this.barrelRect) {
-      const angleDeg = aimAngle(this.stepInput, this.player.facing, this.player.grounded);
-      const radians = (angleDeg * Math.PI) / 180;
-      const centerX = this.player.x - this.cameraX + PLAYER_WIDTH / 2;
-      const centerY = this.player.y - h / 2;
-      this.barrelRect.setRotation(radians);
-      this.barrelRect.setPosition(centerX + Math.cos(radians) * 8, centerY + Math.sin(radians) * 8);
-      this.barrelRect.setFillStyle(this.health.invuln > 0 ? 0x7cd48c : 0x1e5c2e);
-    }
+    this.renderPlayer();
 
     this.syncPool(this.playerBulletRects, this.playerBullets.length, 8, 4, 0xffe066);
     this.playerBulletRects.forEach((rect, i) => {
@@ -1392,6 +1424,35 @@ export class LevelScene extends Phaser.Scene {
     } else {
       this.hideOverlay();
     }
+  }
+
+  /**
+   * Drives the player sprite: pose from the pure animation selector, flip from
+   * facing, feet-anchored position, and an alpha blink while invulnerable.
+   * While dying, the body is clamped on-screen so a pit death still reads.
+   */
+  private renderPlayer(): void {
+    const image = this.playerImage;
+    if (!image) {
+      return;
+    }
+    image.setTexture(playerPoseTexture(this.currentPose()));
+    image.setFlipX(this.player.facing < 0);
+    const feetY = this.deathTimer >= 0 ? Math.min(this.player.y, LOGICAL_HEIGHT - 4) : this.player.y;
+    image.setPosition(this.player.x - this.cameraX, feetY);
+    image.setAlpha(this.health.invuln > 0 ? 0.55 : 1);
+  }
+
+  private currentPose(): PlayerPoseKey {
+    return selectPlayerPose({
+      dying: this.deathTimer >= 0,
+      hurt: this.hurtTimer > 0,
+      crouching: this.player.crouching,
+      grounded: this.player.grounded,
+      speedX: this.player.vx,
+      aimUp: this.stepInput.aimUp ?? false,
+      runFrame: Math.floor(this.animTimeMs / RUN_FRAME_MS) % 2
+    });
   }
 
   private renderPauseOverlay(): void {

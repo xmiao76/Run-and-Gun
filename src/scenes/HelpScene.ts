@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { LOGICAL_WIDTH, SCENE_KEYS } from '../app/config';
 import { reportRuntime, reportScene } from '../debug/debugBridge';
+import { hookShutdown } from './sceneLifecycle';
 
 const LINES: { text: string; y: number; size: number; color: string }[] = [
   { text: 'CONTROLS', y: 70, size: 34, color: '#e8f1ff' },
@@ -48,6 +49,7 @@ export class HelpScene extends Phaser.Scene {
       this.scene.start(SCENE_KEYS.title);
     };
     window.addEventListener('keydown', this.onKey);
+    hookShutdown(this.events, () => this.shutdown());
   }
 
   public shutdown(): void {

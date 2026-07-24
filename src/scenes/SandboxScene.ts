@@ -61,6 +61,7 @@ import { collectPickups, type Pickup } from '../simulation/pickups';
 import { updateSpawnTriggers, type SpawnTrigger } from '../simulation/spawnTriggers';
 import { GAME_VERSION, LOGICAL_HEIGHT, LOGICAL_WIDTH, SCENE_KEYS } from '../app/config';
 import { ensureGameTextures, SKY_TEXTURE } from '../art/textures';
+import { hookShutdown } from './sceneLifecycle';
 
 const HUD_Y = 20;
 const MAX_PROJECTILES = 64;
@@ -155,6 +156,7 @@ export class SandboxScene extends Phaser.Scene {
       .setDepth(100);
     this.keyboard.attach(window);
     this.registerDebugCommands();
+    hookShutdown(this.events, () => this.shutdown());
     this.publishRuntime();
   }
 

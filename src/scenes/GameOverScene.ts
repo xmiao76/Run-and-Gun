@@ -3,6 +3,7 @@ import { LOGICAL_WIDTH, SCENE_KEYS } from '../app/config';
 import { reportRuntime, reportScene } from '../debug/debugBridge';
 import { DEFAULT_SETTINGS, type Settings } from '../persistence/schema';
 import { saveSettings } from '../persistence/StorageService';
+import { hookShutdown } from './sceneLifecycle';
 
 /**
  * Game-over screen (GAME_REQUIREMENTS.md section 11). Shown when all lives are
@@ -50,6 +51,7 @@ export class GameOverScene extends Phaser.Scene {
       }
     };
     window.addEventListener('keydown', this.onKey);
+    hookShutdown(this.events, () => this.shutdown());
   }
 
   public shutdown(): void {

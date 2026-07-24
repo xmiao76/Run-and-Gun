@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { GAME_VERSION, LOGICAL_HEIGHT, LOGICAL_WIDTH, SCENE_KEYS, TITLE_HEADING } from '../app/config';
 import { reportScene, reportTitleHeading } from '../debug/debugBridge';
 import { type AudioService } from '../audio/AudioService';
+import { hookShutdown } from './sceneLifecycle';
 
 const HEADING_Y = 190;
 const TAGLINE_Y = 248;
@@ -99,6 +100,7 @@ export class TitleScene extends Phaser.Scene {
       this.scene.start(SCENE_KEYS.level);
     };
     window.addEventListener('keydown', this.onStart);
+    hookShutdown(this.events, () => this.shutdown());
   }
 
   public shutdown(): void {

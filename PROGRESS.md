@@ -108,3 +108,50 @@ Include enough detail so the next iteration can continue without guessing.
   - TASK-002 - Implement player movement, animation states, and combat controls
 - Blockers (if any):
   - none
+
+---
+
+### 2026-07-24 16:45 - TASK-002
+
+- Status before: TODO
+- Goal of this iteration:
+  Give the player the full TASK-002 animation-state set (idle/run/jump/crouch/shoot/hurt/death) with a representational sprite in the main gameplay scene, and verify the controls end to end.
+- Work completed:
+  - Found movement/jump/crouch/shoot/8-way-aim mechanics already implemented and unit-tested in the prior build (simulation/platformer.ts, simulation/aim.ts); the gaps were presentation and one critical input bug.
+  - Authored 5 new player poses in the shared sprite sheet: crouch (22x20, matches crouch hitbox), aim-up, aim-diag, hurt flinch, death (32x16 fallen).
+  - Added pure pose selector `src/art/playerPose.ts` (death > hurt > crouch > jump > aim-up/diag > run > idle) with full unit coverage.
+  - LevelScene: replaced the green rectangle + barrel indicator with the animated pixel-art commando (feet-anchored, facing flip, invuln blink, run cycle); publishes `playerPose`/`dying` for tests.
+  - Added a classic death pause (0.9 s death pose, burst fx, explosion sfx) before the life loss + checkpoint respawn; the life decrement now lands exactly when the respawn does (keeps e2e timing consistent); pit-death body clamped on-screen.
+  - Hurt flinch (0.3 s) on any applied hit.
+  - CRITICAL pre-existing fix: Phaser never calls a Scene's `shutdown()` method - it only emits the event - so every scene's window listeners leaked. The title screen's handler hijacked S (crouch opened Settings!), H, and Enter (fire restarted the level) while playing. Added `src/scenes/sceneLifecycle.ts` (`hookShutdown`) and wired all 7 listener-owning scenes; regression-asserted in e2e.
+- Files changed:
+  - src/art/sprites.ts, src/art/playerPose.ts (new), src/scenes/sceneLifecycle.ts (new)
+  - src/scenes/LevelScene.ts, TitleScene.ts, HelpScene.ts, SettingsScene.ts, GameOverScene.ts, ResultsScene.ts, SandboxScene.ts
+  - tests/unit/playerPose.test.ts (new), tests/unit/sceneLifecycle.test.ts (new), tests/unit/sprites.test.ts
+  - tests/e2e/playerAnim.spec.ts (new)
+  - scripts/zoom-check.mjs (new), scripts/visual-check.mjs
+- Assets added or updated:
+  - 5 new original pixel-art player poses (crouch, aim-up, aim-diag, hurt, death) in `src/art/sprites.ts`.
+- Commands run:
+  - `npx vitest run tests/unit/playerPose.test.ts tests/unit/sprites.test.ts` (19 passed after fixes)
+  - `npm run typecheck`, `npm run lint` (both clean)
+  - `npm run test:unit` (170 passed, 34 files)
+  - `npm run build` (pass)
+  - `npx playwright test` (27 passed, incl. new playerAnim spec)
+  - `node scripts/visual-check.mjs`, `node scripts/zoom-check.mjs` (pose screenshots, 3x zoom art review)
+- Verification result:
+  - All automated checks pass: lint, typecheck, 170 unit tests, build, 27 e2e tests.
+  - e2e `playerAnim.spec.ts` drives idle > run > jump > crouch > aim-up > aim-diag > death > respawn through real input and asserts each pose plus the no-leak regression.
+  - Screenshots reviewed at 3x zoom: commando readable in idle, crouch, aim-up; death pose visible in pit flow.
+  - Controls responsiveness: verified via deterministic input->state e2e flows (input latency path unchanged from prior milestone); physics untouched. Human hands-on play still recommended at release.
+- Visual quality notes:
+  - The main gameplay scene now shows the animated commando sprite instead of a green rectangle.
+  - Level terrain/enemies remain rectangles - scoped to TASK-004/TASK-005, not this task.
+  - Aim-up/aim-diag poses make 8-way firing readable; moving + aim-up uses the diagonal pose.
+- Status after: DONE
+- Remaining work:
+  - none for this task; next tasks cover weapons presentation (TASK-003) and enemy visuals (TASK-004).
+- Next recommended task:
+  - TASK-003 - Implement weapon system and readable visual combat feedback
+- Blockers (if any):
+  - none

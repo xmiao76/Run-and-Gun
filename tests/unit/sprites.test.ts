@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { parsePixelArt } from '../../src/art/pixelArt';
 import { SPRITE_SPECS, type SpriteKey } from '../../src/art/sprites';
-import { PLAYER_HEIGHT, PLAYER_WIDTH } from '../../src/balance/player';
+import { PLAYER_HEIGHT, PLAYER_WIDTH, CROUCH_HEIGHT } from '../../src/balance/player';
 
 const KEYS = Object.keys(SPRITE_SPECS) as SpriteKey[];
 
@@ -34,6 +34,26 @@ describe('sprite sheet', () => {
       expect(grid.width, key).toBe(PLAYER_WIDTH);
       expect(grid.height, key).toBe(PLAYER_HEIGHT);
     }
+    for (const key of ['art/player-jump', 'art/player-hurt'] as const) {
+      const grid = parsePixelArt(SPRITE_SPECS[key]);
+      expect(grid.width, key).toBe(PLAYER_WIDTH);
+    }
+    // Aim poses carry the rifle vertically/diagonally, so they lack the level
+    // rifle's horizontal overhang; the body still fills most of the hitbox.
+    for (const key of ['art/player-aim-up', 'art/player-aim-diag'] as const) {
+      const grid = parsePixelArt(SPRITE_SPECS[key]);
+      expect(grid.width, key).toBeGreaterThanOrEqual(19);
+      expect(grid.width, key).toBeLessThanOrEqual(PLAYER_WIDTH);
+    }
+  });
+
+  it('matches the crouch hitbox height (22x20) and keeps death feet-anchored', () => {
+    const crouch = parsePixelArt(SPRITE_SPECS['art/player-crouch']);
+    expect(crouch.width).toBe(PLAYER_WIDTH);
+    expect(crouch.height).toBe(CROUCH_HEIGHT);
+    const death = parsePixelArt(SPRITE_SPECS['art/player-death']);
+    expect(death.width).toBe(32);
+    expect(death.height).toBe(16);
   });
 
   it('keeps enemy sprites close to their collision sizes', () => {

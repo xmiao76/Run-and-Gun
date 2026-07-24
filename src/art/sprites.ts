@@ -30,8 +30,8 @@ const PLAYER_PALETTE = {
   G: '#9aa7b4' // rifle barrel
 } as const;
 
-/** Head, torso, and rifle are shared by every player pose (rows 0-16). */
-const PLAYER_BODY: readonly string[] = [
+/** Head shared by every upright player pose (rows 0-8). */
+const PLAYER_HEAD: readonly string[] = [
   '        hhhhhh',
   '       hHHHHHHh',
   '      hHHHHHHHHh',
@@ -40,7 +40,11 @@ const PLAYER_BODY: readonly string[] = [
   '      ssssssssss',
   '      ssssvvssss',
   '      SSSSSSSSSS',
-  '       SSSSSSSS',
+  '       SSSSSSSS'
+];
+
+/** Torso with rifle held level, shared by idle/run/jump (rows 9-16). */
+const PLAYER_TORSO: readonly string[] = [
   '     aaaaaaaaaaaa',
   '    aaAAAAAAAAAAa',
   '    aAAAAAAAAAAAaa',
@@ -50,6 +54,9 @@ const PLAYER_BODY: readonly string[] = [
   '    bbbbbbbbbbbb',
   '    llllllllllll'
 ];
+
+/** Head, torso, and rifle are shared by every player pose (rows 0-16). */
+const PLAYER_BODY: readonly string[] = [...PLAYER_HEAD, ...PLAYER_TORSO];
 
 const PLAYER_IDLE_LEGS: readonly string[] = [
   '     lLLLl  lLLLl',
@@ -117,6 +124,124 @@ export const PLAYER_IDLE: PixelArtSpec = { palette: PLAYER_PALETTE, rows: [...PL
 export const PLAYER_RUN_A: PixelArtSpec = { palette: PLAYER_PALETTE, rows: [...PLAYER_BODY, ...PLAYER_RUN_A_LEGS] };
 export const PLAYER_RUN_B: PixelArtSpec = { palette: PLAYER_PALETTE, rows: [...PLAYER_BODY, ...PLAYER_RUN_B_LEGS] };
 export const PLAYER_JUMP: PixelArtSpec = { palette: PLAYER_PALETTE, rows: [...PLAYER_BODY, ...PLAYER_JUMP_LEGS] };
+
+/** Crouched commando: knee up, rifle level. 22x20 to match the crouch hitbox. */
+export const PLAYER_CROUCH: PixelArtSpec = {
+  palette: PLAYER_PALETTE,
+  rows: [
+    '      hhhhhh',
+    '     hHHHHHHh',
+    '     hhhhhhhhhh',
+    '     rrrrrrrrrr',
+    '     ssssvvssss',
+    '     SSSSSSSSSS',
+    '    aaaaaaaaaaaa',
+    '   aaAAAAAAAAAAaa',
+    '   aAAAAAAAAAAggggGGGG',
+    '   aAAAAAAAAAAs g',
+    '   bbbbbbbbbbbb',
+    '    llllllll',
+    '   lLLLLLLLl',
+    '   lLLLl    llll',
+    '   kkkk    lLLLl',
+    '   kkkk    lLLLl',
+    '  kkkkk     kkkkk',
+    '  kkkkk     kkkkk',
+    '  kkkkk     kkkkk',
+    '  kkkkk     kkkkk'
+  ]
+};
+
+/** Torso with the rifle raised vertical (rows 0-16 include muzzle above head). */
+const PLAYER_AIM_UP_BODY: readonly string[] = [
+  '        hhhhhh   GG',
+  '       hHHHHHHh  GG',
+  '      hHHHHHHHHh gg',
+  '      hhhhhhhhhh gg',
+  '      rrrrrrrrrr gg',
+  '      ssssssssss gg',
+  '      ssssvvssss gg',
+  '      SSSSSSSSSS gg',
+  '       SSSSSSSS  gg',
+  '     aaaaaaaaaaas g',
+  '    aaAAAAAAAAAAs g',
+  '    aAAAAAAAAAAAs g',
+  '    aAAAAAAAAAAas g',
+  '    aAAAAAAAAAAa  g',
+  '    aAAAAAAAAAAa',
+  '    bbbbbbbbbbbb',
+  '    llllllllllll'
+];
+
+/** Torso with the rifle angled 45 degrees up-forward (rows 0-16). */
+const PLAYER_AIM_DIAG_BODY: readonly string[] = [
+  '        hhhhhh',
+  '       hHHHHHHh',
+  '      hHHHHHHHHh    GG',
+  '      hhhhhhhhhh   Gg',
+  '      rrrrrrrrrr  gg',
+  '      ssssssssss gg',
+  '      ssssvvssssgg',
+  '      SSSSSSSS gg',
+  '       SSSSSSSgg',
+  '     aaaaaaaaggssaa',
+  '    aaAAAAAAggssAAAa',
+  '    aAAAAAAAAAAAAAaa',
+  '    aAAAAAAAAAAa',
+  '    aAAAAAAAAAAa',
+  '    aAAAAAAAAAAa',
+  '    bbbbbbbbbbbb',
+  '    llllllllllll'
+];
+
+export const PLAYER_AIM_UP: PixelArtSpec = { palette: PLAYER_PALETTE, rows: [...PLAYER_AIM_UP_BODY, ...PLAYER_IDLE_LEGS] };
+export const PLAYER_AIM_DIAG: PixelArtSpec = { palette: PLAYER_PALETTE, rows: [...PLAYER_AIM_DIAG_BODY, ...PLAYER_IDLE_LEGS] };
+
+/** Hurt flinch: head snapped back, arms flung, rifle slipping. */
+const PLAYER_HURT_BODY: readonly string[] = [
+  '    hhhhhh',
+  '   hHHHHHHh',
+  '  hHHHHHHHHh',
+  '  hhhhhhhhhh',
+  '  rrrrrrrrrr',
+  '  ssssssssss',
+  '  svvsssssss',
+  '  SSSSSSSSSS',
+  '   SSSSSSSS',
+  ' s aaaaaaaaaa',
+  ' s aaAAAAAAAAaa',
+  's  aAAAAAAAAAAa',
+  's  aAAAAAAAAAAa',
+  '   aAAAAAAAAAAa g',
+  '   aAAAAAAAAAAa  gg',
+  '   bbbbbbbbbbbb     gg',
+  '    lllllllllll'
+];
+
+export const PLAYER_HURT: PixelArtSpec = { palette: PLAYER_PALETTE, rows: [...PLAYER_HURT_BODY, ...PLAYER_RUN_A_LEGS] };
+
+/** Death: knocked flat on the back, rifle dropped. 32x16, feet-anchored. */
+export const PLAYER_DEATH: PixelArtSpec = {
+  palette: PLAYER_PALETTE,
+  rows: [
+    '',
+    '',
+    '',
+    '   hhhhhh',
+    '  hHHHHHHh',
+    '  hrrrrrrh',
+    '  hssssssh    aaaaaaaaa',
+    '   ssssss   aAAAAAAAAAA      ggg',
+    '   SSSSSS  aAAAAAAAAAAAAA   gg',
+    '           bbbbbbbbbbbbbbb gg',
+    '    gg    lllllllllllllllll',
+    '      gg  lLLLLLLLLl  lLLLLLl',
+    '           lLLLLLLLl   lLLLLl',
+    '           kkkkkkkkk   kkkkkk',
+    '           kkkkkkkk    kkkkkk',
+    '           kkkkkkk     kkkkkk'
+  ]
+};
 
 /* ------------------------------------------------------------------ */
 /* Enemies.                                                            */
@@ -476,6 +601,11 @@ export const SPRITE_SPECS = {
   'art/player-run-a': PLAYER_RUN_A,
   'art/player-run-b': PLAYER_RUN_B,
   'art/player-jump': PLAYER_JUMP,
+  'art/player-crouch': PLAYER_CROUCH,
+  'art/player-aim-up': PLAYER_AIM_UP,
+  'art/player-aim-diag': PLAYER_AIM_DIAG,
+  'art/player-hurt': PLAYER_HURT,
+  'art/player-death': PLAYER_DEATH,
   'art/enemy-runner': ENEMY_RUNNER,
   'art/enemy-sentry': ENEMY_SENTRY,
   'art/bullet-player': BULLET_PLAYER,

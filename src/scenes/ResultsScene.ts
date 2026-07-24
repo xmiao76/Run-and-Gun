@@ -4,6 +4,7 @@ import { LEVELS } from '../levels/levels';
 import { reportRuntime, reportScene } from '../debug/debugBridge';
 import { DEFAULT_SETTINGS, type Settings } from '../persistence/schema';
 import { saveSettings } from '../persistence/StorageService';
+import { hookShutdown } from './sceneLifecycle';
 
 /**
  * Level-complete / final-completion screen. After a non-final level it offers
@@ -73,6 +74,7 @@ export class ResultsScene extends Phaser.Scene {
       }
     };
     window.addEventListener('keydown', this.onContinue);
+    hookShutdown(this.events, () => this.shutdown());
   }
 
   public shutdown(): void {

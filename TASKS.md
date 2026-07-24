@@ -35,19 +35,19 @@ Only one task should be actively worked on in a single loop iteration.
 
 ### TASK-002 - Implement player movement, animation states, and combat controls
 
-- Status: TODO
+- Status: DONE
 - Requirement:
   Implement the player controller with core movement and readable presentation.
 - Acceptance criteria:
-  - [ ] Player can move left and right
-  - [ ] Player can jump
-  - [ ] Player can crouch
-  - [ ] Player can shoot
-  - [ ] Player supports directional aiming where implemented
-  - [ ] Player has recognizable animation states for idle, run, jump, crouch, shoot, hurt, and death
-  - [ ] Player sprite remains representational and non-abstract
-  - [ ] Unit tests or logic tests exist for relevant movement/combat logic where practical
-  - [ ] Manual play confirms the controls feel responsive
+  - [x] Player can move left and right
+  - [x] Player can jump
+  - [x] Player can crouch
+  - [x] Player can shoot
+  - [x] Player supports directional aiming where implemented
+  - [x] Player has recognizable animation states for idle, run, jump, crouch, shoot, hurt, and death
+  - [x] Player sprite remains representational and non-abstract
+  - [x] Unit tests or logic tests exist for relevant movement/combat logic where practical
+  - [x] Manual play confirms the controls feel responsive
 
 ---
 
