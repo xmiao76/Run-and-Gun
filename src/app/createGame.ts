@@ -24,6 +24,8 @@ export function createGame(parent?: HTMLElement): Phaser.Game {
     type: override === null ? Phaser.AUTO : override,
     parent,
     backgroundColor: '#0b0f1a',
+    // Crisp nearest-neighbor scaling for the pixel-art sprite sheet.
+    pixelArt: true,
     scale: {
       mode: Phaser.Scale.FIT,
       autoCenter: Phaser.Scale.CENTER_BOTH,

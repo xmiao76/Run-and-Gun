@@ -13,5 +13,15 @@ export default tseslint.config(
       // TypeScript's compiler handles undefined-variable checks more accurately than ESLint.
       'no-undef': 'off'
     }
+  },
+  {
+    files: ['scripts/**/*.mjs'],
+    languageOptions: {
+      globals: {
+        console: 'readonly',
+        window: 'readonly',
+        document: 'readonly'
+      }
+    }
   }
 );

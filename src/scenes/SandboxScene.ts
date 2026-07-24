@@ -59,7 +59,8 @@ import {
 } from '../simulation/enemies';
 import { collectPickups, type Pickup } from '../simulation/pickups';
 import { updateSpawnTriggers, type SpawnTrigger } from '../simulation/spawnTriggers';
-import { GAME_VERSION, LOGICAL_HEIGHT, SCENE_KEYS } from '../app/config';
+import { GAME_VERSION, LOGICAL_HEIGHT, LOGICAL_WIDTH, SCENE_KEYS } from '../app/config';
+import { ensureGameTextures, SKY_TEXTURE } from '../art/textures';
 
 const HUD_Y = 20;
 const MAX_PROJECTILES = 64;
@@ -67,6 +68,8 @@ const GUN_OFFSET_X = PLAYER_WIDTH;
 const GUN_OFFSET_Y = 12;
 const ENEMY_PROJECTILE_W = 8;
 const ENEMY_PROJECTILE_H = 8;
+/** Milliseconds per leg-swap in the player run cycle. */
+const RUN_FRAME_MS = 140;
 
 interface PlayerBullet extends Projectile {
   id: string;
@@ -83,13 +86,16 @@ interface EnemyBullet {
 }
 
 /**
- * M2 deterministic mechanics sandbox.
+ * Prototype room: a small playable arena that establishes the game's visual
+ * direction with original pixel-art sprites and a layered jungle-war backdrop
+ * instead of placeholder blocks.
  *
  * Extends the M1 arena with data-driven enemies (Runner + Sentry), weapon
  * pickups, spawn triggers, enemy projectiles, and a per-step damage ledger so
  * each attack (including every scatter pellet) hits a target at most once per
  * step. All rules live in pure simulation modules; this scene only wires them
- * into the fixed 60 Hz loop and renders the result.
+ * into the fixed 60 Hz loop and renders the result with the sprite sheet from
+ * art/sprites.ts.
  */
 export class SandboxScene extends Phaser.Scene {
   private player: PlayerState = createPlayerState(SPAWN_X, SPAWN_Y);
@@ -116,14 +122,14 @@ export class SandboxScene extends Phaser.Scene {
   };
   private score = 0;
 
-  private groundRect?: Phaser.GameObjects.Rectangle;
-  private pitRect?: Phaser.GameObjects.Rectangle;
-  private playerRect?: Phaser.GameObjects.Rectangle;
-  private playerBulletRects: Phaser.GameObjects.Rectangle[] = [];
-  private enemyBulletRects: Phaser.GameObjects.Rectangle[] = [];
-  private enemyRects: Phaser.GameObjects.Rectangle[] = [];
+  private playerImage?: Phaser.GameObjects.Image;
+  private playerFacing = 1;
+  private animTimeMs = 0;
+  private playerBulletImages: Phaser.GameObjects.Image[] = [];
+  private enemyBulletImages: Phaser.GameObjects.Image[] = [];
+  private enemyImages: Phaser.GameObjects.Image[] = [];
   private enemyTelegraphRects: Phaser.GameObjects.Rectangle[] = [];
-  private pickupRects: Phaser.GameObjects.Rectangle[] = [];
+  private pickupImages: Phaser.GameObjects.Image[] = [];
   private pickupLabels: Phaser.GameObjects.Text[] = [];
   private hudText?: Phaser.GameObjects.Text;
   private overlayText?: Phaser.GameObjects.Text;
@@ -134,18 +140,19 @@ export class SandboxScene extends Phaser.Scene {
 
   public create(): void {
     reportScene(SCENE_KEYS.sandbox);
+    ensureGameTextures(this);
     this.resetRun();
-    this.buildStaticVisuals();
-    this.playerRect = this.add.rectangle(0, 0, PLAYER_WIDTH, PLAYER_HEIGHT, 0x44dd66);
-    this.playerRect.setOrigin(0, 0);
-    this.hudText = this.add.text(12, HUD_Y, '', { fontFamily: 'monospace', fontSize: '16px', color: '#e8f1ff' });
+    this.buildEnvironment();
+    this.playerImage = this.add.image(0, 0, 'art/player-idle').setOrigin(0, 0).setDepth(30);
+    this.hudText = this.add.text(12, HUD_Y, '', { fontFamily: 'monospace', fontSize: '16px', color: '#e8f1ff' }).setDepth(100);
     this.add
       .text(12, LOGICAL_HEIGHT - 22, 'Move: A/D or arrows  Jump: Space/W/Up  Fire: J/K/Enter', {
         fontFamily: 'monospace',
         fontSize: '13px',
-        color: '#5c6c8c'
+        color: '#8fa3c7'
       })
-      .setOrigin(0, 0.5);
+      .setOrigin(0, 0.5)
+      .setDepth(100);
     this.keyboard.attach(window);
     this.registerDebugCommands();
     this.publishRuntime();
@@ -162,6 +169,7 @@ export class SandboxScene extends Phaser.Scene {
     for (let i = 0; i < result.steps; i++) {
       this.stepOnce();
     }
+    this.animTimeMs += deltaMs;
     this.render();
   }
 
@@ -471,20 +479,89 @@ export class SandboxScene extends Phaser.Scene {
     });
   }
 
-  private buildStaticVisuals(): void {
-    this.groundRect = this.add.rectangle(PIT_X0 / 2, GROUND_Y + 30, PIT_X0, 60, 0x243049);
-    this.groundRect.setOrigin(0.5, 0);
-    this.pitRect = this.add.rectangle((PIT_X0 + PIT_X1) / 2, GROUND_Y + 30, PIT_X1 - PIT_X0, 60, 0x3a1010);
-    this.pitRect.setOrigin(0.5, 0);
-    this.pitRect.setStrokeStyle(2, 0xff5555);
+  /**
+   * Builds the layered jungle-war backdrop: dusk sky gradient, silhouette
+   * ridge, ruins and dead trees on the horizon, textured ground tiles, props,
+   * and the lethal pit rendered as a dark void with hazard-striped rims.
+   */
+  private buildEnvironment(): void {
+    // Sky gradient, stretched across the whole arena, with a star field above.
+    this.add
+      .image(0, 0, SKY_TEXTURE)
+      .setOrigin(0, 0)
+      .setDisplaySize(LOGICAL_WIDTH, LOGICAL_HEIGHT)
+      .setDepth(-100);
+    this.add
+      .tileSprite(0, 0, LOGICAL_WIDTH, 300, 'art/bg-stars')
+      .setOrigin(0, 0)
+      .setAlpha(0.8)
+      .setDepth(-95);
+
+    // Distant canopy ridge, scaled up so it reads as a far tree line.
+    this.add
+      .tileSprite(0, GROUND_Y - 60, LOGICAL_WIDTH, 60, 'art/bg-ridge')
+      .setOrigin(0, 0)
+      .setTileScale(3, 3)
+      .setDepth(-90);
+
+    // Horizon silhouettes: ruined structures and dead jungle trees.
+    const horizonProps: readonly { key: string; x: number; scale: number }[] = [
+      { key: 'art/bg-tree', x: 150, scale: 3 },
+      { key: 'art/bg-ruin', x: 300, scale: 3 },
+      { key: 'art/bg-tree', x: 505, scale: 2.5 },
+      { key: 'art/bg-ruin', x: 640, scale: 2.5 },
+      { key: 'art/bg-tree', x: 860, scale: 3 }
+    ];
+    for (const prop of horizonProps) {
+      this.add
+        .image(prop.x, GROUND_Y, prop.key)
+        .setOrigin(0, 1)
+        .setScale(prop.scale)
+        .setDepth(-80);
+    }
+
+    // Textured ground spanning the safe span left of the pit.
+    this.add
+      .tileSprite(0, GROUND_Y, PIT_X0, LOGICAL_HEIGHT - GROUND_Y, 'art/tile-ground')
+      .setOrigin(0, 0)
+      .setDepth(-60);
+
+    // The pit: a dark void, its rims marked with hazard stripes.
+    this.add
+      .rectangle((PIT_X0 + ARENA_WIDTH) / 2, GROUND_Y, ARENA_WIDTH - PIT_X0, LOGICAL_HEIGHT - GROUND_Y, 0x05070c)
+      .setOrigin(0.5, 0)
+      .setDepth(-59);
+    this.add
+      .tileSprite(PIT_X0 - 16, GROUND_Y, 16, 8, 'art/tile-hazard')
+      .setOrigin(0, 0)
+      .setDepth(-55);
+    if (PIT_X1 < ARENA_WIDTH) {
+      this.add
+        .tileSprite(PIT_X1, GROUND_Y, 16, 8, 'art/tile-hazard')
+        .setOrigin(0, 0)
+        .setDepth(-55);
+    }
+
+    // Foreground props on the ground plane, behind the combatants.
+    const groundProps: readonly { key: string; x: number; scale: number }[] = [
+      { key: 'art/prop-bush', x: 230, scale: 2 },
+      { key: 'art/prop-rock', x: 470, scale: 2 },
+      { key: 'art/prop-bush', x: 660, scale: 1.5 }
+    ];
+    for (const prop of groundProps) {
+      this.add
+        .image(prop.x, GROUND_Y + 1, prop.key)
+        .setOrigin(0, 1)
+        .setScale(prop.scale)
+        .setDepth(-70);
+    }
   }
 
   private render(): void {
-    if (!this.playerRect || !this.hudText) {
+    if (!this.playerImage || !this.hudText) {
       return;
     }
-    this.playerRect.setPosition(this.player.x, this.player.y);
-    this.playerRect.setFillStyle(this.health.invuln > 0 ? 0x99ff99 : 0x44dd66);
+    this.renderPlayer();
     this.renderPlayerBullets();
     this.renderEnemyBullets();
     this.renderEnemies();
@@ -502,52 +579,80 @@ export class SandboxScene extends Phaser.Scene {
     }
   }
 
+  /**
+   * Drives the player sprite: pose (idle / run cycle / jump) from the physics
+   * state, horizontal flip from the last nonzero movement direction, and an
+   * alpha blink while post-respawn invulnerability is active.
+   */
+  private renderPlayer(): void {
+    const image = this.playerImage;
+    if (!image) {
+      return;
+    }
+    if (this.player.vx > 1) {
+      this.playerFacing = 1;
+    } else if (this.player.vx < -1) {
+      this.playerFacing = -1;
+    }
+    let key = 'art/player-idle';
+    if (!this.player.grounded) {
+      key = 'art/player-jump';
+    } else if (Math.abs(this.player.vx) > 1) {
+      key = Math.floor(this.animTimeMs / RUN_FRAME_MS) % 2 === 0 ? 'art/player-run-a' : 'art/player-run-b';
+    }
+    image.setTexture(key);
+    image.setFlipX(this.playerFacing < 0);
+    image.setPosition(this.player.x, this.player.y);
+    image.setAlpha(this.health.invuln > 0 ? 0.55 : 1);
+  }
+
   private renderPlayerBullets(): void {
-    this.syncRectPool(this.playerBulletRects, this.playerBullets.length, 8, 4, 0xffe066);
-    for (let i = 0; i < this.playerBulletRects.length; i++) {
-      const rect = this.playerBulletRects[i];
+    this.syncImagePool(this.playerBulletImages, this.playerBullets.length, 'art/bullet-player', 0);
+    for (let i = 0; i < this.playerBulletImages.length; i++) {
+      const image = this.playerBulletImages[i];
       const b = this.playerBullets[i];
       if (b) {
-        rect.setVisible(true);
-        rect.setPosition(b.x, b.y);
+        image.setVisible(true);
+        image.setPosition(b.x, b.y);
       } else {
-        rect.setVisible(false);
+        image.setVisible(false);
       }
     }
   }
 
   private renderEnemyBullets(): void {
-    this.syncRectPool(this.enemyBulletRects, this.enemyBullets.length, ENEMY_PROJECTILE_W, ENEMY_PROJECTILE_H, 0xff5533);
-    for (let i = 0; i < this.enemyBulletRects.length; i++) {
-      const rect = this.enemyBulletRects[i];
+    this.syncImagePool(this.enemyBulletImages, this.enemyBullets.length, 'art/bullet-enemy', 0);
+    for (let i = 0; i < this.enemyBulletImages.length; i++) {
+      const image = this.enemyBulletImages[i];
       const b = this.enemyBullets[i];
       if (b) {
-        rect.setVisible(true);
-        rect.setPosition(b.x, b.y);
+        image.setVisible(true);
+        image.setPosition(b.x, b.y);
       } else {
-        rect.setVisible(false);
+        image.setVisible(false);
       }
     }
   }
 
   private renderEnemies(): void {
-    this.syncRectPool(this.enemyRects, this.enemies.length, 20, 30, 0xff9933);
-    this.syncRectPool(this.enemyTelegraphRects, this.enemies.length, 28, 38, 0);
-    for (let i = 0; i < this.enemyRects.length; i++) {
-      const rect = this.enemyRects[i];
+    this.syncImagePool(this.enemyImages, this.enemies.length, 'art/enemy-runner', 10);
+    this.syncTelegraphPool(this.enemyTelegraphRects, this.enemies.length);
+    for (let i = 0; i < this.enemyImages.length; i++) {
+      const image = this.enemyImages[i];
       const tele = this.enemyTelegraphRects[i];
       const e = this.enemies[i];
       if (!e) {
-        rect.setVisible(false);
+        image.setVisible(false);
         tele.setVisible(false);
         continue;
       }
-      rect.setVisible(true);
+      image.setVisible(true);
+      image.setTexture(e.kind === 'sentry' ? 'art/enemy-sentry' : 'art/enemy-runner');
+      // Sprites are authored facing left; flip when the enemy faces right.
+      image.setFlipX(e.facing > 0);
+      image.setPosition(e.x, e.y);
       const w = enemyWidth(e);
       const h = enemyHeight(e);
-      rect.setSize(w, h);
-      rect.setFillStyle(e.kind === 'sentry' ? 0xbb55ff : 0xff9933);
-      rect.setPosition(e.x, e.y);
       // Readable telegraph: a flashing outline while the enemy winds up.
       tele.setPosition(e.x - 4, e.y - 4);
       tele.setSize(w + 8, h + 8);
@@ -561,35 +666,46 @@ export class SandboxScene extends Phaser.Scene {
 
   private renderPickups(): void {
     const visible = this.pickups.filter((p) => !p.collected);
-    this.syncRectPool(this.pickupRects, visible.length, 18, 18, 0x33ddff);
+    this.syncImagePool(this.pickupImages, visible.length, 'art/pickup-crate', -40);
     this.syncTextPool(this.pickupLabels, visible.length);
-    for (let i = 0; i < this.pickupRects.length; i++) {
-      const rect = this.pickupRects[i];
+    for (let i = 0; i < this.pickupImages.length; i++) {
+      const image = this.pickupImages[i];
       const label = this.pickupLabels[i];
       const p = visible[i];
       if (!p) {
-        rect.setVisible(false);
+        image.setVisible(false);
         label.setVisible(false);
         continue;
       }
-      rect.setVisible(true);
-      rect.setPosition(p.x, p.y);
+      image.setVisible(true);
+      image.setPosition(p.x, p.y);
       label.setVisible(true);
       label.setPosition(p.x + 9, p.y + 9);
       label.setText(pickupLetter(p.weapon));
+      label.setDepth(-35);
     }
   }
 
-  private syncRectPool(
-    pool: Phaser.GameObjects.Rectangle[],
+  private syncImagePool(
+    pool: Phaser.GameObjects.Image[],
     count: number,
-    w: number,
-    h: number,
-    color: number
+    key: string,
+    depth: number
   ): void {
     while (pool.length < count) {
-      const r = this.add.rectangle(0, 0, w, h, color);
+      const image = this.add.image(0, 0, key);
+      image.setOrigin(0, 0);
+      image.setDepth(depth);
+      pool.push(image);
+    }
+  }
+
+  /** Telegraph overlays are stroke-only outlines: no fill, so they never hide the sprite beneath. */
+  private syncTelegraphPool(pool: Phaser.GameObjects.Rectangle[], count: number): void {
+    while (pool.length < count) {
+      const r = this.add.rectangle(0, 0, 28, 38);
       r.setOrigin(0, 0);
+      r.setDepth(20);
       pool.push(r);
     }
   }

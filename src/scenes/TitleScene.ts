@@ -12,7 +12,7 @@ const TAGLINE_Y = 248;
  * Renders the original title, a tagline, a start prompt, and a version label
  * using system fonts only - no external asset files are required. Pressing
  * Enter or Space (or the debug `startLevel1` command) starts Level 1 and
- * unlocks audio on that first user gesture.
+ * unlocks audio on that first user gesture; P opens the prototype room.
  */
 export class TitleScene extends Phaser.Scene {
   private onStart?: (e: KeyboardEvent) => void;
@@ -53,7 +53,7 @@ export class TitleScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     this.add
-      .text(centerX, 366, 'H - HELP      S - SETTINGS      F10 - FULLSCREEN', {
+      .text(centerX, 366, 'H - HELP      S - SETTINGS      P - PROTOTYPE ROOM      F10 - FULLSCREEN', {
         fontFamily: 'monospace',
         fontSize: '14px',
         color: '#5c6c8c'
@@ -80,6 +80,13 @@ export class TitleScene extends Phaser.Scene {
       if (e.code === 'KeyS') {
         e.preventDefault();
         this.scene.start(SCENE_KEYS.settings);
+        return;
+      }
+      if (e.code === 'KeyP') {
+        e.preventDefault();
+        const audio = this.registry.get('audio') as AudioService | undefined;
+        audio?.unlock();
+        this.scene.start(SCENE_KEYS.sandbox);
         return;
       }
       if (e.code !== 'Enter' && e.code !== 'Space') {

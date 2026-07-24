@@ -1,12 +1,27 @@
 import { SCENE_KEYS } from './app/config';
 import { createGame } from './app/createGame';
 import { createAudioService } from './audio/AudioService';
-import { getDebugInput, installDebugBridge, registerCommand } from './debug/debugBridge';
+import { getDebugInput, installDebugBridge, isDebugEnabled, registerCommand } from './debug/debugBridge';
 import { loadSettings } from './persistence/StorageService';
+import type Phaser from 'phaser';
+
+declare global {
+  interface Window {
+    /** Debug-only handle to the Phaser game (see below); absent in normal play. */
+    __GAME__?: Phaser.Game;
+  }
+}
 
 installDebugBridge();
 
 const game = createGame(document.getElementById('game') ?? undefined);
+
+// Debug builds expose the game instance so automated tests can inspect the
+// texture manager and display list (e.g. verifying sprite presentation).
+// Absent entirely in normal play, like the rest of the debug bridge.
+if (isDebugEnabled()) {
+  window.__GAME__ = game;
+}
 
 // Shared mutable input the debug bridge mutates and the active scene reads,
 // letting automated tests synthesize input without real keyboard events.
