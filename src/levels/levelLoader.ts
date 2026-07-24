@@ -1,3 +1,4 @@
+import { PLAYER_HEIGHT, PLAYER_WIDTH } from '../balance/player';
 import { type LevelDef, type LevelValidationIssue, type Rect } from './levelSchema';
 
 export type { LevelDef } from './levelSchema';
@@ -14,6 +15,15 @@ function rectValid(r: Rect): boolean {
 
 function inBounds(r: Rect, level: LevelDef): boolean {
   return r.x >= 0 && r.y >= 0 && r.x + r.width <= level.width && r.y + r.height <= level.height;
+}
+
+function rectsOverlap(a: Rect, b: Rect): boolean {
+  return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
+}
+
+/** The player body box standing with its feet at a checkpoint marker. */
+function checkpointBody(c: { x: number; y: number }): Rect {
+  return { x: c.x, y: c.y - PLAYER_HEIGHT, width: PLAYER_WIDTH, height: PLAYER_HEIGHT };
 }
 
 export function validateLevel(level: LevelDef): LevelValidationIssue[] {
@@ -36,6 +46,14 @@ export function validateLevel(level: LevelDef): LevelValidationIssue[] {
       issues.push({ path: `level.checkpoints[${i}].id`, message: 'checkpoint ids must be non-empty and unique' });
     }
     checkpointIds.add(c.id);
+    // C7: a checkpoint (and thus every respawn) must never be inside terrain or a hazard.
+    const body = checkpointBody(c);
+    if (level.solids.some((s) => rectsOverlap(body, s))) {
+      issues.push({ path: `level.checkpoints[${i}]`, message: 'checkpoint body overlaps solid terrain' });
+    }
+    if (level.hazards.some((h) => rectsOverlap(body, h))) {
+      issues.push({ path: `level.checkpoints[${i}]`, message: 'checkpoint body overlaps a hazard' });
+    }
   });
   level.solids.forEach((r, i) => {
     if (!rectValid(r)) {
@@ -64,6 +82,14 @@ export function validateLevel(level: LevelDef): LevelValidationIssue[] {
     }
     if (!rectValid(d.openTrigger)) {
       issues.push({ path: `level.doors[${i}].openTrigger`, message: 'door openTrigger must have positive finite size' });
+    }
+  });
+  (level.containers ?? []).forEach((c, i) => {
+    if (!rectValid({ x: c.x, y: c.y, width: c.width, height: c.height })) {
+      issues.push({ path: `level.containers[${i}]`, message: 'container must have positive finite size' });
+    }
+    if (!(c.health > 0)) {
+      issues.push({ path: `level.containers[${i}].health`, message: 'container health must be positive' });
     }
   });
   if (!(level.completionX > 0) || level.completionX > level.width) {

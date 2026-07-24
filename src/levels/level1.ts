@@ -94,6 +94,10 @@ export const LEVEL_1: LevelDef = {
   pickups,
   movingPlatforms: [],
   doors: [],
+  containers: [
+    { id: 'l1-crate-1', x: 1000, y: GROUND_Y - 24, width: 24, height: 24, health: 3, scoreValue: 50 },
+    { id: 'l1-crate-2', x: 1900, y: GROUND_Y - 24, width: 24, height: 24, health: 3, scoreValue: 50 }
+  ],
   boss: { id: 'siegeWalker', x0: 2560, x1: 2640, spawnX: 2880 },
   completionX: 3180
 };

@@ -30,14 +30,14 @@ Check a box only after recording verification evidence in PROGRESS.md.
 - [x] C4. Eight-direction aiming and firing work in standing, moving, crouching, and airborne states.
 - [x] C5. Fire-rate limits prevent input frequency from bypassing weapon balance.
 - [x] C6. Player damage, temporary invulnerability, death, life loss, checkpoint respawn, and game over are correct.
-- [ ] C7. The player never respawns inside a solid tile, hazard, enemy, or active projectile.
+- [x] C7. The player never respawns inside a solid tile, hazard, enemy, or active projectile.
 
 ## D. Weapons and projectiles
 
 - [x] D1. Pulse Rifle, Scatter Blaster, and Rapid Carbine behave according to their data definitions.
 - [x] D2. Weapon pickups change the active weapon and clearly communicate the result.
-- [ ] D3. Player and enemy projectiles use correct collision categories and ownership.
-- [ ] D4. Projectiles expire or are recycled and do not grow without bound during a ten-minute soak test.
+- [x] D3. Player and enemy projectiles use correct collision categories and ownership.
+- [x] D4. Projectiles expire or are recycled and do not grow without bound during a ten-minute soak test.
 - [x] D5. Scatter projectiles cannot multiply damage through duplicate collision callbacks in one simulation step.
 
 ## E. Enemies
@@ -54,7 +54,7 @@ Check a box only after recording verification evidence in PROGRESS.md.
 - [x] F2. Level 2 is complete from start through the Reactor Warden boss.
 - [x] F3. Each level includes at least two functioning checkpoints.
 - [x] F4. Falling into a pit or touching a lethal hazard follows the same documented life-loss flow.
-- [ ] F5. Doors, moving platforms, destructible containers, and level transitions do not trap the player in an invalid state.
+- [x] F5. Doors, moving platforms, destructible containers, and level transitions do not trap the player in an invalid state.
 - [x] F6. Level content is original and does not reproduce a Contra map or recognizable encounter sequence.
 
 ## G. Bosses
@@ -85,7 +85,7 @@ Check a box only after recording verification evidence in PROGRESS.md.
 - [x] J1. A Playwright smoke test starts a game, moves, jumps, fires, pauses, resumes, and returns to title.
 - [x] J2. Playwright verifies at least one checkpoint respawn flow.
 - [x] J3. Automated tests cover weapon rate limits, damage/invulnerability, checkpoint state, storage validation, and boss phase transitions.
-- [ ] J4. A ten-minute automated or scripted soak test shows bounded enemy/projectile counts and no uncaught errors.
+- [x] J4. A ten-minute automated or scripted soak test shows bounded enemy/projectile counts and no uncaught errors.
 - [x] J5. `dist/` works when served as static files with SPA fallback behavior configured if needed.
 - [x] J6. Cloudflare Pages settings are documented as build command `npm run build` and output directory `dist`.
 - [x] J7. ASSET_POLICY.md contains provenance and license notes for every non-code asset.

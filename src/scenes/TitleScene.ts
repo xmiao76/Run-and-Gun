@@ -53,7 +53,7 @@ export class TitleScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     this.add
-      .text(centerX, 366, 'H - HELP / CONTROLS      F10 - FULLSCREEN', {
+      .text(centerX, 366, 'H - HELP      S - SETTINGS      F10 - FULLSCREEN', {
         fontFamily: 'monospace',
         fontSize: '14px',
         color: '#5c6c8c'
@@ -75,6 +75,11 @@ export class TitleScene extends Phaser.Scene {
       if (e.code === 'KeyH') {
         e.preventDefault();
         this.scene.start(SCENE_KEYS.help);
+        return;
+      }
+      if (e.code === 'KeyS') {
+        e.preventDefault();
+        this.scene.start(SCENE_KEYS.settings);
         return;
       }
       if (e.code !== 'Enter' && e.code !== 'Space') {

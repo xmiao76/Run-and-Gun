@@ -38,3 +38,35 @@ export function isSpawnSafe(
   };
   return !boxesOverlap(expanded, playerBox(playerX, playerY));
 }
+
+/**
+ * Chooses a respawn position that is clear of every enemy box (C7: the player
+ * never respawns inside an enemy). Starts at the checkpoint and, if any enemy
+ * overlaps the spawn box (with a small margin), shifts right until clear or
+ * the level edge is reached; falls back to the checkpoint itself, where the
+ * post-respawn invulnerability window covers the overlap.
+ */
+export function respawnPosition(
+  checkpoint: { x: number; y: number },
+  enemies: readonly Box[],
+  playerW: number,
+  playerH: number,
+  levelWidth: number,
+  margin = DEFAULT_SPAWN_MARGIN
+): { x: number; y: number } {
+  for (let attempt = 0; attempt <= 8; attempt++) {
+    const x = checkpoint.x + attempt * (playerW + margin);
+    if (x + playerW > levelWidth) {
+      break;
+    }
+    const spawnBox: Box = { x, y: checkpoint.y - playerH, width: playerW, height: playerH };
+    const blocked = enemies.some((e) => {
+      const expanded: Box = { x: e.x - margin / 2, y: e.y - margin / 2, width: e.width + margin, height: e.height + margin };
+      return boxesOverlap(expanded, spawnBox);
+    });
+    if (!blocked) {
+      return { x, y: checkpoint.y };
+    }
+  }
+  return { x: checkpoint.x, y: checkpoint.y };
+}

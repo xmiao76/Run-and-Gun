@@ -7,6 +7,7 @@ import { HelpScene } from '../scenes/HelpScene';
 import { LevelScene } from '../scenes/LevelScene';
 import { ResultsScene } from '../scenes/ResultsScene';
 import { SandboxScene } from '../scenes/SandboxScene';
+import { SettingsScene } from '../scenes/SettingsScene';
 import { TitleScene } from '../scenes/TitleScene';
 
 /**
@@ -29,6 +30,6 @@ export function createGame(parent?: HTMLElement): Phaser.Game {
       width: LOGICAL_WIDTH,
       height: LOGICAL_HEIGHT
     },
-    scene: [BootScene, TitleScene, HelpScene, SandboxScene, LevelScene, ResultsScene, GameOverScene]
+    scene: [BootScene, TitleScene, HelpScene, SettingsScene, SandboxScene, LevelScene, ResultsScene, GameOverScene]
   });
 }

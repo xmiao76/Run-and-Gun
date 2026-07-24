@@ -40,6 +40,7 @@ export type DebugCommandName =
   | 'completeLevel'
   | 'triggerGameOver'
   | 'awardScore'
+  | 'advanceSteps'
   | 'teleportPlayer'
   | 'spawnEnemyAt'
   | 'report';

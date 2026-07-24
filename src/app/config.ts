@@ -25,6 +25,7 @@ export const SCENE_KEYS = {
   boot: 'boot',
   title: 'title',
   help: 'help',
+  settings: 'settings',
   sandbox: 'sandbox',
   level: 'level',
   results: 'results',

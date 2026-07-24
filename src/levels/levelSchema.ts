@@ -68,6 +68,19 @@ export interface DoorDef {
   openTrigger: Rect;
 }
 
+/** A destructible crate: solid until destroyed by player fire, then passable. */
+export interface ContainerDef {
+  id: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  /** Hits required to destroy. */
+  health: number;
+  /** Score awarded on destruction. */
+  scoreValue: number;
+}
+
 export interface LevelDef {
   id: string;
   name: string;
@@ -82,6 +95,7 @@ export interface LevelDef {
   pickups: LevelPickupDef[];
   movingPlatforms: MovingPlatformDef[];
   doors: DoorDef[];
+  containers: ContainerDef[];
   boss: BossArenaDef;
   /** World x the player must reach (with the boss dead) to complete the level. */
   completionX: number;

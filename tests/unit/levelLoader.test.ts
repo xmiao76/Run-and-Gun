@@ -54,4 +54,12 @@ describe('level validation', () => {
     const bad = { ...LEVEL_1, spawn: { x: -50, y: 0 } };
     expect(validateLevel(bad).some((i) => i.path === 'level.spawn')).toBe(true);
   });
+
+  it('rejects a checkpoint whose body overlaps solid terrain or a hazard (C7)', () => {
+    const buried = { ...LEVEL_1, checkpoints: [...LEVEL_1.checkpoints, { id: 'buried', x: 100, y: 500 }] };
+    expect(validateLevel(buried).some((i) => /solid/.test(i.message))).toBe(true);
+
+    const burnt = { ...LEVEL_1, checkpoints: [...LEVEL_1.checkpoints, { id: 'burnt', x: 760, y: 540 }] };
+    expect(validateLevel(burnt).some((i) => /hazard/.test(i.message))).toBe(true);
+  });
 });

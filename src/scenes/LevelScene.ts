@@ -30,6 +30,7 @@ import {
   snapshotCheckpoint,
   type CheckpointData
 } from '../simulation/checkpoints';
+import { CollisionCategory, ENEMY_PROJECTILE_HITS, PLAYER_PROJECTILE_HITS } from '../simulation/categories';
 import { createClock, tick, FIXED_DT, type ClockState } from '../simulation/clock';
 import {
   clearLedger,
@@ -75,6 +76,13 @@ import {
   stepDoor,
   type DoorState
 } from '../simulation/doors';
+import { respawnPosition } from '../simulation/safeSpawn';
+import {
+  createContainerStates,
+  damageContainer,
+  solidContainerRects,
+  type ContainerState
+} from '../simulation/containers';
 import {
   createSpawnTriggers,
   updateSpawnTriggers,
@@ -96,6 +104,8 @@ const COMPLETION_DELAY = 1.2;
 
 interface PlayerBullet extends Projectile {
   id: string;
+  /** Collision ownership: always the player-projectile category (D3). */
+  category: number;
 }
 interface EnemyBullet {
   id: string;
@@ -106,6 +116,8 @@ interface EnemyBullet {
   ttl: number;
   damage: number;
   arcGravity: number;
+  /** Collision ownership: always the enemy-projectile category (D3). */
+  category: number;
 }
 
 /** A destructible boss subcomponent (e.g. a Reactor Warden turret). */
@@ -155,11 +167,15 @@ export class LevelScene extends Phaser.Scene {
   private paused = false;
   private prevEsc = false;
   private completionTimer = -1;
+  private maxEnemiesSeen = 0;
+  private maxPlayerBulletsSeen = 0;
+  private maxEnemyBulletsSeen = 0;
   private prevM = false;
   private prevF = false;
   private settings: Settings = { ...DEFAULT_SETTINGS };
   private movingPlatforms: MovingPlatformState[] = [];
   private doors: DoorState[] = [];
+  private containers: ContainerState[] = [];
   private subcomponents: SubcomponentState[] = [];
   private lastBossPhase = 0;
   private bossDeathHandled = false;
@@ -169,6 +185,7 @@ export class LevelScene extends Phaser.Scene {
   private hazardRects: Phaser.GameObjects.Rectangle[] = [];
   private movingPlatformRects: Phaser.GameObjects.Rectangle[] = [];
   private doorRects: Phaser.GameObjects.Rectangle[] = [];
+  private containerRects: Phaser.GameObjects.Rectangle[] = [];
   private subcomponentRects: Phaser.GameObjects.Rectangle[] = [];
   private enemyRects: Phaser.GameObjects.Rectangle[] = [];
   private telegraphRects: Phaser.GameObjects.Rectangle[] = [];
@@ -209,6 +226,7 @@ export class LevelScene extends Phaser.Scene {
     this.playerBulletRects = [];
     this.pickupRects = [];
     this.pickupLabels = [];
+    this.containerRects = [];
     this.resetRun();
     this.buildStaticVisuals();
     this.playerRect = this.add.rectangle(0, 0, PLAYER_WIDTH, PLAYER_HEIGHT, 0x44dd66);
@@ -333,6 +351,7 @@ export class LevelScene extends Phaser.Scene {
     this.boss = createBossState(this.level.boss.id);
     this.movingPlatforms = createMovingPlatformStates(this.level.movingPlatforms);
     this.doors = createDoorStates(this.level.doors);
+    this.containers = createContainerStates(this.level.containers);
     this.lastBossPhase = 0;
     this.bossDeathHandled = false;
     this.buildSubcomponents();
@@ -354,6 +373,9 @@ export class LevelScene extends Phaser.Scene {
     this.nextId = 1;
     this.paused = false;
     this.completionTimer = -1;
+    this.maxEnemiesSeen = 0;
+    this.maxPlayerBulletsSeen = 0;
+    this.maxEnemyBulletsSeen = 0;
   }
 
   private buildSubcomponents(): void {
@@ -441,6 +463,16 @@ export class LevelScene extends Phaser.Scene {
       this.publishRuntime();
       return { ok: true, score: this.score };
     });
+    registerCommand('advanceSteps', (payload) => {
+      // Test affordance for the soak test: fast-forward simulation time
+      // synchronously (bounded), driving the real fixed-step loop.
+      const n = Math.min(Math.max(typeof payload === 'number' ? Math.floor(payload) : 0, 0), 60000);
+      for (let i = 0; i < n; i++) {
+        this.stepOnce();
+      }
+      this.publishRuntime();
+      return { ok: true, steps: n };
+    });
     registerCommand('report', () => {
       this.publishRuntime();
       return { ok: true };
@@ -477,7 +509,10 @@ export class LevelScene extends Phaser.Scene {
     this.stepInput = mergeInput(device, mergeInput(debug, touchInput));
 
     if (this.health.gameOver) {
-      this.goToGameOver();
+      // Guard against repeated transitions when steps are driven externally.
+      if (this.scene.isActive()) {
+        this.goToGameOver();
+      }
       return;
     }
 
@@ -513,7 +548,8 @@ export class LevelScene extends Phaser.Scene {
     const dynamicSolids = [
       ...this.level.solids,
       ...platformDeltas.map((p) => p.rect),
-      ...closedDoorRects(this.doors)
+      ...closedDoorRects(this.doors),
+      ...solidContainerRects(this.containers)
     ];
 
     const playerResult = stepPlatformer(this.player, this.stepInput, FIXED_DT, dynamicSolids, this.level.oneWays, {
@@ -557,6 +593,7 @@ export class LevelScene extends Phaser.Scene {
     this.stepEnemies();
     this.stepEnemyBullets();
     this.resolvePlayerBulletsVsEnemies();
+    this.resolvePlayerBulletsVsContainers();
     this.resolvePlayerBulletsVsSubcomponents();
     this.resolvePlayerBulletsVsBoss();
     this.resolveEnemyBulletsVsPlayer();
@@ -581,6 +618,9 @@ export class LevelScene extends Phaser.Scene {
 
     clearLedger(this.ledger);
     this.clearPressedEdges();
+    this.maxEnemiesSeen = Math.max(this.maxEnemiesSeen, this.enemies.length);
+    this.maxPlayerBulletsSeen = Math.max(this.maxPlayerBulletsSeen, this.playerBullets.length);
+    this.maxEnemyBulletsSeen = Math.max(this.maxEnemyBulletsSeen, this.enemyBullets.length);
     this.publishRuntime();
   }
 
@@ -601,6 +641,7 @@ export class LevelScene extends Phaser.Scene {
           vx: rotated.vx,
           vy: rotated.vy,
           id: this.makeId('pb'),
+          category: CollisionCategory.playerProjectile,
           x: this.player.x + (this.player.facing > 0 ? PLAYER_WIDTH : 0),
           y: this.player.y - h / 2
         };
@@ -651,7 +692,8 @@ export class LevelScene extends Phaser.Scene {
           vy: Math.sin(ang) * 220,
           ttl: 2.4,
           damage: 1,
-          arcGravity: 0
+          arcGravity: 0,
+          category: CollisionCategory.enemyProjectile
         });
       }
       void len;
@@ -697,7 +739,8 @@ export class LevelScene extends Phaser.Scene {
         vy: intent.vy,
         ttl: 2.6,
         damage: intent.damage,
-        arcGravity: intent.arcGravity
+        arcGravity: intent.arcGravity,
+        category: CollisionCategory.enemyProjectile
       });
     }
   }
@@ -709,9 +752,17 @@ export class LevelScene extends Phaser.Scene {
   }
 
   private resolvePlayerBulletsVsEnemies(): void {
+    // D3: only player-owned projectiles may damage enemy bodies.
+    if ((CollisionCategory.enemyBody & PLAYER_PROJECTILE_HITS) === 0) {
+      return;
+    }
     const surviving: PlayerBullet[] = [];
     for (const bullet of this.playerBullets) {
       let consumed = false;
+      if (bullet.category !== CollisionCategory.playerProjectile) {
+        surviving.push(bullet);
+        continue;
+      }
       for (let i = 0; i < this.enemies.length; i++) {
         const enemy = this.enemies[i];
         if (!isAlive(enemy) || !this.bulletHitsRect(bullet.x, bullet.y, 8, 4, enemy.x, enemy.y, enemyWidth(enemy), enemyHeight(enemy))) {
@@ -735,14 +786,56 @@ export class LevelScene extends Phaser.Scene {
     this.playerBullets = surviving;
   }
 
-  private resolvePlayerBulletsVsSubcomponents(): void {
-    const def = getBossDef(this.level.boss.id);
-    if (!bossHasSubcomponents(def) || !this.boss.active) {
+  private resolvePlayerBulletsVsContainers(): void {
+    if (this.containers.length === 0) {
       return;
     }
     const surviving: PlayerBullet[] = [];
     for (const bullet of this.playerBullets) {
       let consumed = false;
+      if (bullet.category !== CollisionCategory.playerProjectile) {
+        surviving.push(bullet);
+        continue;
+      }
+      for (let i = 0; i < this.containers.length; i++) {
+        const c = this.containers[i];
+        if (c.destroyed || !this.bulletHitsRect(bullet.x, bullet.y, 8, 4, c.x, c.y, c.width, c.height)) {
+          continue;
+        }
+        if (!recordHit(this.ledger, bullet.id, c.id)) {
+          continue;
+        }
+        this.containers[i] = damageContainer(c, bullet.damage);
+        if (this.containers[i].destroyed) {
+          this.score += c.scoreValue;
+          this.sfx('explosion');
+        }
+        consumed = true;
+        break;
+      }
+      if (!consumed) {
+        surviving.push(bullet);
+      }
+    }
+    this.playerBullets = surviving;
+  }
+
+  private resolvePlayerBulletsVsSubcomponents(): void {
+    const def = getBossDef(this.level.boss.id);
+    if (!bossHasSubcomponents(def) || !this.boss.active) {
+      return;
+    }
+    // D3: subcomponents are boss components; only player projectiles damage them.
+    if ((CollisionCategory.bossComponent & PLAYER_PROJECTILE_HITS) === 0) {
+      return;
+    }
+    const surviving: PlayerBullet[] = [];
+    for (const bullet of this.playerBullets) {
+      let consumed = false;
+      if (bullet.category !== CollisionCategory.playerProjectile) {
+        surviving.push(bullet);
+        continue;
+      }
       for (let i = 0; i < this.subcomponents.length; i++) {
         const s = this.subcomponents[i];
         if (!s.alive || !this.bulletHitsRect(bullet.x, bullet.y, 8, 4, s.x, s.y, s.width, s.height)) {
@@ -771,9 +864,17 @@ export class LevelScene extends Phaser.Scene {
     if (!isBossAlive(this.boss)) {
       return;
     }
+    // D3: the boss body is a boss component; only player projectiles damage it.
+    if ((CollisionCategory.bossComponent & PLAYER_PROJECTILE_HITS) === 0) {
+      return;
+    }
     const def = { width: 64, height: 56 };
     const surviving: PlayerBullet[] = [];
     for (const bullet of this.playerBullets) {
+      if (bullet.category !== CollisionCategory.playerProjectile) {
+        surviving.push(bullet);
+        continue;
+      }
       if (this.bulletHitsRect(bullet.x, bullet.y, 8, 4, this.boss.x, this.boss.y, def.width, def.height) && recordHit(this.ledger, bullet.id, 'boss')) {
         const result = damageBoss(this.boss, bullet.damage);
         this.boss = result.boss;
@@ -788,10 +889,18 @@ export class LevelScene extends Phaser.Scene {
   }
 
   private resolveEnemyBulletsVsPlayer(): void {
+    // D3: only enemy-owned projectiles may damage the player body.
+    if ((CollisionCategory.playerBody & ENEMY_PROJECTILE_HITS) === 0) {
+      return;
+    }
     const h = currentHeight(this.player);
     const top = this.player.y - h;
     const surviving: EnemyBullet[] = [];
     for (const bullet of this.enemyBullets) {
+      if (bullet.category !== CollisionCategory.enemyProjectile) {
+        surviving.push(bullet);
+        continue;
+      }
       const overlaps = this.bulletHitsRect(bullet.x, bullet.y, 8, 8, this.player.x, top, PLAYER_WIDTH, h);
       if (overlaps && recordHit(this.ledger, bullet.id, 'player')) {
         this.playerHit();
@@ -840,7 +949,13 @@ export class LevelScene extends Phaser.Scene {
       return;
     }
     const cp = resolveCheckpoint(this.level.checkpoints, this.lastCheckpointId);
-    this.player = createPlatformerState(cp.x, cp.y);
+    // C7: respawn clear of enemies (projectiles are already cleared; loader
+    // validation guarantees the checkpoint is outside solids and hazards).
+    const enemyBoxes = this.enemies
+      .filter((e) => isAlive(e))
+      .map((e) => ({ x: e.x, y: e.y, width: enemyWidth(e), height: enemyHeight(e) }));
+    const pos = respawnPosition(cp, enemyBoxes, PLAYER_WIDTH, PLAYER_HEIGHT, this.level.width);
+    this.player = createPlatformerState(pos.x, pos.y);
     this.weapon = createWeaponState(this.checkpoint.weapon);
     this.playerBullets = [];
     this.enemyBullets = [];
@@ -917,6 +1032,10 @@ export class LevelScene extends Phaser.Scene {
       bossPhase: this.boss.phase,
       bossVulnerable: this.boss.vulnerable,
       subcomponentsAlive: this.subcomponents.filter((s) => s.alive).length,
+      containersAlive: this.containers.filter((c) => !c.destroyed).length,
+      maxEnemiesSeen: this.maxEnemiesSeen,
+      maxPlayerBulletsSeen: this.maxPlayerBulletsSeen,
+      maxEnemyBulletsSeen: this.maxEnemyBulletsSeen,
       paused: this.paused,
       gameOver: this.health.gameOver,
       completing: this.completionTimer >= 0,
@@ -976,6 +1095,16 @@ export class LevelScene extends Phaser.Scene {
       rect.setVisible(true);
       rect.setAlpha(d.open ? 0.25 : 1);
       rect.setPosition(d.rect.x - this.cameraX, d.rect.y);
+    });
+
+    this.syncPool(this.containerRects, this.containers.length, 24, 24, 0x8a5a2b);
+    this.containers.forEach((c, i) => {
+      const rect = this.containerRects[i];
+      rect.setVisible(!c.destroyed);
+      if (!c.destroyed) {
+        rect.setSize(c.width, c.height);
+        rect.setPosition(c.x - this.cameraX, c.y);
+      }
     });
 
     const h = currentHeight(this.player);

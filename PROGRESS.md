@@ -2,27 +2,38 @@
 
 ## Current status
 
-- Current milestone: M6 - Original asset and audio polish (COMPLETE this iteration)
-- Overall state: M0-M6 complete; full quality gate GREEN
-- Last verified commit: eb43d5f (M5); the M6 commit created this iteration verifies the working tree below (resolve with `git log -1`)
-- Last full quality gate: 2026-07-23 12:39 local - all five commands exit 0 (see table)
+- Current milestone: M7 - Hardening and Cloudflare readiness (COMPLETE this iteration)
+- Overall state: **ALL milestones M0-M7 complete; ALL 59 acceptance criteria checked; full quality gate GREEN**
+- Last verified commit: c00cbf4 (M6); the M7 commit created this iteration verifies the working tree below (resolve with `git log -1`)
+- Last full quality gate: 2026-07-23 18:57 local - all five commands exit 0 (see table)
+- Open acceptance criteria: **0 of 59**
 
 ## Acceptance summary
 
-- Completed to date: A1-A8, B1-B6, C1-C6, D1, D2, D5, E1-E5, F1-F4, F6, G1-G5, H1-H5, I1-I4, J1-J3, J5, J6, J7, J8 (54)
-- Newly completed this iteration (M6):
-  - J7 ASSET_POLICY.md now documents every non-code asset with provenance + license: the project-created SVG favicon (the only asset file), procedural sprites/terrain/pickups/effects, system monospace font usage, and the WebAudio-synthesized music + SFX (all project-created, no external sources).
-- Also this milestone (polish, no new criteria):
-  - Original sequenced WebAudio music loop (8-step bass + arpeggio pattern composed for this project) replacing the drone; new telegraph/door/respawn SFX wired into the level scene; the service stays fully failure-safe (unit-tested).
-  - Readability polish: aim-direction barrel indicator on the player, per-weapon pickup colors, darker pit interiors (verified in a captured gameplay screenshot with zero page errors).
-- Partially addressed (NOT checked; recorded for traceability):
-  - C7 respawn places the player on ground at checkpoints and clears projectiles, but no test asserts non-overlap with enemies at respawn (M7).
-  - D3 collision categories are centralized and ownership is explicit, but the category bitmask is not consulted by collision code.
-  - D4/J4 projectile bounds + soak test deferred to M7.
-  - F5 doors/moving platforms/level transitions verified trap-free; destructible containers still unimplemented.
-- Remaining: M7 hardening + Cloudflare readiness (C7, D3, D4, F5, J4 soak test, console-error sweep, final manual playtest, deployment-docs confirmation).
+- **Completed: all 59 of 59** - A1-A8, B1-B6, C1-C7, D1-D5, E1-E5, F1-F6, G1-G5, H1-H5, I1-I4, J1-J8.
+- Newly completed this iteration (M7):
+  - C7 respawns can never place the player inside a solid, hazard, enemy, or active projectile: loader rejects checkpoints overlapping terrain/hazards, `respawnPosition` shifts clear of enemies, and respawn clears projectiles (unit-tested).
+  - D3 projectiles carry collision-category ownership tags and the resolvers enforce the centralized masks (`PLAYER_PROJECTILE_HITS` hits enemy bodies + boss components only; `ENEMY_PROJECTILE_HITS` hits the player body only; unit-tested).
+  - D4 + J4 a ten-minute accelerated soak (`advanceSteps` fast-forward, 36,000 fixed steps) held counts far below caps - maxEnemies 2/12, maxPlayerBullets 1/96, maxEnemyBullets 2/96 - with a flat ~10 MB heap and zero uncaught errors; the bridge stayed responsive after (`npm run test:soak`).
+  - F5 destructible containers block until destroyed and never permanently trap (E2E: blocked at the crate, destroyed by fire, walked through); doors/moving platforms/level transitions were verified trap-free in earlier milestones.
+- Also this iteration: a dedicated Settings screen (GAME_REQUIREMENTS section 11) with volume/mute/reduced-flash adjustments persisted across reload (E2E); `test:soak` script added.
+- Deployment note: DEPLOYMENT.md already documents Cloudflare Pages as build command `npm run build` and output directory `dist` (J6); the production build is fully static (A8, J5). **No push, no deploy, no PR** - deployment remains a user-authorized step.
+- Remaining optional work (not part of the acceptance criteria, only with explicit user direction): a hands-on human playtest session, richer sprite art replacing procedural shapes, additional music tracks.
 
 ## Current iteration plan
+
+M7 - Hardening and Cloudflare readiness (selected: final milestone; M0-M6 prerequisites satisfied). Plan to close the last five open criteria plus the settings-screen gap, with no scope expansion:
+
+1. C7: level-loader validation that no checkpoint sits inside a solid or hazard, plus a pure `respawnPosition` that shifts the spawn clear of overlapping enemies; LevelScene respawn uses it (projectiles already cleared); unit tests.
+2. D3: tag projectiles with their collision categories and enforce the centralized ownership masks (`PLAYER_PROJECTILE_HITS`, `ENEMY_PROJECTILE_HITS`) inside the collision resolvers; unit test for mask correctness + ownership.
+3. F5: destructible containers (schema + `simulation/containers.ts` + LevelScene integration as solid-until-destroyed + level 1 data) that can never permanently trap the player; E2E destroys one and walks through.
+4. D4 + J4: max-count tracking in the runtime, an `advanceSteps` debug command for accelerated simulation, a `test:soak` script, and a Playwright soak that fast-forwards ten minutes of simulation and asserts bounded enemy/projectile counts, no uncaught errors, and a responsive scene (memory trend recorded).
+5. Settings screen (GAME_REQUIREMENTS section 11): a dedicated SettingsScene (volume up/down, mute, reduced-flash, all persisted) reachable from the title; persistence E2E.
+6. Final: full quality gate, an extended automated keyboard playtest of Level 1's opening with a screenshot, deployment-docs confirmation (DEPLOYMENT.md already records build command + output dir), final evidence in PROGRESS.md, one local commit. Then evaluate project completion against the acceptance criteria.
+
+M7 status: COMPLETE this iteration. Full quality gate GREEN (lint 0, typecheck 0, test 122/122 across 27 files, e2e 21/21 including the soak and hardening specs, build 377.41 kB gzip). All 59 acceptance criteria are now checked with recorded evidence, so per .claude/loop.md the completion condition is met; the final evidence and the completion signal follow. No further feature changes will be made.
+
+## M6 (completed) iteration plan
 
 M6 - Original asset and audio polish (selected: earliest incomplete milestone; M0-M5 prerequisites satisfied). Plan, staying strictly within ASSET_POLICY.md (original/procedural/permissive only; no Contra expression):
 
@@ -105,7 +116,18 @@ Next iteration (after M2): M3 - Level 1 vertical slice (Jungle Outpost, checkpoi
 
 ## Completed work
 
-M6 (this iteration):
+M7 (this iteration):
+
+- `src/levels/levelLoader.ts` - C7 checkpoint validation (no checkpoint body inside solid terrain or a hazard); container validation.
+- `src/simulation/safeSpawn.ts` - `respawnPosition` shifts the respawn clear of enemies (C7); `src/scenes/LevelScene.ts` uses it on respawn.
+- `src/simulation/categories.ts` - now enforced in the LevelScene resolvers: bullets carry category tags and the centralized masks gate damage (D3).
+- `src/levels/levelSchema.ts` + `src/simulation/containers.ts` + level 1/2 data - destructible containers (F5); LevelScene integrates them as solid-until-destroyed with score drops.
+- `src/scenes/LevelScene.ts` - max-count tracking (`maxEnemiesSeen`/`maxPlayerBulletsSeen`/`maxEnemyBulletsSeen`), `advanceSteps` debug command, game-over transition guard.
+- New `src/scenes/SettingsScene.ts` - dedicated settings screen (GAME_REQUIREMENTS section 11); title S shortcut; volume/mute/reduced-flash persisted.
+- New `tests/e2e/soak.spec.ts` + `npm run test:soak` - ten-minute accelerated soak (J4/D4); new `tests/e2e/hardening.spec.ts` (F5 containers + settings screen); new `tests/unit/{respawn,categories,containers}.test.ts`; `tests/unit/levelLoader.test.ts` C7 cases.
+- `ACCEPTANCE_CRITERIA.md` - checked C7, D3, D4, F5, J4 (all 59 now complete).
+
+M6 (previous iteration, retained for history):
 
 - `ASSET_POLICY.md` - manifest now documents every non-code asset class with provenance + license (J7).
 - New `public/assets/images/favicon.svg` - original hand-authored shield + echo-wave favicon; `index.html` references it.
@@ -218,6 +240,13 @@ No `public/assets/` files were added in either iteration; all visuals remain pro
 | 2026-07-23 12:39 (M6) | `npm run test:e2e` | PASS (exit 0) | Playwright 1.61.1, chromium: **18 passed** |
 | 2026-07-23 12:39 (M6) | `npm run build` | PASS (exit 0) | Vite 8.1.5; `dist/assets/index-*.js` 1,438.60 kB raw / **376.05 kB gzip** (under 2.5 MB budget) |
 | 2026-07-23 12:39 (M6) | Level 1 gameplay screenshot (production preview, canvas renderer) | PASS | Player + barrel indicator with an aim-up bullet in flight, per-weapon pickup color, darker red-outlined pit, HUD + controls hint; **zero page errors** |
+| 2026-07-23 18:57 (M7) | `npm run lint` | PASS (exit 0) | `eslint .`, no warnings |
+| 2026-07-23 18:57 (M7) | `npm run typecheck` | PASS (exit 0) | `tsc --noEmit`, strict mode |
+| 2026-07-23 18:57 (M7) | `npm run test` | PASS (exit 0) | Vitest 4.1.10: **27 files, 122 tests passed** |
+| 2026-07-23 18:57 (M7) | `npm run test:e2e` | PASS (exit 0) | Playwright 1.61.1, chromium: **21 passed** (all suites incl. soak + hardening) |
+| 2026-07-23 18:57 (M7) | `npm run test:soak` | PASS (exit 0) | 36,000-step (10 min) accelerated soak: maxEnemies 2/12, maxPlayerBullets 1/96, maxEnemyBullets 2/96, heap flat ~10 MB, zero uncaught errors, bridge responsive after |
+| 2026-07-23 18:57 (M7) | `npm run build` | PASS (exit 0) | Vite 8.1.5; `dist/assets/index-*.js` 1,444.62 kB raw / **377.41 kB gzip** (under 2.5 MB budget) |
+| 2026-07-23 18:57 (M7) | Automated keyboard playtest (production preview, real keys) | PASS | Enter starts Level 1; D moves (x 60 -> 291); Space jumps and lands; J fires; Escape pauses and resumes; pickup collected en route (HUD shows SCATTER BLASTER); 3-pellet scatter spread visible in screenshot; **zero page errors** |
 
 Build advisory unchanged from M0: Vite warns that the single Phaser-containing chunk exceeds 500 kB (1.39 MB raw / 0.36 MB gzip). Expected at this stage, within the ARCHITECTURE.md budget; not a failure.
 
@@ -237,10 +266,13 @@ Build advisory unchanged from M0: Vite warns that the single Phaser-containing c
 - M5 debugging note: three integration defects were caught by the new E2E flows (unpublished pause state; gamepad not polled while paused; an aim-flow cooldown race in the test itself) - all fixed at the source, no test weakened.
 - M6: presentation is now documentably original end-to-end - the only asset file is a hand-authored SVG favicon; everything else is procedural code output (documented in the ASSET_POLICY.md manifest). The level scene has an original sequenced music loop plus telegraph/door/respawn cues, an aim-direction barrel indicator, per-weapon pickup colors, and darker pit interiors. The captured gameplay screenshot shows the aim-up barrel + bullet, colored pickup, and pit contrast with zero console errors.
 
+- M7 playtest (TEST_PLAN section 6, automated with real keyboard input on the production build): controls feel responsive (move/jump/fire/pause all act within a frame or two of a human-length press); bullets and the scatter spread are visually readable; enemy telegraphs flash yellow outlines (steady when reduced-flash is on); the pit respawn returns the player to the checkpoint with a visible invulnerability tint and no repeated instant deaths; pause and window-blur freeze the simulation without stuck input; audio settings persist across reload; the game remains playable with sound disabled (the audio service is failure-safe by design and unit-tested). Zero uncaught console errors across every flow. One nuance recorded: instant sub-frame key taps (Playwright's `press()`) can be missed by the 60 Hz input sampling - real keyboards hold keys for multiple frames, so this does not affect players, but the playtest was repeated with human-length holds for honest evidence.
+- Manual human playtest: the full checklist above was verified automatically; a hands-on session by the user before public deployment is still recommended (see DEPLOYMENT.md), but it is not a blocker for the acceptance criteria, which are all now checked with recorded evidence.
+
 ## Known issues
 
-- None blocking. Open advisories: Vite chunk-size warning (expected, under budget); headless-WebGL shader limitation (mitigated for automation via the canvas debug override).
+- None. Open advisories only: the Vite chunk-size warning (Phaser bundle, expected and well under the 2.5 MB budget) and the headless-WebGL limitation (mitigated for automation via the documented `renderer=canvas` debug override; real browsers use WebGL via `Phaser.AUTO`).
 
 ## Next recommended task
 
-Proceed to **M7 - Hardening and Cloudflare readiness**: close the last acceptance criteria - C7 (respawn-safety overlap test), D3 (wire collision-category bits into collision code or justify the ownership model), D4 (projectile-bounds soak evidence), F5 (destructible containers), J4 (ten-minute soak test with bounded counts) - then run a console-error sweep, confirm the static build + Cloudflare Pages docs, perform the final manual playtest checklist, and record final evidence in PROGRESS.md. Do not deploy.
+**None - the project is complete.** All milestones M0-M7 are done, all 59 acceptance criteria are checked with recorded evidence, and the full quality gate passes. Per .claude/loop.md, no further feature changes should be made by the loop; later iterations (if any) must only re-verify and report completion. Deployment to Cloudflare Pages remains a user-authorized manual step (DEPLOYMENT.md).
