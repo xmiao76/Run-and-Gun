@@ -12,7 +12,7 @@ describe('scatter pellets and duplicate-hit protection (D5)', () => {
   });
 
   it('each scatter pellet is a distinct attack, so three overlapping pellets hit once each (no multiplication)', () => {
-    const fired = stepWeapon(createWeaponState('scatter'), 0, true);
+    const fired = stepWeapon(createWeaponState('scatter'), 0, { pressed: true, held: false });
     expect(fired.projectiles).toHaveLength(3);
 
     const ledger = createDamageLedger();

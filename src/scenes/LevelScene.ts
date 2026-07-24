@@ -43,12 +43,13 @@ import {
   damageEnemy,
   isAlive,
   stepEnemy,
+  telegraphAim,
   type EnemyFireIntent,
   type EnemyState
 } from '../simulation/enemies';
 import { aimAngle, rotateVelocity } from '../simulation/aim';
 import { applyDamage, createHealthState, tickInvuln, type HealthState } from '../simulation/health';
-import { collectPickups, type Pickup } from '../simulation/pickups';
+import { collectPickups, createPickup, type Pickup } from '../simulation/pickups';
 import {
   createPlatformerState,
   currentHeight,
@@ -59,8 +60,11 @@ import {
   activateBoss,
   bossHasSubcomponents,
   createBossState,
+  currentPattern,
   damageBoss,
   isBossAlive,
+  SHOCKWAVE_RADIUS,
+  shockwaveHits,
   stepBoss,
   type BossState
 } from '../simulation/bosses';
@@ -78,11 +82,27 @@ import {
 } from '../simulation/doors';
 import { respawnPosition } from '../simulation/safeSpawn';
 import {
+  spawnParticles,
+  stepParticles,
+  type Particle,
+  type ParticleSpawn
+} from '../simulation/particles';
+import {
   createContainerStates,
   damageContainer,
   solidContainerRects,
   type ContainerState
 } from '../simulation/containers';
+import {
+  CARRIER_HEIGHT,
+  CARRIER_WIDTH,
+  createSupplyCarrierStates,
+  damageCarrier,
+  stepCarrierDrops,
+  stepSupplyCarriers,
+  type CarrierDrop,
+  type SupplyCarrierState
+} from '../simulation/supplyCarriers';
 import {
   createSpawnTriggers,
   updateSpawnTriggers,
@@ -176,6 +196,10 @@ export class LevelScene extends Phaser.Scene {
   private movingPlatforms: MovingPlatformState[] = [];
   private doors: DoorState[] = [];
   private containers: ContainerState[] = [];
+  private supplyCarriers: SupplyCarrierState[] = [];
+  private carrierDrops: CarrierDrop[] = [];
+  private particles: Particle[] = [];
+  private particleSeq = 1;
   private subcomponents: SubcomponentState[] = [];
   private lastBossPhase = 0;
   private bossDeathHandled = false;
@@ -186,9 +210,12 @@ export class LevelScene extends Phaser.Scene {
   private movingPlatformRects: Phaser.GameObjects.Rectangle[] = [];
   private doorRects: Phaser.GameObjects.Rectangle[] = [];
   private containerRects: Phaser.GameObjects.Rectangle[] = [];
+  private particleRects: Phaser.GameObjects.Rectangle[] = [];
+  private carrierRects: Phaser.GameObjects.Rectangle[] = [];
   private subcomponentRects: Phaser.GameObjects.Rectangle[] = [];
   private enemyRects: Phaser.GameObjects.Rectangle[] = [];
   private telegraphRects: Phaser.GameObjects.Rectangle[] = [];
+  private aimLineRects: Phaser.GameObjects.Rectangle[] = [];
   private enemyBulletRects: Phaser.GameObjects.Rectangle[] = [];
   private playerBulletRects: Phaser.GameObjects.Rectangle[] = [];
   private pickupRects: Phaser.GameObjects.Rectangle[] = [];
@@ -197,6 +224,7 @@ export class LevelScene extends Phaser.Scene {
   private barrelRect?: Phaser.GameObjects.Rectangle;
   private bossRect?: Phaser.GameObjects.Rectangle;
   private bossTeleRect?: Phaser.GameObjects.Rectangle;
+  private bossZoneRect?: Phaser.GameObjects.Rectangle;
   private hudText?: Phaser.GameObjects.Text;
   private bossBarBack?: Phaser.GameObjects.Rectangle;
   private bossBarFill?: Phaser.GameObjects.Rectangle;
@@ -222,11 +250,14 @@ export class LevelScene extends Phaser.Scene {
     this.subcomponentRects = [];
     this.enemyRects = [];
     this.telegraphRects = [];
+    this.aimLineRects = [];
     this.enemyBulletRects = [];
     this.playerBulletRects = [];
     this.pickupRects = [];
     this.pickupLabels = [];
     this.containerRects = [];
+    this.particleRects = [];
+    this.carrierRects = [];
     this.resetRun();
     this.buildStaticVisuals();
     this.playerRect = this.add.rectangle(0, 0, PLAYER_WIDTH, PLAYER_HEIGHT, 0x44dd66);
@@ -241,6 +272,9 @@ export class LevelScene extends Phaser.Scene {
     this.bossTeleRect.setStrokeStyle(3, 0xffff66);
     this.bossTeleRect.setFillStyle(0x000000, 0);
     this.bossTeleRect.setVisible(false);
+    this.bossZoneRect = this.add.rectangle(0, 0, SHOCKWAVE_RADIUS * 2, 6, 0xffcc44);
+    this.bossZoneRect.setOrigin(0.5, 1);
+    this.bossZoneRect.setVisible(false);
     this.hudText = this.add.text(12, 16, '', { fontFamily: 'monospace', fontSize: '16px', color: '#e8f1ff' });
     this.add
       .text(12, LOGICAL_HEIGHT - 16, 'Move A/D  Jump W/Space  Crouch/Drop S  Fire J  Pause Esc', {
@@ -352,6 +386,10 @@ export class LevelScene extends Phaser.Scene {
     this.movingPlatforms = createMovingPlatformStates(this.level.movingPlatforms);
     this.doors = createDoorStates(this.level.doors);
     this.containers = createContainerStates(this.level.containers);
+    this.supplyCarriers = createSupplyCarrierStates(this.level.supplyCarriers ?? []);
+    this.carrierDrops = [];
+    this.particles = [];
+    this.particleSeq = 1;
     this.lastBossPhase = 0;
     this.bossDeathHandled = false;
     this.buildSubcomponents();
@@ -592,12 +630,16 @@ export class LevelScene extends Phaser.Scene {
     this.stepTriggers();
     this.stepEnemies();
     this.stepEnemyBullets();
+    this.stepSupplyCarriers();
     this.resolvePlayerBulletsVsEnemies();
     this.resolvePlayerBulletsVsContainers();
+    this.resolvePlayerBulletsVsCarriers();
     this.resolvePlayerBulletsVsSubcomponents();
     this.resolvePlayerBulletsVsBoss();
     this.resolveEnemyBulletsVsPlayer();
     this.resolvePickups();
+
+    this.particles = stepParticles(this.particles, FIXED_DT);
 
     this.lastCheckpointId = advanceCheckpoint(this.level.checkpoints, this.lastCheckpointId, this.player.x, this.player.y, PLAYER_WIDTH, PLAYER_HEIGHT);
 
@@ -624,8 +666,14 @@ export class LevelScene extends Phaser.Scene {
     this.publishRuntime();
   }
 
+  private spawnFx(spawns: ParticleSpawn[]): void {
+    const r = spawnParticles(this.particles, spawns, this.particleSeq);
+    this.particles = r.particles;
+    this.particleSeq = r.nextId;
+  }
+
   private stepPlayerFiring(): void {
-    const fireResult = stepWeapon(this.weapon, FIXED_DT, this.stepInput.firePressed);
+    const fireResult = stepWeapon(this.weapon, FIXED_DT, { pressed: this.stepInput.firePressed, held: this.stepInput.fireHeld });
     this.weapon = fireResult.weapon;
     if (fireResult.fired) {
       this.sfx('shoot');
@@ -634,6 +682,9 @@ export class LevelScene extends Phaser.Scene {
       const h = currentHeight(this.player);
       const angle = aimAngle(this.stepInput, this.player.facing, this.player.grounded);
       this.lastFireAngle = angle;
+      const gunX = this.player.x + (this.player.facing > 0 ? PLAYER_WIDTH : 0);
+      const gunY = this.player.y - h / 2;
+      this.spawnFx([{ kind: 'muzzle', x: gunX, y: gunY, angleDeg: angle }]);
       const spawned = fireResult.projectiles.map((p): PlayerBullet => {
         const rotated = rotateVelocity(p.vx, p.vy, angle);
         return {
@@ -642,8 +693,8 @@ export class LevelScene extends Phaser.Scene {
           vy: rotated.vy,
           id: this.makeId('pb'),
           category: CollisionCategory.playerProjectile,
-          x: this.player.x + (this.player.facing > 0 ? PLAYER_WIDTH : 0),
-          y: this.player.y - h / 2
+          x: gunX,
+          y: gunY
         };
       });
       this.playerBullets = this.playerBullets.concat(spawned).slice(-MAX_PROJECTILES);
@@ -668,10 +719,27 @@ export class LevelScene extends Phaser.Scene {
       // G5: no hostile projectiles survive into the completion sequence.
       this.bossDeathHandled = true;
       this.enemyBullets = [];
+      const bossDef = getBossDef(this.level.boss.id);
+      this.spawnFx([
+        { kind: 'burst', x: this.boss.x + bossDef.width / 2, y: this.boss.y + bossDef.height / 2 },
+        { kind: 'burst', x: this.boss.x + bossDef.width / 2, y: this.boss.y + bossDef.height / 2 }
+      ]);
       this.sfx('explosion');
     }
     if (result.action.kind === 'shockwave') {
       this.sfx('explosion');
+      const def = getBossDef(this.level.boss.id);
+      const zoneCenter = result.action.x + def.width / 2;
+      // Honest, grounded-only shockwave damage (jumping dodges it).
+      if (shockwaveHits(zoneCenter, this.player.x + PLAYER_WIDTH / 2, this.player.grounded)) {
+        this.playerHit();
+      }
+      this.spawnFx([
+        { kind: 'spark', x: zoneCenter - 120, y: def.groundY - 4 },
+        { kind: 'spark', x: zoneCenter - 40, y: def.groundY - 4 },
+        { kind: 'spark', x: zoneCenter + 40, y: def.groundY - 4 },
+        { kind: 'spark', x: zoneCenter + 120, y: def.groundY - 4 }
+      ]);
     }
     if (result.action.kind === 'burst') {
       const tx = result.action.targetX ?? this.player.x;
@@ -697,6 +765,19 @@ export class LevelScene extends Phaser.Scene {
         });
       }
       void len;
+    }
+  }
+
+  private stepSupplyCarriers(): void {
+    if (this.supplyCarriers.length === 0 && this.carrierDrops.length === 0) {
+      return;
+    }
+    this.supplyCarriers = stepSupplyCarriers(this.supplyCarriers, FIXED_DT);
+    const result = stepCarrierDrops(this.carrierDrops, FIXED_DT, this.level.solids, this.level.height + 64);
+    this.carrierDrops = result.drops.filter((d) => !d.landed);
+    for (const d of result.landed) {
+      this.pickups = [...this.pickups, createPickup(this.makeId('pk'), d.x, d.y, d.weapon)];
+      this.sfx('pickup');
     }
   }
 
@@ -771,9 +852,11 @@ export class LevelScene extends Phaser.Scene {
         if (!recordHit(this.ledger, bullet.id, enemy.id)) {
           continue;
         }
+        this.spawnFx([{ kind: 'spark', x: bullet.x, y: bullet.y }]);
         this.enemies[i] = damageEnemy(enemy, bullet.damage);
         if (!isAlive(this.enemies[i])) {
           this.score += enemyScore(enemy.kind);
+          this.spawnFx([{ kind: 'burst', x: enemy.x + enemyWidth(enemy) / 2, y: enemy.y + enemyHeight(enemy) / 2 }]);
           this.sfx('hit');
         }
         consumed = true;
@@ -805,11 +888,48 @@ export class LevelScene extends Phaser.Scene {
         if (!recordHit(this.ledger, bullet.id, c.id)) {
           continue;
         }
+        this.spawnFx([{ kind: 'spark', x: bullet.x, y: bullet.y }]);
         this.containers[i] = damageContainer(c, bullet.damage);
         if (this.containers[i].destroyed) {
           this.score += c.scoreValue;
+          this.spawnFx([{ kind: 'burst', x: c.x + c.width / 2, y: c.y + c.height / 2 }]);
           this.sfx('explosion');
         }
+        consumed = true;
+        break;
+      }
+      if (!consumed) {
+        surviving.push(bullet);
+      }
+    }
+    this.playerBullets = surviving;
+  }
+
+  private resolvePlayerBulletsVsCarriers(): void {
+    if (this.supplyCarriers.length === 0) {
+      return;
+    }
+    const surviving: PlayerBullet[] = [];
+    for (const bullet of this.playerBullets) {
+      let consumed = false;
+      if (bullet.category !== CollisionCategory.playerProjectile) {
+        surviving.push(bullet);
+        continue;
+      }
+      for (let i = 0; i < this.supplyCarriers.length; i++) {
+        const c = this.supplyCarriers[i];
+        // Single-hit object: no damage ledger needed (later same-step pellets
+        // see the destroyed state and pass through).
+        if (!c.alive || !this.bulletHitsRect(bullet.x, bullet.y, 8, 4, c.x, c.y, CARRIER_WIDTH, CARRIER_HEIGHT)) {
+          continue;
+        }
+        const result = damageCarrier(c);
+        this.supplyCarriers[i] = result.state;
+        if (result.drop) {
+          this.carrierDrops.push(result.drop);
+        }
+        this.spawnFx([{ kind: 'burst', x: c.x + CARRIER_WIDTH / 2, y: c.y + CARRIER_HEIGHT / 2 }]);
+        this.sfx('explosion');
         consumed = true;
         break;
       }
@@ -844,10 +964,12 @@ export class LevelScene extends Phaser.Scene {
         if (!recordHit(this.ledger, bullet.id, s.id)) {
           continue;
         }
+        this.spawnFx([{ kind: 'spark', x: bullet.x, y: bullet.y }]);
         const health = s.health - bullet.damage;
         this.subcomponents[i] = { ...s, health, alive: health > 0 };
         if (health <= 0) {
           this.score += s.score;
+          this.spawnFx([{ kind: 'burst', x: s.x + s.width / 2, y: s.y + s.height / 2 }]);
           this.sfx('hit');
         }
         consumed = true;
@@ -879,6 +1001,7 @@ export class LevelScene extends Phaser.Scene {
         const result = damageBoss(this.boss, bullet.damage);
         this.boss = result.boss;
         if (result.applied) {
+          this.spawnFx([{ kind: 'spark', x: bullet.x, y: bullet.y }]);
           this.sfx('hit');
         }
       } else {
@@ -944,6 +1067,7 @@ export class LevelScene extends Phaser.Scene {
   private handleDeath(): void {
     const damage = applyDamage(this.health, INVULN_DURATION);
     this.health = damage.health;
+    this.spawnFx([{ kind: 'burst', x: this.player.x + PLAYER_WIDTH / 2, y: this.player.y - PLAYER_HEIGHT / 2 }]);
     if (this.health.gameOver) {
       // The game-over scene transition fires at the top of the next step.
       return;
@@ -959,6 +1083,7 @@ export class LevelScene extends Phaser.Scene {
     this.weapon = createWeaponState(this.checkpoint.weapon);
     this.playerBullets = [];
     this.enemyBullets = [];
+    this.spawnFx([{ kind: 'beacon', x: pos.x + PLAYER_WIDTH / 2, y: pos.y - PLAYER_HEIGHT / 2 }]);
     this.sfx('respawn');
   }
 
@@ -1033,9 +1158,15 @@ export class LevelScene extends Phaser.Scene {
       bossVulnerable: this.boss.vulnerable,
       subcomponentsAlive: this.subcomponents.filter((s) => s.alive).length,
       containersAlive: this.containers.filter((c) => !c.destroyed).length,
+      supplyCarriersAlive: this.supplyCarriers.filter((c) => c.alive).length,
+      supplyCarrierX: this.supplyCarriers.find((c) => c.alive)?.x ?? null,
+      pickupsAvailable: this.pickups.filter((p) => !p.collected).length,
+      telegraphCount: this.enemies.filter((e) => e.telegraphing).length,
+      bossPattern: this.boss.active ? currentPattern(this.boss, getBossDef(this.level.boss.id)) : null,
       maxEnemiesSeen: this.maxEnemiesSeen,
       maxPlayerBulletsSeen: this.maxPlayerBulletsSeen,
       maxEnemyBulletsSeen: this.maxEnemyBulletsSeen,
+      particleCount: this.particles.length,
       paused: this.paused,
       gameOver: this.health.gameOver,
       completing: this.completionTimer >= 0,
@@ -1144,11 +1275,22 @@ export class LevelScene extends Phaser.Scene {
       }
     });
 
+    this.syncPool(this.particleRects, this.particles.length, 4, 4, 0xffffff);
+    this.particles.forEach((p, i) => {
+      const rect = this.particleRects[i];
+      rect.setSize(p.size, p.size);
+      rect.setFillStyle(particleColor(p.kind));
+      rect.setAlpha(this.settings.reducedFlash ? 0.75 : Math.max(0.15, p.ttl / p.maxTtl));
+      rect.setPosition(p.x - this.cameraX, p.y);
+    });
+
     this.syncPool(this.enemyRects, this.enemies.length, 22, 30, 0xff9933);
     this.syncPool(this.telegraphRects, this.enemies.length, 30, 38, 0);
+    this.syncPool(this.aimLineRects, this.enemies.length, 110, 3, 0xffee88);
     this.enemies.forEach((e, i) => {
       const rect = this.enemyRects[i];
       const tele = this.telegraphRects[i];
+      const aim = this.aimLineRects[i];
       const w = enemyWidth(e);
       const hh = enemyHeight(e);
       rect.setSize(w, hh);
@@ -1160,12 +1302,20 @@ export class LevelScene extends Phaser.Scene {
       if (e.telegraphing) {
         // Reduced-flash option: steady outline instead of a pulsing one.
         tele.setAlpha(this.settings.reducedFlash ? 0.9 : 0.5 + 0.5 * Math.sin(performance.now() / 60));
+        const ta = telegraphAim(e, this.player.x, this.player.y);
+        aim.setVisible(true);
+        aim.setOrigin(0, 0.5);
+        aim.setRotation((ta.angleDeg * Math.PI) / 180);
+        aim.setPosition(ta.muzzleX - this.cameraX, ta.muzzleY);
+        aim.setAlpha(this.settings.reducedFlash ? 0.7 : 0.35 + 0.45 * (0.5 + 0.5 * Math.sin(performance.now() / 60)));
+      } else {
+        aim.setVisible(false);
       }
     });
 
     const visiblePickups = this.pickups.filter((p) => !p.collected);
-    this.syncPool(this.pickupRects, visiblePickups.length, 18, 18, 0x33ddff);
-    this.syncTextPool(this.pickupLabels, visiblePickups.length);
+    this.syncPool(this.pickupRects, visiblePickups.length + this.carrierDrops.length, 18, 18, 0x33ddff);
+    this.syncTextPool(this.pickupLabels, visiblePickups.length + this.carrierDrops.length);
     visiblePickups.forEach((p, i) => {
       const rect = this.pickupRects[i];
       const label = this.pickupLabels[i];
@@ -1173,6 +1323,25 @@ export class LevelScene extends Phaser.Scene {
       rect.setPosition(p.x - this.cameraX, p.y);
       label.setPosition(p.x - this.cameraX + 9, p.y + 9);
       label.setText(pickupLetter(p.weapon));
+    });
+    // Falling carrier drops reuse the pickup visuals.
+    this.carrierDrops.forEach((d, k) => {
+      const i = visiblePickups.length + k;
+      const rect = this.pickupRects[i];
+      const label = this.pickupLabels[i];
+      rect.setFillStyle(pickupColor(d.weapon));
+      rect.setPosition(d.x - this.cameraX, d.y);
+      label.setPosition(d.x - this.cameraX + 9, d.y + 9);
+      label.setText(pickupLetter(d.weapon));
+    });
+
+    this.syncPool(this.carrierRects, this.supplyCarriers.length, CARRIER_WIDTH, CARRIER_HEIGHT, 0x9ad1ff);
+    this.supplyCarriers.forEach((c, i) => {
+      const rect = this.carrierRects[i];
+      rect.setVisible(c.alive);
+      if (c.alive) {
+        rect.setPosition(c.x - this.cameraX, c.y);
+      }
     });
 
     const bossDef = getBossDef(this.level.boss.id);
@@ -1184,9 +1353,17 @@ export class LevelScene extends Phaser.Scene {
       this.bossTeleRect?.setVisible(this.boss.telegraphing);
       this.bossTeleRect?.setSize(bossDef.width + 8, bossDef.height + 8);
       this.bossTeleRect?.setPosition(this.boss.x - this.cameraX - 4, this.boss.y - 4);
+      // Ground danger-zone marker for the stomp pattern.
+      const showZone = this.boss.telegraphing && currentPattern(this.boss, bossDef) === 'stomp';
+      this.bossZoneRect?.setVisible(showZone);
+      if (showZone && this.bossZoneRect) {
+        this.bossZoneRect.setPosition(this.boss.x + bossDef.width / 2 - this.cameraX, bossDef.groundY);
+        this.bossZoneRect.setAlpha(this.settings.reducedFlash ? 0.6 : 0.35 + 0.35 * (0.5 + 0.5 * Math.sin(performance.now() / 60)));
+      }
     } else {
       this.bossRect?.setVisible(false);
       this.bossTeleRect?.setVisible(false);
+      this.bossZoneRect?.setVisible(false);
     }
 
     this.syncPool(this.subcomponentRects, this.subcomponents.length, 18, 18, 0x66ffcc);
@@ -1352,4 +1529,17 @@ function pickupColor(weapon: string): number {
     return 0xff66cc;
   }
   return 0xffd970;
+}
+
+function particleColor(kind: string): number {
+  if (kind === 'muzzle') {
+    return 0xfff2a8;
+  }
+  if (kind === 'spark') {
+    return 0xffd166;
+  }
+  if (kind === 'beacon') {
+    return 0x66ffcc;
+  }
+  return 0xff8855;
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { getBossDef } from '../../src/balance/bosses';
-import { activateBoss, createBossState, damageBoss, stepBoss } from '../../src/simulation/bosses';
+import { activateBoss, createBossState, damageBoss, SHOCKWAVE_RADIUS, shockwaveHits, stepBoss } from '../../src/simulation/bosses';
 
 const DT = 1 / 60;
 const PX = 2600;
@@ -81,5 +81,22 @@ describe('Siege Walker phase transitions', () => {
     }
     expect(b.state).toBe('dead');
     expect(applied).toBe(def.health);
+  });
+});
+
+describe('shockwaveHits (honest stomp damage)', () => {
+  it('hits a grounded player inside the radius', () => {
+    expect(shockwaveHits(1000, 1000 + SHOCKWAVE_RADIUS - 1, true)).toBe(true);
+    expect(shockwaveHits(1000, 1000 - SHOCKWAVE_RADIUS + 1, true)).toBe(true);
+  });
+
+  it('misses a grounded player outside the radius and exactly at the edge', () => {
+    expect(shockwaveHits(1000, 1000 + SHOCKWAVE_RADIUS, true)).toBe(false);
+    expect(shockwaveHits(1000, 1000 + SHOCKWAVE_RADIUS + 10, true)).toBe(false);
+  });
+
+  it('never hits an airborne player (jumping dodges the stomp)', () => {
+    expect(shockwaveHits(1000, 1000, false)).toBe(false);
+    expect(shockwaveHits(1000, 1000 + 50, false)).toBe(false);
   });
 });

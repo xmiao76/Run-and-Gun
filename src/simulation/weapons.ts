@@ -33,6 +33,17 @@ export interface FireResult {
   fired: boolean;
 }
 
+/**
+ * Fire intent for one step: `pressed` is edge-triggered (the action went down
+ * this step) and `held` is level-triggered (the action is down). Both release
+ * a shot, but only when the cooldown has elapsed, so holding fire auto-fires
+ * at exactly the weapon's rate and input frequency can never bypass it (C5).
+ */
+export interface FireInput {
+  pressed: boolean;
+  held: boolean;
+}
+
 export function createWeaponState(id: WeaponId): WeaponState {
   return { id, cooldown: 0 };
 }
@@ -42,13 +53,16 @@ export function weaponDef(state: WeaponState): WeaponDef {
 }
 
 /**
- * Advance the weapon by `dt` seconds. When `firePressed` is set and the
- * cooldown has elapsed, the weapon fires its spread pattern and the cooldown
- * resets; the fire-rate limit cannot be bypassed by input frequency.
+ * Advance the weapon by `dt` seconds. When the fire intent is present (pressed
+ * or held) and the cooldown has elapsed, the weapon fires its spread pattern
+ * and the cooldown resets; the fire-rate limit cannot be bypassed.
  */
-export function stepWeapon(state: WeaponState, dt: number, firePressed: boolean): FireResult {
+export function stepWeapon(state: WeaponState, dt: number, fire: FireInput): FireResult {
   const cooldown = Math.max(0, state.cooldown - dt);
-  if (!firePressed || cooldown > 0) {
+  const wantsFire = fire.pressed || fire.held;
+  // Epsilon tolerance so a data cooldown of exactly N steps fires every N
+  // steps instead of N+1 when float subtraction leaves a residue of ~1e-17.
+  if (!wantsFire || cooldown > 1e-9) {
     return { weapon: { ...state, cooldown }, projectiles: [], fired: false };
   }
   const def = getWeapon(state.id);

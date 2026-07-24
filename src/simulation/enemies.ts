@@ -99,6 +99,33 @@ function faceToward(enemy: EnemyState, playerX: number): number {
   return enemy.facing;
 }
 
+/**
+ * Direction an enemy will fire next, exposed for telegraph rendering. Returns
+ * the aim angle (degrees, 0 = right, y-down convention) and the muzzle point.
+ * Uses the same math as the fire intent so the marker always matches the shot.
+ */
+export function telegraphAim(enemy: EnemyState, playerX: number, playerY: number): { angleDeg: number; muzzleX: number; muzzleY: number } {
+  const def = getEnemyDef(enemy.kind);
+  const facing = faceToward(enemy, playerX);
+  const dx = playerX - enemy.x;
+  const dy = playerY - enemy.y;
+  let angleRad: number;
+  if (enemy.kind === 'sentry') {
+    angleRad = Math.atan2(dy, dx);
+  } else if (enemy.kind === 'drone') {
+    angleRad = Math.atan2(def.projectileSpeed * 0.94, Math.sign(dx || facing) * def.projectileSpeed * 0.35);
+  } else if (enemy.kind === 'grenadier') {
+    angleRad = Math.atan2(-def.projectileSpeed * 0.72, Math.sign(dx || facing) * def.projectileSpeed * 0.7);
+  } else {
+    angleRad = facing < 0 ? Math.PI : 0;
+  }
+  return {
+    angleDeg: (angleRad * 180) / Math.PI,
+    muzzleX: enemy.x + facing * (def.width / 2),
+    muzzleY: enemy.y + def.height / 2
+  };
+}
+
 function fireIntentFor(enemy: EnemyState, def: EnemyDef, playerX: number, playerY: number): EnemyFireIntent {
   const facing = faceToward(enemy, playerX);
   const dx = playerX - enemy.x;

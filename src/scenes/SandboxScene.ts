@@ -207,7 +207,7 @@ export class SandboxScene extends Phaser.Scene {
   }
 
   private stepPlayerFiring(): void {
-    const fireResult = stepWeapon(this.weapon, FIXED_DT, this.stepInput.firePressed);
+    const fireResult = stepWeapon(this.weapon, FIXED_DT, { pressed: this.stepInput.firePressed, held: this.stepInput.fireHeld });
     this.weapon = fireResult.weapon;
     if (fireResult.projectiles.length > 0) {
       const spawned = fireResult.projectiles.map((p): PlayerBullet => ({

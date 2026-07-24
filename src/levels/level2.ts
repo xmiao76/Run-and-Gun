@@ -101,6 +101,7 @@ export const LEVEL_2: LevelDef = {
   movingPlatforms,
   doors,
   containers: [{ id: 'l2-crate-1', x: 2080, y: GROUND_Y - 24, width: 24, height: 24, health: 3, scoreValue: 50 }],
+  supplyCarriers: [{ id: 'l2-skiff-1', fromX: 900, toX: 2400, y: 120, speed: 80, weapon: 'scatter' }],
   boss: { id: 'reactorWarden', x0: 2560, x1: 2640, spawnX: 2860 },
   completionX: 3180
 };

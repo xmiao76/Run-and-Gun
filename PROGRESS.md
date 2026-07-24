@@ -2,11 +2,23 @@
 
 ## Current status
 
-- Current milestone: M7 - Hardening and Cloudflare readiness (COMPLETE this iteration)
-- Overall state: **ALL milestones M0-M7 complete; ALL 59 acceptance criteria checked; full quality gate GREEN**
-- Last verified commit: c00cbf4 (M6); the M7 commit created this iteration verifies the working tree below (resolve with `git log -1`)
-- Last full quality gate: 2026-07-23 18:57 local - all five commands exit 0 (see table)
-- Open acceptance criteria: **0 of 59**
+- Current milestone: **Post-completion enhancement pass (user-directed): classic arcade feel** (COMPLETE)
+- Overall state: ALL milestones M0-M7 complete; ALL 59 acceptance criteria still checked; full quality gate GREEN after the polish pass
+- Last verified commit: 0e68c3c (M7); the polish commit created this iteration verifies the working tree below (resolve with `git log -1`)
+- Last full quality gate: 2026-07-24 00:31 local - all five commands exit 0 (see table)
+- Open acceptance criteria: **0 of 59** (unchanged by this pass)
+
+## Post-completion enhancement pass (user-directed): classic arcade feel
+
+The user asked to make the game feel closer to a classic arcade run-and-gun. Literal copying of Contra is forbidden by ASSET_POLICY.md (highest precedence) and by GAME_REQUIREMENTS.md's scope caps, so this pass delivered the feel with original expression only, inside the caps (2 levels, 4 enemy archetypes, 3 weapons, 2 bosses, Normal only). Five items, each landed green in TDD order:
+
+1. **Auto-fire while held (P1)** - `stepWeapon` now takes `{ pressed, held }`; holding fire auto-fires gated by the same cooldown (a 1e-9 epsilon keeps data cooldowns step-exact). Unit counts: rapid held 60 steps = exactly 10 shots, pulse = 5, and pressed+held can never beat the rate (C5 preserved; e2e asserts 2-8 live bullets after 2s held).
+2. **Particle juice (P2)** - pure deterministic `src/simulation/particles.ts` (fixed velocity tables, ttl cull, cap 128) + a pooled render collection in LevelScene: muzzle flash on fire, hit sparks, death bursts on enemies/containers/subcomponents/boss, ground sparks on the stomp. Reduced-flash renders steady alpha (no strobing).
+3. **Death/respawn juice (P5)** - burst on player death + a fading beacon at the respawn point (C6/C7 flows untouched).
+4. **Telegraph readability (P4)** - exported `telegraphAim` (same math as the fire intents) drives aim-line markers during enemy wind-ups; the Siege Walker stomp now has a ground danger-zone marker paired with an **honest grounded-only shockwave damage rule** (`shockwaveHits`; jumping dodges) - the stomp previously dealt no damage, so the marker needed a real rule to be an honest affordance (strengthens E2/G1).
+5. **Supply skiff carriers (P3)** - neutral destructible flyers (NOT a 5th enemy archetype: no AI, not counted in `MAX_ENEMIES`/`enemyCount`) patrolling a sky lane; one hit destroys them and they drop an existing weapon pickup (rapid in L1, scatter in L2) that falls and lands on solid ground (pit loss is intended). Reuses `collectPickups` verbatim (D2).
+
+Scope reaffirmed: no Contra expression, no new levels/enemies/weapons/bosses/difficulty modes, no new asset files, no screen shake/hit-stop/camera effects, no new SFX/music. The `npm run test:soak` caps held with particles + carriers (maxEnemies 2/12, bullets 1-2/96, flat ~10 MB heap). Measured results below; one local commit, no push/deploy.
 
 ## Acceptance summary
 
@@ -247,6 +259,12 @@ No `public/assets/` files were added in either iteration; all visuals remain pro
 | 2026-07-23 18:57 (M7) | `npm run test:soak` | PASS (exit 0) | 36,000-step (10 min) accelerated soak: maxEnemies 2/12, maxPlayerBullets 1/96, maxEnemyBullets 2/96, heap flat ~10 MB, zero uncaught errors, bridge responsive after |
 | 2026-07-23 18:57 (M7) | `npm run build` | PASS (exit 0) | Vite 8.1.5; `dist/assets/index-*.js` 1,444.62 kB raw / **377.41 kB gzip** (under 2.5 MB budget) |
 | 2026-07-23 18:57 (M7) | Automated keyboard playtest (production preview, real keys) | PASS | Enter starts Level 1; D moves (x 60 -> 291); Space jumps and lands; J fires; Escape pauses and resumes; pickup collected en route (HUD shows SCATTER BLASTER); 3-pellet scatter spread visible in screenshot; **zero page errors** |
+| 2026-07-24 00:31 (polish) | `npm run lint` | PASS (exit 0) | `eslint .`, no warnings |
+| 2026-07-24 00:31 (polish) | `npm run typecheck` | PASS (exit 0) | `tsc --noEmit`, strict mode |
+| 2026-07-24 00:31 (polish) | `npm run test` | PASS (exit 0) | Vitest 4.1.10: **30 files, 149 tests passed** |
+| 2026-07-24 00:31 (polish) | `npm run test:e2e` | PASS (exit 0) | Playwright 1.61.1, chromium: **25 passed** (21 + 4 new polish flows) |
+| 2026-07-24 00:31 (polish) | `npm run test:soak` | PASS (exit 0) | Soak caps hold with particles + carriers: maxEnemies 2/12, maxPlayerBullets 1/96, maxEnemyBullets 2/96, heap flat ~10 MB, zero uncaught errors |
+| 2026-07-24 00:31 (polish) | `npm run build` | PASS (exit 0) | Vite 8.1.5; `dist/assets/index-*.js` 1,451.99 kB raw / **379.41 kB gzip** (under 2.5 MB budget) |
 
 Build advisory unchanged from M0: Vite warns that the single Phaser-containing chunk exceeds 500 kB (1.39 MB raw / 0.36 MB gzip). Expected at this stage, within the ARCHITECTURE.md budget; not a failure.
 
@@ -275,4 +293,4 @@ Build advisory unchanged from M0: Vite warns that the single Phaser-containing c
 
 ## Next recommended task
 
-**None - the project is complete.** All milestones M0-M7 are done, all 59 acceptance criteria are checked with recorded evidence, and the full quality gate passes. Per .claude/loop.md, no further feature changes should be made by the loop; later iterations (if any) must only re-verify and report completion. Deployment to Cloudflare Pages remains a user-authorized manual step (DEPLOYMENT.md).
+**None - the project is complete, including the user-directed classic-feel polish pass.** All milestones M0-M7 are done, all 59 acceptance criteria remain checked with recorded evidence, and the full quality gate passes. Any further work happens only with explicit user direction (e.g., the "expand the spec scope" option from the polish planning: amending GAME_REQUIREMENTS.md to allow more original content). Deployment to Cloudflare Pages remains a user-authorized manual step (DEPLOYMENT.md).

@@ -82,6 +82,18 @@ export function isBossAlive(boss: BossState): boolean {
   return boss.state !== 'dead' && boss.health > 0;
 }
 
+/** Radius of the Siege Walker stomp shockwave (px). */
+export const SHOCKWAVE_RADIUS = 220;
+
+/**
+ * Grounded-only shockwave check for the stomp pattern: the wave travels along
+ * the floor, so an airborne player dodges it (classic, fair, and telegraphed
+ * for the full wind-up). Strict radius so the edge is safe.
+ */
+export function shockwaveHits(bossCenterX: number, playerCenterX: number, playerGrounded: boolean, radius = SHOCKWAVE_RADIUS): boolean {
+  return playerGrounded && Math.abs(playerCenterX - bossCenterX) < radius;
+}
+
 export function currentPattern(boss: BossState, def: BossDef): BossPattern {
   return def.patterns[boss.patternIndex % def.patterns.length];
 }

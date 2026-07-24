@@ -33,6 +33,7 @@ Maintain the table below for every non-code asset. Temporary procedural shapes a
 | _(system)_ UI text font | The generic `monospace` system font family used for all text; no font files are shipped | Operating-system / browser built-in resource | N/A - no asset is bundled or redistributed | N/A |
 | _(procedural)_ background music | Sequenced WebAudio oscillator pattern synthesized at runtime (no audio files) | Generated procedurally by project code (`src/audio/AudioService.ts`); an original pattern, not transcribed from any existing work | Project-created | N/A |
 | _(procedural)_ sound effects | WebAudio oscillator blips synthesized at runtime (no audio files) | Generated procedurally by project code (`src/audio/AudioService.ts`) | Project-created | N/A |
+| _(procedural)_ supply skiff carriers, telegraph aim lines, stomp danger-zone marker, and particle effects (muzzle/spark/burst/beacon) | Runtime-drawn rectangles synthesized at runtime (no image files) | Generated procedurally by project code (`src/simulation/supplyCarriers.ts`, `src/simulation/enemies.ts`, `src/simulation/bosses.ts`, `src/simulation/particles.ts` and scene render code) | Project-created | N/A |
 
 Do not use an asset whose provenance or redistribution rights are uncertain.
 

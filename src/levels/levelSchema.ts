@@ -81,6 +81,24 @@ export interface ContainerDef {
   scoreValue: number;
 }
 
+/**
+ * A neutral flying supply skiff: crosses the sky on a patrol lane and drops a
+ * weapon pickup when destroyed by player fire. A neutral destructible object
+ * (like containers), not an enemy archetype.
+ */
+export interface SupplyCarrierDef {
+  id: string;
+  /** Sky lane: world y of the carrier's top edge. */
+  y: number;
+  /** Patrol extents; wraps from toX back to fromX until destroyed. */
+  fromX: number;
+  toX: number;
+  /** Travel speed (px/s) in +x. */
+  speed: number;
+  /** Existing weapon dropped on destruction. */
+  weapon: WeaponId;
+}
+
 export interface LevelDef {
   id: string;
   name: string;
@@ -96,6 +114,8 @@ export interface LevelDef {
   movingPlatforms: MovingPlatformDef[];
   doors: DoorDef[];
   containers: ContainerDef[];
+  /** Optional supply skiff patrols (loader-tolerant when absent). */
+  supplyCarriers?: SupplyCarrierDef[];
   boss: BossArenaDef;
   /** World x the player must reach (with the boss dead) to complete the level. */
   completionX: number;

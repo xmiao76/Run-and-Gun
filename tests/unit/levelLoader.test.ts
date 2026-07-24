@@ -62,4 +62,16 @@ describe('level validation', () => {
     const burnt = { ...LEVEL_1, checkpoints: [...LEVEL_1.checkpoints, { id: 'burnt', x: 760, y: 540 }] };
     expect(validateLevel(burnt).some((i) => /hazard/.test(i.message))).toBe(true);
   });
+
+  it('validates supply carriers and tolerates their absence', () => {
+    const without = { ...LEVEL_1 } as { supplyCarriers?: unknown } & typeof LEVEL_1;
+    delete without.supplyCarriers;
+    expect(validateLevel(without as typeof LEVEL_1)).toEqual([]);
+
+    const badSpeed = { ...LEVEL_1, supplyCarriers: [{ ...LEVEL_1.supplyCarriers![0], speed: 0 }] };
+    expect(validateLevel(badSpeed).some((i) => i.path.includes('supplyCarriers'))).toBe(true);
+
+    const badLane = { ...LEVEL_1, supplyCarriers: [{ ...LEVEL_1.supplyCarriers![0], toX: LEVEL_1.supplyCarriers![0].fromX }] };
+    expect(validateLevel(badLane).some((i) => i.path.includes('supplyCarriers'))).toBe(true);
+  });
 });

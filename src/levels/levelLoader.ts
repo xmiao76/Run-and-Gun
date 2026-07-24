@@ -92,6 +92,20 @@ export function validateLevel(level: LevelDef): LevelValidationIssue[] {
       issues.push({ path: `level.containers[${i}].health`, message: 'container health must be positive' });
     }
   });
+  (level.supplyCarriers ?? []).forEach((c, i) => {
+    if (!c.id) {
+      issues.push({ path: `level.supplyCarriers[${i}].id`, message: 'supply carrier id is required' });
+    }
+    if (!(c.speed > 0) || !Number.isFinite(c.speed)) {
+      issues.push({ path: `level.supplyCarriers[${i}].speed`, message: 'supply carrier speed must be a positive finite number' });
+    }
+    if (!(c.fromX >= 0) || !(c.toX > c.fromX) || c.toX > level.width) {
+      issues.push({ path: `level.supplyCarriers[${i}]`, message: 'supply carrier patrol must satisfy 0 <= fromX < toX <= width' });
+    }
+    if (!(c.y >= 0) || c.y >= level.height) {
+      issues.push({ path: `level.supplyCarriers[${i}].y`, message: 'supply carrier y must be within the level height' });
+    }
+  });
   if (!(level.completionX > 0) || level.completionX > level.width) {
     issues.push({ path: 'level.completionX', message: 'completionX must be within (0, width]' });
   }
