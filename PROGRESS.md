@@ -155,3 +155,44 @@ Include enough detail so the next iteration can continue without guessing.
   - TASK-003 - Implement weapon system and readable visual combat feedback
 - Blockers (if any):
   - none
+
+---
+
+### 2026-07-24 18:55 - TASK-003
+
+- Status before: TODO
+- Goal of this iteration:
+  Distinct visual identity per weapon plus readable combat feedback, on top of the existing data-driven weapon system.
+- Work completed:
+  - Audited: Pulse Rifle / Scatter Blaster / Rapid Carbine behaviors (cooldown, damage, speed, spread fan, ttl) were already implemented, unit-tested, and pickup-switchable in the prior build; muzzle + hit-spark + kill-burst feedback already existed in LevelScene. The gap was projectile visuals: every weapon shared one identical bullet.
+  - Authored 3 distinct projectile sprites: pulse bolt (yellow-orange), scatter pellet (stubby orange chunk, 3 per shot), rapid dart (slim cyan tracer).
+  - Added pure `bulletTexture(weapon)` mapping (`src/art/weaponArt.ts`) with unit tests (distinctness + sprite-sheet existence).
+  - LevelScene and SandboxScene now render player bullets as per-weapon sprites rotated along their flight vector (atan2), so 8-way fire reads clearly; image pool replaces the rect pool in LevelScene.
+- Files changed:
+  - src/art/sprites.ts, src/art/weaponArt.ts (new)
+  - src/scenes/LevelScene.ts, src/scenes/SandboxScene.ts
+  - tests/unit/weaponArt.test.ts (new), tests/e2e/weaponVisuals.spec.ts (new)
+  - scripts/weapon-check.mjs (new)
+- Assets added or updated:
+  - `art/bullet-pulse` (renamed from art/bullet-player), `art/bullet-scatter`, `art/bullet-rapid`.
+- Commands run:
+  - `npx vitest run tests/unit/weaponArt.test.ts tests/unit/sprites.test.ts` (8 passed)
+  - `npm run typecheck`, `npm run lint` (clean)
+  - `npm run test:unit` (173 passed, 35 files)
+  - `npm run build` (pass)
+  - `npx playwright test` (28 passed, incl. new weaponVisuals spec)
+  - `node scripts/weapon-check.mjs` (screenshots of all three weapons firing)
+- Verification result:
+  - All checks pass: lint, typecheck, 173 unit tests, build, 28 e2e tests.
+  - e2e `weaponVisuals.spec.ts` asserts each weapon's projectile texture on the display list, the scatter 3-pellet fan, sprite rotation matching aim angle, and pickup switching (pulse -> scatter -> rapid).
+  - Screenshots reviewed: bolt / pellet fan / cyan darts are immediately distinguishable in flight.
+- Visual quality notes:
+  - Each weapon now has an unmistakable projectile identity; angled shots rotate the sprite.
+  - Enemy projectiles still share one sprite (enemies get their visual pass in TASK-004).
+- Status after: DONE
+- Remaining work:
+  - none for this task.
+- Next recommended task:
+  - TASK-004 - Implement enemy roster with recognizable visual identities
+- Blockers (if any):
+  - none

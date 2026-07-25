@@ -53,18 +53,18 @@ Only one task should be actively worked on in a single loop iteration.
 
 ### TASK-003 - Implement weapon system and readable visual combat feedback
 
-- Status: TODO
+- Status: DONE
 - Requirement:
   Add the standard rifle, spread weapon, and rapid-fire weapon with distinct behavior and visible feedback.
 - Acceptance criteria:
-  - [ ] Standard rifle is implemented
-  - [ ] Spread weapon is implemented
-  - [ ] Rapid-fire weapon is implemented
-  - [ ] Each weapon has distinct projectile behavior
-  - [ ] Each weapon has visually distinct bullets/projectiles or firing feedback
-  - [ ] Muzzle flash, hit effect, or projectile impact feedback exists
-  - [ ] Weapon pickup switching works
-  - [ ] Unit or integration tests cover core weapon logic where practical
+  - [x] Standard rifle is implemented
+  - [x] Spread weapon is implemented
+  - [x] Rapid-fire weapon is implemented
+  - [x] Each weapon has distinct projectile behavior
+  - [x] Each weapon has visually distinct bullets/projectiles or firing feedback
+  - [x] Muzzle flash, hit effect, or projectile impact feedback exists
+  - [x] Weapon pickup switching works
+  - [x] Unit or integration tests cover core weapon logic where practical
 
 ---
 

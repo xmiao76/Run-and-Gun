@@ -61,6 +61,7 @@ import { collectPickups, type Pickup } from '../simulation/pickups';
 import { updateSpawnTriggers, type SpawnTrigger } from '../simulation/spawnTriggers';
 import { GAME_VERSION, LOGICAL_HEIGHT, LOGICAL_WIDTH, SCENE_KEYS } from '../app/config';
 import { ensureGameTextures, SKY_TEXTURE } from '../art/textures';
+import { bulletTexture } from '../art/weaponArt';
 import { hookShutdown } from './sceneLifecycle';
 
 const HUD_Y = 20;
@@ -609,13 +610,17 @@ export class SandboxScene extends Phaser.Scene {
   }
 
   private renderPlayerBullets(): void {
-    this.syncImagePool(this.playerBulletImages, this.playerBullets.length, 'art/bullet-player', 0);
+    this.syncImagePool(this.playerBulletImages, this.playerBullets.length, 'art/bullet-pulse', 0);
     for (let i = 0; i < this.playerBulletImages.length; i++) {
       const image = this.playerBulletImages[i];
       const b = this.playerBullets[i];
       if (b) {
         image.setVisible(true);
-        image.setPosition(b.x, b.y);
+        image.setTexture(bulletTexture(b.weapon));
+        // Center-origin so the sprite pivots correctly along its flight path.
+        image.setOrigin(0.5, 0.5);
+        image.setRotation(Math.atan2(b.vy, b.vx));
+        image.setPosition(b.x + 4, b.y + 2);
       } else {
         image.setVisible(false);
       }

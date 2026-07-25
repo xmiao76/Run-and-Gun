@@ -332,10 +332,22 @@ export const ENEMY_SENTRY: PixelArtSpec = {
 /* Projectiles and pickups.                                            */
 /* ------------------------------------------------------------------ */
 
-/** Player pulse bolt: hot core, warm trail. */
-export const BULLET_PLAYER: PixelArtSpec = {
+/** Pulse Rifle bolt: hot core, warm trail. */
+export const BULLET_PULSE: PixelArtSpec = {
   palette: { o: '#ff9a3a', y: '#ffd23f', W: '#fff6d8' },
   rows: [' oyyyyo ', 'oyWWWWyo', 'oyWWWWyo', ' oyyyyo ']
+};
+
+/** Scatter Blaster pellet: stubby orange chunk (fired in threes). */
+export const BULLET_SCATTER: PixelArtSpec = {
+  palette: { o: '#ff8a3a', O: '#ffc38a' },
+  rows: ['  oo  ', ' oOOo ', 'oOOOOo', ' oOOo ', '  oo  ']
+};
+
+/** Rapid Carbine dart: slim cyan tracer with a hot tip. */
+export const BULLET_RAPID: PixelArtSpec = {
+  palette: { c: '#2a6a8a', C: '#4fc3e8', W: '#d8f4ff' },
+  rows: ['   cCCWW', 'ccCCCWWWW', '   cCCWW']
 };
 
 /** Enemy plasma orb. */
@@ -608,7 +620,9 @@ export const SPRITE_SPECS = {
   'art/player-death': PLAYER_DEATH,
   'art/enemy-runner': ENEMY_RUNNER,
   'art/enemy-sentry': ENEMY_SENTRY,
-  'art/bullet-player': BULLET_PLAYER,
+  'art/bullet-pulse': BULLET_PULSE,
+  'art/bullet-scatter': BULLET_SCATTER,
+  'art/bullet-rapid': BULLET_RAPID,
   'art/bullet-enemy': BULLET_ENEMY,
   'art/pickup-crate': PICKUP_CRATE,
   'art/tile-ground': TILE_GROUND,

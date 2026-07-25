@@ -83,6 +83,7 @@ import {
 import { respawnPosition } from '../simulation/safeSpawn';
 import { ensureGameTextures } from '../art/textures';
 import { selectPlayerPose, playerPoseTexture, type PlayerPoseKey } from '../art/playerPose';
+import { bulletTexture } from '../art/weaponArt';
 import { hookShutdown } from './sceneLifecycle';
 import {
   spawnParticles,
@@ -226,7 +227,7 @@ export class LevelScene extends Phaser.Scene {
   private telegraphRects: Phaser.GameObjects.Rectangle[] = [];
   private aimLineRects: Phaser.GameObjects.Rectangle[] = [];
   private enemyBulletRects: Phaser.GameObjects.Rectangle[] = [];
-  private playerBulletRects: Phaser.GameObjects.Rectangle[] = [];
+  private playerBulletImages: Phaser.GameObjects.Image[] = [];
   private pickupRects: Phaser.GameObjects.Rectangle[] = [];
   private pickupLabels: Phaser.GameObjects.Text[] = [];
   private playerImage?: Phaser.GameObjects.Image;
@@ -263,7 +264,7 @@ export class LevelScene extends Phaser.Scene {
     this.telegraphRects = [];
     this.aimLineRects = [];
     this.enemyBulletRects = [];
-    this.playerBulletRects = [];
+    this.playerBulletImages = [];
     this.pickupRects = [];
     this.pickupLabels = [];
     this.containerRects = [];
@@ -1286,14 +1287,17 @@ export class LevelScene extends Phaser.Scene {
 
     this.renderPlayer();
 
-    this.syncPool(this.playerBulletRects, this.playerBullets.length, 8, 4, 0xffe066);
-    this.playerBulletRects.forEach((rect, i) => {
+    this.syncImagePool(this.playerBulletImages, this.playerBullets.length, 'art/bullet-pulse');
+    this.playerBulletImages.forEach((image, i) => {
       const b = this.playerBullets[i];
       if (b) {
-        rect.setVisible(true);
-        rect.setPosition(b.x - this.cameraX, b.y);
+        image.setVisible(true);
+        image.setTexture(bulletTexture(b.weapon));
+        // Rotate the sprite along its flight path so 8-way fire reads clearly.
+        image.setRotation(Math.atan2(b.vy, b.vx));
+        image.setPosition(b.x - this.cameraX + 4, b.y + 2);
       } else {
-        rect.setVisible(false);
+        image.setVisible(false);
       }
     });
     this.syncPool(this.enemyBulletRects, this.enemyBullets.length, 8, 8, 0xff5533);
@@ -1476,6 +1480,18 @@ export class LevelScene extends Phaser.Scene {
       const r = this.add.rectangle(0, 0, w, h, color);
       r.setOrigin(0, 0);
       pool.push(r);
+    }
+    for (let i = 0; i < pool.length; i++) {
+      pool[i].setVisible(i < count);
+    }
+  }
+
+  /** Image-pool twin of syncPool; sprites are center-origin so rotation pivots correctly. */
+  private syncImagePool(pool: Phaser.GameObjects.Image[], count: number, key: string): void {
+    while (pool.length < count) {
+      const image = this.add.image(0, 0, key);
+      image.setOrigin(0.5, 0.5);
+      pool.push(image);
     }
     for (let i = 0; i < pool.length; i++) {
       pool[i].setVisible(i < count);
