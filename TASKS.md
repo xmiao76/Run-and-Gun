@@ -88,18 +88,18 @@ Only one task should be actively worked on in a single loop iteration.
 
 ### TASK-005 - Build Level 1 as a complete visually rich playable stage
 
-- Status: TODO
+- Status: DONE
 - Requirement:
   Build the full first level with level art, encounters, pickups, checkpoint, and a boss arena.
 - Acceptance criteria:
-  - [ ] Level 1 has a clear visual theme such as jungle, battlefield, or ruined war zone
-  - [ ] Level 1 contains terrain/platform layout and environment art
-  - [ ] Level 1 uses non-abstract map presentation
-  - [ ] Level 1 contains enemies and pickups
-  - [ ] Level 1 contains at least one checkpoint
-  - [ ] Level 1 contains a boss arena
-  - [ ] The player can play Level 1 from start to boss encounter
-  - [ ] Background layers or scenic decoration are present to improve visual quality
+  - [x] Level 1 has a clear visual theme such as jungle, battlefield, or ruined war zone
+  - [x] Level 1 contains terrain/platform layout and environment art
+  - [x] Level 1 uses non-abstract map presentation
+  - [x] Level 1 contains enemies and pickups
+  - [x] Level 1 contains at least one checkpoint
+  - [x] Level 1 contains a boss arena
+  - [x] The player can play Level 1 from start to boss encounter
+  - [x] Background layers or scenic decoration are present to improve visual quality
 
 ---
 

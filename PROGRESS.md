@@ -240,3 +240,46 @@ Include enough detail so the next iteration can continue without guessing.
   - TASK-005 - Build Level 1 as a complete visually rich playable stage
 - Blockers (if any):
   - none
+
+---
+
+### 2026-07-25 07:15 - TASK-005
+
+- Status before: TODO
+- Goal of this iteration:
+  Turn Level 1's functional-but-abstract map into a themed, visually rich stage (jungle war zone) with layered environment art.
+- Work completed:
+  - Audited: level layout (solids/one-ways/hazards), 3 enemy waves, 2 pickups, 3 checkpoints, boss arena, and completion flow all existed and were e2e-covered; the gap was presentation - flat dark rectangles for terrain and no backdrop at all.
+  - Added a themeable environment system: pure `themeForLevel` + deterministic `propsForSolid`/`horizonForLevel` placement (`src/art/levelTheme.ts`) with unit tests; Level 2 inherits the jungle theme until TASK-007 gives it a fortress identity.
+  - Level 1 backdrop: night-sky gradient, star field (0.15x), distant ridge band (0.3x parallax), world-anchored horizon silhouettes (dead trees + ruins, alpha-faded for depth), textured grass/dirt ground tiles (world-anchored tile offsets), wooden one-way platforms, hazard-striped pit voids, bushes/rocks scattered deterministically.
+  - New sprites: `art/tile-oneway` (plank platform) and `art/prop-skiff` (supply carrier pod); containers, pickups, carrier drops, and supply skiffs now render as sprites in LevelScene.
+  - Debug note: spent a cycle chasing "missing" changes that were really a stale vite-preview process serving an old bundle and minified identifiers defeating grep; restarted the server and all was correct. The screenshots now come from the fresh build.
+- Files changed:
+  - src/art/sprites.ts, src/art/levelTheme.ts (new)
+  - src/scenes/LevelScene.ts
+  - tests/unit/levelTheme.test.ts (new), tests/e2e/levelVisuals.spec.ts (new)
+  - scripts/level-check.mjs (new), scripts/display-probe.mjs (new)
+- Assets added or updated:
+  - `art/tile-oneway`, `art/prop-skiff`; Level 1 environment built from the shared sheet.
+- Commands run:
+  - `npx vitest run tests/unit/levelTheme.test.ts` (10 passed with sprite tests)
+  - `npm run lint`, `npm run typecheck` (clean)
+  - `npm run test:unit` (183 passed, 37 files)
+  - `npm run build` (pass)
+  - `npx playwright test` (30 passed, incl. new levelVisuals spec)
+  - `node scripts/level-check.mjs`, `node scripts/display-probe.mjs`
+- Verification result:
+  - All checks pass: lint, typecheck, 183 unit tests, build, 30 e2e tests.
+  - e2e `levelVisuals.spec.ts` asserts ground tiles, horizon silhouettes, crate pickups, and that the ridge parallax trails the camera correctly.
+  - Screenshots reviewed at start/wave/mid/arena: dusk jungle war-zone theme is coherent and combat stays readable.
+- Visual quality notes:
+  - Level 1 no longer presents as abstract blocks: layered parallax backdrop, textured terrain, themed props, sprite pickups/containers/skiffs.
+  - The boss itself is still a rectangle - intentionally deferred to TASK-006 (boss pass).
+  - Level 2 currently inherits the jungle theme; TASK-007 gives it the fortress identity.
+- Status after: DONE
+- Remaining work:
+  - none for this task.
+- Next recommended task:
+  - TASK-006 - Implement Level 1 boss
+- Blockers (if any):
+  - none

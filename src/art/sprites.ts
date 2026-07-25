@@ -560,6 +560,57 @@ export const TILE_HAZARD: PixelArtSpec = {
   ]
 };
 
+/** One-way platform tile: wooden planks with metal edge brackets. 24x12. */
+export const TILE_ONEWAY: PixelArtSpec = {
+  palette: {
+    w: '#8a6a3a', // plank
+    W: '#b08a4a', // plank light
+    d: '#6a4e28', // plank shade
+    m: '#68727f' // brackets
+  },
+  rows: [
+    'mwwwwwwwwwwwwwwwwwwwwm',
+    'mWWWwWWWWwWWWWwWWWWwWm',
+    'mwwwdwwwdwwwdwwwdwwwdm',
+    'mwwwwwwwwwwwwwwwwwwwwm',
+    'mWWWwWWWWwWWWWwWWWWwWm',
+    'mwwwdwwwdwwwdwwwdwwwdm',
+    'mwwwwwwwwwwwwwwwwwwwwm',
+    'mWWWwWWWWwWWWWwWWWWwWm',
+    'mwwwdwwwdwwwdwwwdwwwdm',
+    'mddddddddddddddddddddm',
+    'mmmmmmmmmmmmmmmmmmmmmm',
+    'mmmmmmmmmmmmmmmmmmmmmm'
+  ]
+};
+
+/** Supply skiff: neutral flying pod that carries a weapon drop. 26x14. */
+export const PROP_SKIFF: PixelArtSpec = {
+  palette: {
+    h: '#3a5a7a', // hull shade
+    H: '#9ad1ff', // hull light
+    g: '#d8f4ff', // canopy glass
+    s: '#ffd23f', // signal light
+    p: '#2a3a4a' // underside
+  },
+  rows: [
+    '            s',
+    '           sss',
+    '      hhhhhhhhh',
+    '    hhHHHHHHHHHhh',
+    '   hHHgggHHHHHHHHh',
+    '  hHHgggHHHHHHHHHHh',
+    '  hHHgHHHHHHHHHHHHh',
+    '  hHHHHHHHHHHHHHHHHh',
+    '   hHHHHHHHHHHHHHHh',
+    '    hhhhhhhhhhhhhhh',
+    '      ppppppppppp',
+    '     p  p     p  p',
+    '',
+    ''
+  ]
+};
+
 /** Broad-leaf jungle bush prop. */
 export const PROP_BUSH: PixelArtSpec = {
   palette: { b: '#1d3a2a', B: '#2c543a', G: '#3f7350' },
@@ -708,6 +759,8 @@ export const SPRITE_SPECS = {
   'art/pickup-crate': PICKUP_CRATE,
   'art/tile-ground': TILE_GROUND,
   'art/tile-hazard': TILE_HAZARD,
+  'art/tile-oneway': TILE_ONEWAY,
+  'art/prop-skiff': PROP_SKIFF,
   'art/prop-bush': PROP_BUSH,
   'art/prop-rock': PROP_ROCK,
   'art/bg-ruin': BG_RUIN,

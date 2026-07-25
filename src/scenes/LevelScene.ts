@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import {
   DEATH_FALL_Y,
+  GROUND_Y,
   INVULN_DURATION,
   MAX_LIVES,
   PLAYER_HEIGHT,
@@ -85,6 +86,8 @@ import { ensureGameTextures } from '../art/textures';
 import { selectPlayerPose, playerPoseTexture, type PlayerPoseKey } from '../art/playerPose';
 import { bulletTexture } from '../art/weaponArt';
 import { enemyTexture } from '../art/enemyArt';
+import { propsForSolid, horizonForLevel, themeForLevel } from '../art/levelTheme';
+import { SKY_TEXTURE } from '../art/textures';
 import { hookShutdown } from './sceneLifecycle';
 import {
   spawnParticles,
@@ -215,20 +218,24 @@ export class LevelScene extends Phaser.Scene {
   private lastBossPhase = 0;
   private bossDeathHandled = false;
 
-  private solidRects: Phaser.GameObjects.Rectangle[] = [];
-  private oneWayRects: Phaser.GameObjects.Rectangle[] = [];
-  private hazardRects: Phaser.GameObjects.Rectangle[] = [];
+  private groundTiles: Phaser.GameObjects.TileSprite[] = [];
+  private oneWayTiles: Phaser.GameObjects.TileSprite[] = [];
+  private hazardVoids: Phaser.GameObjects.Rectangle[] = [];
+  private hazardRims: Phaser.GameObjects.TileSprite[] = [];
+  private propImages: { image: Phaser.GameObjects.Image; worldX: number; baseY: number }[] = [];
+  private starsLayer?: Phaser.GameObjects.TileSprite;
+  private ridgeLayer?: Phaser.GameObjects.TileSprite;
   private movingPlatformRects: Phaser.GameObjects.Rectangle[] = [];
   private doorRects: Phaser.GameObjects.Rectangle[] = [];
-  private containerRects: Phaser.GameObjects.Rectangle[] = [];
+  private containerImages: Phaser.GameObjects.Image[] = [];
   private particleRects: Phaser.GameObjects.Rectangle[] = [];
-  private carrierRects: Phaser.GameObjects.Rectangle[] = [];
+  private carrierImages: Phaser.GameObjects.Image[] = [];
   private subcomponentRects: Phaser.GameObjects.Rectangle[] = [];
   private telegraphRects: Phaser.GameObjects.Rectangle[] = [];
   private aimLineRects: Phaser.GameObjects.Rectangle[] = [];
   private enemyBulletImages: Phaser.GameObjects.Image[] = [];
   private playerBulletImages: Phaser.GameObjects.Image[] = [];
-  private pickupRects: Phaser.GameObjects.Rectangle[] = [];
+  private pickupImages: Phaser.GameObjects.Image[] = [];
   private pickupLabels: Phaser.GameObjects.Text[] = [];
   private playerImage?: Phaser.GameObjects.Image;
   private enemyImages: Phaser.GameObjects.Image[] = [];
@@ -255,9 +262,11 @@ export class LevelScene extends Phaser.Scene {
     // Phaser reuses the scene instance across scene.start calls, so pooled
     // render arrays must be cleared before they are rebuilt; otherwise they
     // would hold stale entries from the previous run and index out of bounds.
-    this.solidRects = [];
-    this.oneWayRects = [];
-    this.hazardRects = [];
+    this.groundTiles = [];
+    this.oneWayTiles = [];
+    this.hazardVoids = [];
+    this.hazardRims = [];
+    this.propImages = [];
     this.movingPlatformRects = [];
     this.doorRects = [];
     this.subcomponentRects = [];
@@ -266,14 +275,14 @@ export class LevelScene extends Phaser.Scene {
     this.aimLineRects = [];
     this.enemyBulletImages = [];
     this.playerBulletImages = [];
-    this.pickupRects = [];
+    this.pickupImages = [];
     this.pickupLabels = [];
-    this.containerRects = [];
+    this.containerImages = [];
     this.particleRects = [];
-    this.carrierRects = [];
+    this.carrierImages = [];
     this.resetRun();
     ensureGameTextures(this);
-    this.buildStaticVisuals();
+    this.buildEnvironment();
     // Feet-anchored so poses with different heights (stand/crouch/death) stay planted.
     this.playerImage = this.add.image(0, 0, 'art/player-idle').setOrigin(0, 1);
     this.bossRect = this.add.rectangle(0, 0, 64, 56, 0x884422);
@@ -1223,22 +1232,61 @@ export class LevelScene extends Phaser.Scene {
     });
   }
 
-  private buildStaticVisuals(): void {
+  /**
+   * Builds the level's themed environment: a parallax dusk-jungle backdrop
+   * (sky, stars, distant ridge, near canopy), textured ground and platform
+   * tiles, hazard-striped pit voids, and deterministic scenic props. Terrain
+   * art is world-anchored (tile offsets set from world x) so it never swims
+   * under the camera; the background layers scroll at reduced rates for depth.
+   */
+  private buildEnvironment(): void {
+    const theme = themeForLevel(this.level.id);
+
+    this.add
+      .image(0, 0, SKY_TEXTURE)
+      .setOrigin(0, 0)
+      .setDisplaySize(LOGICAL_WIDTH, LOGICAL_HEIGHT);
+    this.starsLayer = this.add
+      .tileSprite(0, 0, LOGICAL_WIDTH, 300, 'art/bg-stars')
+      .setOrigin(0, 0)
+      .setAlpha(0.8);
+    this.ridgeLayer = this.add
+      .tileSprite(0, 250, LOGICAL_WIDTH, 130, 'art/bg-ridge')
+      .setOrigin(0, 0)
+      .setTileScale(4, 6)
+      .setTint(theme.ridgeTint);
+
+    // World-anchored silhouettes on the far ground line: they read against the
+    // sky's horizon glow and break up the tiled bands.
+    for (const h of horizonForLevel(this.level.width, GROUND_Y)) {
+      const image = this.add.image(0, 0, h.key).setOrigin(0, 1).setScale(h.scale).setAlpha(h.alpha);
+      this.propImages.push({ image, worldX: h.x, baseY: h.y });
+    }
+
     for (const r of this.level.solids) {
-      const rect = this.add.rectangle(0, 0, r.width, r.height, 0x243049);
-      rect.setOrigin(0, 0);
-      this.solidRects.push(rect);
+      const tile = this.add.tileSprite(0, 0, r.width, r.height, theme.groundTile).setOrigin(0, 0);
+      // World-anchored pattern: the grass never slides as the camera moves.
+      tile.tilePositionX = r.x;
+      this.groundTiles.push(tile);
+      for (const prop of propsForSolid(r, theme, r.y)) {
+        const image = this.add.image(0, 0, prop.key).setOrigin(0, 1).setScale(prop.scale).setAlpha(prop.alpha);
+        this.propImages.push({ image, worldX: prop.x, baseY: prop.y });
+      }
     }
+
     for (const r of this.level.oneWays) {
-      const rect = this.add.rectangle(0, 0, r.width, r.height, 0x3a6ea5);
-      rect.setOrigin(0, 0);
-      this.oneWayRects.push(rect);
+      const tile = this.add.tileSprite(0, 0, r.width, r.height, theme.oneWayTile).setOrigin(0, 0);
+      tile.tilePositionX = r.x;
+      this.oneWayTiles.push(tile);
     }
+
     for (const r of this.level.hazards) {
-      const rect = this.add.rectangle(0, 0, r.width, r.height, 0x140808);
-      rect.setOrigin(0, 0);
-      rect.setStrokeStyle(2, 0xff5555);
-      this.hazardRects.push(rect);
+      // The pit is a dark void; its rim carries hazard stripes as the warning.
+      const voidRect = this.add.rectangle(0, 0, r.width, r.height, 0x05070c).setOrigin(0, 0);
+      this.hazardVoids.push(voidRect);
+      const rim = this.add.tileSprite(0, 0, r.width, 8, 'art/tile-hazard').setOrigin(0, 0);
+      rim.tilePositionX = r.x;
+      this.hazardRims.push(rim);
     }
   }
 
@@ -1246,17 +1294,30 @@ export class LevelScene extends Phaser.Scene {
     if (!this.playerImage || !this.hudText) {
       return;
     }
-    this.solidRects.forEach((rect, i) => {
+    // Parallax backdrop: farther layers scroll slower.
+    if (this.starsLayer && this.ridgeLayer) {
+      this.starsLayer.tilePositionX = this.cameraX * 0.15;
+      this.ridgeLayer.tilePositionX = this.cameraX * 0.3;
+    }
+
+    this.groundTiles.forEach((tile, i) => {
       const r = this.level.solids[i];
-      rect.setPosition(r.x - this.cameraX, r.y);
+      tile.setPosition(r.x - this.cameraX, r.y);
     });
-    this.oneWayRects.forEach((rect, i) => {
+    this.propImages.forEach(({ image, worldX, baseY }) => {
+      image.setPosition(worldX - this.cameraX, baseY);
+    });
+    this.oneWayTiles.forEach((tile, i) => {
       const r = this.level.oneWays[i];
-      rect.setPosition(r.x - this.cameraX, r.y);
+      tile.setPosition(r.x - this.cameraX, r.y);
     });
-    this.hazardRects.forEach((rect, i) => {
+    this.hazardVoids.forEach((rect, i) => {
       const r = this.level.hazards[i];
       rect.setPosition(r.x - this.cameraX, r.y);
+    });
+    this.hazardRims.forEach((tile, i) => {
+      const r = this.level.hazards[i];
+      tile.setPosition(r.x - this.cameraX, r.y);
     });
 
     this.syncPool(this.movingPlatformRects, this.movingPlatforms.length, 12, 12, 0x5a7a3a);
@@ -1277,13 +1338,14 @@ export class LevelScene extends Phaser.Scene {
       rect.setPosition(d.rect.x - this.cameraX, d.rect.y);
     });
 
-    this.syncPool(this.containerRects, this.containers.length, 24, 24, 0x8a5a2b);
+    this.syncImagePool(this.containerImages, this.containers.length, 'art/pickup-crate');
     this.containers.forEach((c, i) => {
-      const rect = this.containerRects[i];
-      rect.setVisible(!c.destroyed);
+      const image = this.containerImages[i];
+      image.setVisible(!c.destroyed);
       if (!c.destroyed) {
-        rect.setSize(c.width, c.height);
-        rect.setPosition(c.x - this.cameraX, c.y);
+        image.setOrigin(0, 0);
+        image.setDisplaySize(c.width, c.height);
+        image.setPosition(c.x - this.cameraX, c.y);
       }
     });
 
@@ -1354,33 +1416,34 @@ export class LevelScene extends Phaser.Scene {
     });
 
     const visiblePickups = this.pickups.filter((p) => !p.collected);
-    this.syncPool(this.pickupRects, visiblePickups.length + this.carrierDrops.length, 18, 18, 0x33ddff);
+    this.syncImagePool(this.pickupImages, visiblePickups.length + this.carrierDrops.length, 'art/pickup-crate');
     this.syncTextPool(this.pickupLabels, visiblePickups.length + this.carrierDrops.length);
     visiblePickups.forEach((p, i) => {
-      const rect = this.pickupRects[i];
+      const image = this.pickupImages[i];
       const label = this.pickupLabels[i];
-      rect.setFillStyle(pickupColor(p.weapon));
-      rect.setPosition(p.x - this.cameraX, p.y);
+      image.setOrigin(0, 0);
+      image.setPosition(p.x - this.cameraX, p.y);
       label.setPosition(p.x - this.cameraX + 9, p.y + 9);
       label.setText(pickupLetter(p.weapon));
     });
     // Falling carrier drops reuse the pickup visuals.
     this.carrierDrops.forEach((d, k) => {
       const i = visiblePickups.length + k;
-      const rect = this.pickupRects[i];
+      const image = this.pickupImages[i];
       const label = this.pickupLabels[i];
-      rect.setFillStyle(pickupColor(d.weapon));
-      rect.setPosition(d.x - this.cameraX, d.y);
+      image.setOrigin(0, 0);
+      image.setPosition(d.x - this.cameraX, d.y);
       label.setPosition(d.x - this.cameraX + 9, d.y + 9);
       label.setText(pickupLetter(d.weapon));
     });
 
-    this.syncPool(this.carrierRects, this.supplyCarriers.length, CARRIER_WIDTH, CARRIER_HEIGHT, 0x9ad1ff);
+    this.syncImagePool(this.carrierImages, this.supplyCarriers.length, 'art/prop-skiff');
     this.supplyCarriers.forEach((c, i) => {
-      const rect = this.carrierRects[i];
-      rect.setVisible(c.alive);
+      const image = this.carrierImages[i];
+      image.setVisible(c.alive);
       if (c.alive) {
-        rect.setPosition(c.x - this.cameraX, c.y);
+        image.setOrigin(0, 0);
+        image.setPosition(c.x - this.cameraX, c.y);
       }
     });
 
@@ -1587,16 +1650,6 @@ function pickupLetter(weapon: string): string {
     return 'R';
   }
   return 'P';
-}
-
-function pickupColor(weapon: string): number {
-  if (weapon === 'scatter') {
-    return 0x33ddff;
-  }
-  if (weapon === 'rapid') {
-    return 0xff66cc;
-  }
-  return 0xffd970;
 }
 
 function particleColor(kind: string): number {
