@@ -243,6 +243,7 @@ export class LevelScene extends Phaser.Scene {
   private deathTimer = -1;
   private hurtTimer = 0;
   private bossRect?: Phaser.GameObjects.Rectangle;
+  private bossImage?: Phaser.GameObjects.Image;
   private bossTeleRect?: Phaser.GameObjects.Rectangle;
   private bossZoneRect?: Phaser.GameObjects.Rectangle;
   private hudText?: Phaser.GameObjects.Text;
@@ -288,6 +289,7 @@ export class LevelScene extends Phaser.Scene {
     this.bossRect = this.add.rectangle(0, 0, 64, 56, 0x884422);
     this.bossRect.setOrigin(0, 0);
     this.bossRect.setVisible(false);
+    this.bossImage = this.add.image(0, 0, 'art/boss-siege-walker').setOrigin(0, 0).setVisible(false);
     this.bossTeleRect = this.add.rectangle(0, 0, 72, 64);
     this.bossTeleRect.setOrigin(0, 0);
     this.bossTeleRect.setStrokeStyle(3, 0xffff66);
@@ -1449,10 +1451,26 @@ export class LevelScene extends Phaser.Scene {
 
     const bossDef = getBossDef(this.level.boss.id);
     if (this.boss.active && isBossAlive(this.boss)) {
-      this.bossRect?.setVisible(true);
-      this.bossRect?.setSize(bossDef.width, bossDef.height);
-      this.bossRect?.setPosition(this.boss.x - this.cameraX, this.boss.y);
-      this.bossRect?.setFillStyle(this.boss.vulnerable ? 0xddaa44 : 0x884422);
+      if (this.level.boss.id === 'siegeWalker' && this.bossImage) {
+        // Sprite boss: stretched to the hitbox, flipped toward the player,
+        // warm tint during the vulnerable window.
+        this.bossRect?.setVisible(false);
+        this.bossImage.setVisible(true);
+        this.bossImage.setDisplaySize(bossDef.width, bossDef.height);
+        this.bossImage.setPosition(this.boss.x - this.cameraX, this.boss.y);
+        this.bossImage.setFlipX(this.player.x > this.boss.x + bossDef.width / 2);
+        if (this.boss.vulnerable) {
+          this.bossImage.setTint(0xffd070);
+        } else {
+          this.bossImage.clearTint();
+        }
+      } else {
+        this.bossImage?.setVisible(false);
+        this.bossRect?.setVisible(true);
+        this.bossRect?.setSize(bossDef.width, bossDef.height);
+        this.bossRect?.setPosition(this.boss.x - this.cameraX, this.boss.y);
+        this.bossRect?.setFillStyle(this.boss.vulnerable ? 0xddaa44 : 0x884422);
+      }
       this.bossTeleRect?.setVisible(this.boss.telegraphing);
       this.bossTeleRect?.setSize(bossDef.width + 8, bossDef.height + 8);
       this.bossTeleRect?.setPosition(this.boss.x - this.cameraX - 4, this.boss.y - 4);
@@ -1465,6 +1483,7 @@ export class LevelScene extends Phaser.Scene {
       }
     } else {
       this.bossRect?.setVisible(false);
+      this.bossImage?.setVisible(false);
       this.bossTeleRect?.setVisible(false);
       this.bossZoneRect?.setVisible(false);
     }

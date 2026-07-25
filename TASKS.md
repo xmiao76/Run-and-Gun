@@ -105,16 +105,16 @@ Only one task should be actively worked on in a single loop iteration.
 
 ### TASK-006 - Implement Level 1 boss
 
-- Status: TODO
+- Status: DONE
 - Requirement:
   Create the first boss with visual presence and readable attack pattern.
 - Acceptance criteria:
-  - [ ] Level 1 boss exists
-  - [ ] Boss is visually larger and more detailed than standard enemies
-  - [ ] Boss has at least 2 attack patterns or phases
-  - [ ] Boss can be defeated
-  - [ ] Defeating the boss transitions correctly to the next stage or victory flow for current development stage
-  - [ ] Boss fight is covered by manual or E2E validation
+  - [x] Level 1 boss exists
+  - [x] Boss is visually larger and more detailed than standard enemies
+  - [x] Boss has at least 2 attack patterns or phases
+  - [x] Boss can be defeated
+  - [x] Defeating the boss transitions correctly to the next stage or victory flow for current development stage
+  - [x] Boss fight is covered by manual or E2E validation
 
 ---
 

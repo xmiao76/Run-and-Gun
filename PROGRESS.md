@@ -283,3 +283,46 @@ Include enough detail so the next iteration can continue without guessing.
   - TASK-006 - Implement Level 1 boss
 - Blockers (if any):
   - none
+
+---
+
+### 2026-07-25 13:00 - TASK-006
+
+- Status before: TODO
+- Goal of this iteration:
+  Give the existing Siege Walker boss a large, detailed visual identity worthy of a boss fight.
+- Work completed:
+  - Audited: the Siege Walker already existed with 3 telegraphed patterns (stomp/burst/charge), vulnerable windows, boss bar, defeat/completion flow, and e2e coverage. The gap was purely visual: a 64x56 brown rectangle.
+  - Authored the Siege Walker sprite (61x56, stretched to the 64x56 hitbox): quadruped siege mech with a wide red plated hull, amber optic visor band, vented belly skirt, dorsal cannon + antenna, and four hydraulic legs with knees and feet. Two design iterations via screenshot review (first reads as "dome on a fence", second as a proper mech).
+  - LevelScene renders the boss as the sprite: facing flip toward the player, warm tint during the vulnerable window (replaces the rectangle fill swap), telegraph outline and stomp zone markers preserved. Non-siegeWalker bosses keep the rectangle fallback until their own task (Reactor Warden = TASK-008).
+  - Boss sprite hidden once defeated (verified in e2e).
+  - Also repaired two self-inflicted sprite-sheet corruptions mid-task (clipped PROP_SKIFF body) caught by typecheck + sprite tests.
+- Files changed:
+  - src/art/sprites.ts
+  - src/scenes/LevelScene.ts
+  - tests/unit/sprites.test.ts
+  - tests/e2e/bossVisuals.spec.ts (new)
+  - scripts/boss-check.mjs (new), scripts/texture-probe.mjs (new)
+- Assets added or updated:
+  - `art/boss-siege-walker`.
+- Commands run:
+  - `npx vitest run tests/unit/sprites.test.ts` (6 passed)
+  - `npm run lint`, `npm run typecheck` (clean)
+  - `npm run test:unit` (184 passed, 37 files)
+  - `npm run build` (pass)
+  - `npx playwright test` (31 passed, incl. new bossVisuals spec)
+  - `node scripts/boss-check.mjs`, `node scripts/texture-probe.mjs`
+- Verification result:
+  - All checks pass: lint, typecheck, 184 unit tests, build, 31 e2e tests.
+  - e2e `bossVisuals.spec.ts` asserts the boss renders as its 64x56 sprite during the fight (clearly larger than <=24px standard enemies) and hides on defeat; fight behavior/flow remains covered by the pre-existing polish/hardening specs.
+  - Screenshots reviewed at 1x and 2x zoom: walker reads as an imposing mech; boss bar, telegraph box, and plasma orbs all visible mid-fight.
+- Visual quality notes:
+  - Every combat actor in Level 1 is now sprite-based (player, 4 enemy kinds, boss, projectiles, pickups).
+  - Boss is intentionally single-pose; leg animation/pattern-specific poses are future polish, not required by the task.
+- Status after: DONE
+- Remaining work:
+  - none for this task.
+- Next recommended task:
+  - TASK-007 - Build Level 2 as a complete second stage with stronger visual identity
+- Blockers (if any):
+  - none

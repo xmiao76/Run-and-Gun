@@ -66,4 +66,11 @@ describe('sprite sheet', () => {
     expect(sentry.width).toBeLessThanOrEqual(24);
     expect(sentry.height).toBe(24);
   });
+
+  it('covers the Siege Walker boss hitbox (scene scales to 64x56)', () => {
+    const boss = parsePixelArt(SPRITE_SPECS['art/boss-siege-walker']);
+    // The scene stretches the sprite to the boss hitbox; require close coverage.
+    expect(boss.width).toBeGreaterThanOrEqual(50);
+    expect(boss.height).toBe(56);
+  });
 });

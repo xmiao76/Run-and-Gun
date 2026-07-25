@@ -611,6 +611,82 @@ export const PROP_SKIFF: PixelArtSpec = {
   ]
 };
 
+/**
+ * Siege Walker boss: a quadruped siege mech - plated hull, optic visor,
+ * dorsal cannon, four hydraulic legs. 64x56, faces left.
+ */
+export const BOSS_SIEGE_WALKER: PixelArtSpec = {
+  palette: {
+    m: '#4a525e', // metal shade
+    M: '#68727f', // metal
+    h: '#8a97a5', // highlight
+    w: '#8a3a3a', // red plate shade
+    W: '#c84a34', // red plate
+    o: '#ffd23f', // optic
+    g: '#31383f', // gun
+    G: '#9aa7b4', // muzzle
+    k: '#2a2f33' // joints / feet
+  },
+  rows: [
+    '                                                          o',
+    '                                                          g',
+    'GGGGGGggggggg                                             g',
+    'GGGGGGgggggggggg                                          g',
+    'GGGGGGggggggg        mmmmm                                g',
+    '                    mmmMMMMMmm',
+    '                   mMMMMMMMMMMm',
+    '                 mmMMMMMMMMMMMMmm',
+    '        mmMMWWWWWWWWWWWWWWWWWWWWWWWWWWWWMMmm',
+    '       mMWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWMm',
+    '      mMWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWMm',
+    '      mWWhWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWhWWWMm',
+    '      mMWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWMm',
+    '      mMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMm',
+    '      mMooooooooooooooooooooooooooooooooooooooMMm',
+    '      mMooooooooooooooooooooooooooooooooooooooMMm',
+    '      mMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMm',
+    '      mMWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWMm',
+    '      mMWhWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWhWMm',
+    '      mMWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWMm',
+    '      mMWhWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWhWMm',
+    '      mMWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWMm',
+    '       mMWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWMm',
+    '       mMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMm',
+    '      mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm',
+    '      mMMkMMkMMkMMkMMkMMkMMkMMkMMkMMkMMkMMkMMm',
+    '      mMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMm',
+    '        kMMMMMMk      kMMMMMMk      kMMMMMMk      kMMMMMMk',
+    '        kMMMMMMk      kMMMMMMk      kMMMMMMk      kMMMMMMk',
+    '        kMMMMMMk      kMMMMMMk      kMMMMMMk      kMMMMMMk',
+    '        kMMMMMMk      kMMMMMMk      kMMMMMMk      kMMMMMMk',
+    '        kMMMMMMk      kMMMMMMk      kMMMMMMk      kMMMMMMk',
+    '        kMMMMMMk      kMMMMMMk      kMMMMMMk      kMMMMMMk',
+    '        kMMMMMMk      kMMMMMMk      kMMMMMMk      kMMMMMMk',
+    '        kMMMMMMk      kMMMMMMk      kMMMMMMk      kMMMMMMk',
+    '        kMMMMMMk      kMMMMMMk      kMMMMMMk      kMMMMMMk',
+    '       kkMMMMMMkk    kkMMMMMMkk    kkMMMMMMkk    kkMMMMMMkk',
+    '       kkMMMMMMkk    kkMMMMMMkk    kkMMMMMMkk    kkMMMMMMkk',
+    '        kMMMMMMk      kMMMMMMk      kMMMMMMk      kMMMMMMk',
+    '        kMMMMMMk      kMMMMMMk      kMMMMMMk      kMMMMMMk',
+    '        kMMMMMMk      kMMMMMMk      kMMMMMMk      kMMMMMMk',
+    '        kMMMMMMk      kMMMMMMk      kMMMMMMk      kMMMMMMk',
+    '        kMMMMMMk      kMMMMMMk      kMMMMMMk      kMMMMMMk',
+    '        kMMMMMMk      kMMMMMMk      kMMMMMMk      kMMMMMMk',
+    '        kMMMMMMk      kMMMMMMk      kMMMMMMk      kMMMMMMk',
+    '        kMMMMMMk      kMMMMMMk      kMMMMMMk      kMMMMMMk',
+    '        kMMMMMMk      kMMMMMMk      kMMMMMMk      kMMMMMMk',
+    '        kMMMMMMk      kMMMMMMk      kMMMMMMk      kMMMMMMk',
+    '       kkkMMMMMMkkk  kkkMMMMMMkkk  kkkMMMMMMkkk  kkkMMMMMMkkk',
+    '       kkkMMMMMMkkk  kkkMMMMMMkkk  kkkMMMMMMkkk  kkkMMMMMMkkk',
+    '       kkkkkkkkkkkk  kkkkkkkkkkkk  kkkkkkkkkkkk  kkkkkkkkkkkk',
+    '       kkkkkkkkkkkk  kkkkkkkkkkkk  kkkkkkkkkkkk  kkkkkkkkkkkk',
+    '       kkkkkkkkkkkk  kkkkkkkkkkkk  kkkkkkkkkkkk  kkkkkkkkkkkk',
+    '       kkkkkkkkkkkk  kkkkkkkkkkkk  kkkkkkkkkkkk  kkkkkkkkkkkk',
+    '       kkkkkkkkkkkk  kkkkkkkkkkkk  kkkkkkkkkkkk  kkkkkkkkkkkk',
+    '       kkkkkkkkkkkk  kkkkkkkkkkkk  kkkkkkkkkkkk  kkkkkkkkkkkk'
+  ]
+};
+
 /** Broad-leaf jungle bush prop. */
 export const PROP_BUSH: PixelArtSpec = {
   palette: { b: '#1d3a2a', B: '#2c543a', G: '#3f7350' },
@@ -761,6 +837,7 @@ export const SPRITE_SPECS = {
   'art/tile-hazard': TILE_HAZARD,
   'art/tile-oneway': TILE_ONEWAY,
   'art/prop-skiff': PROP_SKIFF,
+  'art/boss-siege-walker': BOSS_SIEGE_WALKER,
   'art/prop-bush': PROP_BUSH,
   'art/prop-rock': PROP_ROCK,
   'art/bg-ruin': BG_RUIN,
