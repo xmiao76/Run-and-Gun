@@ -84,6 +84,7 @@ import { respawnPosition } from '../simulation/safeSpawn';
 import { ensureGameTextures } from '../art/textures';
 import { selectPlayerPose, playerPoseTexture, type PlayerPoseKey } from '../art/playerPose';
 import { bulletTexture } from '../art/weaponArt';
+import { enemyTexture } from '../art/enemyArt';
 import { hookShutdown } from './sceneLifecycle';
 import {
   spawnParticles,
@@ -223,14 +224,14 @@ export class LevelScene extends Phaser.Scene {
   private particleRects: Phaser.GameObjects.Rectangle[] = [];
   private carrierRects: Phaser.GameObjects.Rectangle[] = [];
   private subcomponentRects: Phaser.GameObjects.Rectangle[] = [];
-  private enemyRects: Phaser.GameObjects.Rectangle[] = [];
   private telegraphRects: Phaser.GameObjects.Rectangle[] = [];
   private aimLineRects: Phaser.GameObjects.Rectangle[] = [];
-  private enemyBulletRects: Phaser.GameObjects.Rectangle[] = [];
+  private enemyBulletImages: Phaser.GameObjects.Image[] = [];
   private playerBulletImages: Phaser.GameObjects.Image[] = [];
   private pickupRects: Phaser.GameObjects.Rectangle[] = [];
   private pickupLabels: Phaser.GameObjects.Text[] = [];
   private playerImage?: Phaser.GameObjects.Image;
+  private enemyImages: Phaser.GameObjects.Image[] = [];
   private animTimeMs = 0;
   private deathTimer = -1;
   private hurtTimer = 0;
@@ -260,10 +261,10 @@ export class LevelScene extends Phaser.Scene {
     this.movingPlatformRects = [];
     this.doorRects = [];
     this.subcomponentRects = [];
-    this.enemyRects = [];
+    this.enemyImages = [];
     this.telegraphRects = [];
     this.aimLineRects = [];
-    this.enemyBulletRects = [];
+    this.enemyBulletImages = [];
     this.playerBulletImages = [];
     this.pickupRects = [];
     this.pickupLabels = [];
@@ -1195,6 +1196,7 @@ export class LevelScene extends Phaser.Scene {
       weapon: this.weapon.id,
       fireAngle: this.lastFireAngle,
       enemyCount: this.enemies.length,
+      enemies: this.enemies.map((e) => ({ id: e.id, kind: e.kind, state: e.state, x: Math.round(e.x), y: Math.round(e.y) })),
       projectileCount: this.playerBullets.length,
       enemyProjectileCount: this.enemyBullets.length,
       checkpoint: this.lastCheckpointId,
@@ -1300,14 +1302,14 @@ export class LevelScene extends Phaser.Scene {
         image.setVisible(false);
       }
     });
-    this.syncPool(this.enemyBulletRects, this.enemyBullets.length, 8, 8, 0xff5533);
-    this.enemyBulletRects.forEach((rect, i) => {
+    this.syncImagePool(this.enemyBulletImages, this.enemyBullets.length, 'art/bullet-enemy');
+    this.enemyBulletImages.forEach((image, i) => {
       const b = this.enemyBullets[i];
       if (b) {
-        rect.setVisible(true);
-        rect.setPosition(b.x - this.cameraX, b.y);
+        image.setVisible(true);
+        image.setPosition(b.x - this.cameraX + 4, b.y + 4);
       } else {
-        rect.setVisible(false);
+        image.setVisible(false);
       }
     });
 
@@ -1320,18 +1322,20 @@ export class LevelScene extends Phaser.Scene {
       rect.setPosition(p.x - this.cameraX, p.y);
     });
 
-    this.syncPool(this.enemyRects, this.enemies.length, 22, 30, 0xff9933);
-    this.syncPool(this.telegraphRects, this.enemies.length, 30, 38, 0);
+    this.syncImagePool(this.enemyImages, this.enemies.length, 'art/enemy-runner');
+    this.syncPool(this.telegraphRects, this.enemies.length, 30, 38, 0, 0);
     this.syncPool(this.aimLineRects, this.enemies.length, 110, 3, 0xffee88);
     this.enemies.forEach((e, i) => {
-      const rect = this.enemyRects[i];
+      const image = this.enemyImages[i];
       const tele = this.telegraphRects[i];
       const aim = this.aimLineRects[i];
       const w = enemyWidth(e);
       const hh = enemyHeight(e);
-      rect.setSize(w, hh);
-      rect.setPosition(e.x - this.cameraX, e.y);
-      rect.setFillStyle(enemyColor(e.kind));
+      image.setTexture(enemyTexture(e.kind));
+      // Sprites are authored facing left; flip when the enemy faces right.
+      image.setFlipX(e.facing > 0);
+      image.setOrigin(0, 0);
+      image.setPosition(e.x - this.cameraX, e.y);
       tele.setSize(w + 8, hh + 8);
       tele.setPosition(e.x - this.cameraX - 4, e.y - 4);
       tele.setVisible(e.telegraphing);
@@ -1475,9 +1479,9 @@ export class LevelScene extends Phaser.Scene {
     this.overlaySubText?.setVisible(false);
   }
 
-  private syncPool(pool: Phaser.GameObjects.Rectangle[], count: number, w: number, h: number, color: number): void {
+  private syncPool(pool: Phaser.GameObjects.Rectangle[], count: number, w: number, h: number, color: number, fillAlpha = 1): void {
     while (pool.length < count) {
-      const r = this.add.rectangle(0, 0, w, h, color);
+      const r = this.add.rectangle(0, 0, w, h, color, fillAlpha);
       r.setOrigin(0, 0);
       pool.push(r);
     }
@@ -1560,19 +1564,6 @@ function enemyHeight(e: EnemyState): number {
     return 18;
   }
   return 30;
-}
-
-function enemyColor(kind: string): number {
-  if (kind === 'sentry') {
-    return 0xbb55ff;
-  }
-  if (kind === 'drone') {
-    return 0x55bbff;
-  }
-  if (kind === 'grenadier') {
-    return 0xffaa33;
-  }
-  return 0xff9933;
 }
 
 function enemyScore(kind: string): number {

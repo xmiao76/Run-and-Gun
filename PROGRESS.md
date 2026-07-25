@@ -196,3 +196,47 @@ Include enough detail so the next iteration can continue without guessing.
   - TASK-004 - Implement enemy roster with recognizable visual identities
 - Blockers (if any):
   - none
+
+---
+
+### 2026-07-25 01:10 - TASK-004
+
+- Status before: TODO
+- Goal of this iteration:
+  Give the four existing enemy archetypes recognizable, distinct sprite identities in the main gameplay scene.
+- Work completed:
+  - Audited: all 4 archetypes (Runner rusher, Sentry turret, Drone aerial patrol, Grenadier arc-lobber) already existed with distinct data-driven behaviors, unit tests, player damage, kill bursts, and soak-test stability. The gap was visuals: LevelScene rendered colored rectangles; Grenadier/Drone had no sprites at all.
+  - Authored 2 new sprites: Grenadier (purple ordnance trooper with bandolier + arm cannon) and Drone (rotor craft with red optic, chin guns, thrusters).
+  - Added pure `enemyTexture(kind)` mapping (`src/art/enemyArt.ts`) with unit tests (distinctness, sheet existence, sprite-within-hitbox bounds).
+  - LevelScene renders enemies as kind-keyed sprites with facing flip (telegraph outlines + aim lines preserved); enemy projectiles now use the plasma-orb sprite (were red rectangles).
+  - Fixed LevelScene telegraph overlay: opaque black fill hid enemy sprites during wind-up (same bug class as the sandbox fix in TASK-001); now stroke-only.
+  - Published the enemy kind/position list in the level runtime for tests/probes.
+  - Found + explained a spawn-culling edge: enemies spawned far ahead are culled against the *stale* (one-step-lagged) camera window, so long debug teleports can drop a spawn; organic play is unaffected (verified via probe); e2e uses staged teleports instead.
+- Files changed:
+  - src/art/sprites.ts, src/art/enemyArt.ts (new)
+  - src/scenes/LevelScene.ts
+  - tests/unit/enemyArt.test.ts (new), tests/e2e/enemyVisuals.spec.ts (new)
+  - scripts/enemy-check.mjs (new), scripts/probe.mjs (new, debug probe utility)
+- Assets added or updated:
+  - `art/enemy-grenadier`, `art/enemy-drone` sprites; enemy orbs now sprite-based in levels.
+- Commands run:
+  - `npx vitest run tests/unit/enemyArt.test.ts` (3 passed)
+  - `npm run lint`, `npm run typecheck` (clean)
+  - `npm run test:unit` (176 passed, 36 files)
+  - `npm run build` (pass)
+  - `npx playwright test` (29 passed, incl. new enemyVisuals spec)
+  - `node scripts/probe.mjs`, `node scripts/enemy-check.mjs` (spawn probe + screenshots)
+- Verification result:
+  - All checks pass: lint, typecheck, 176 unit tests, build, 29 e2e tests.
+  - e2e `enemyVisuals.spec.ts` asserts all 4 enemy sprite textures on the display list across waves 1-2 and that enemy fire renders as sprite orbs.
+  - Screenshots reviewed: Runner + Drone (wave 1) and Sentry with telegraph aim line (wave 2 zoom) read clearly; no placeholder blocks remain for enemies.
+- Visual quality notes:
+  - All four enemies are visually distinct: crimson visored Runner, red-dome Sentry turret, rotor Drone, purple Grenadier.
+  - Level terrain/boss/pickups remain rectangles - terrain is TASK-005/TASK-007 scope; pickups/boss visuals fold into those.
+- Status after: DONE
+- Remaining work:
+  - none for this task.
+- Next recommended task:
+  - TASK-005 - Build Level 1 as a complete visually rich playable stage
+- Blockers (if any):
+  - none

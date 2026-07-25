@@ -328,6 +328,85 @@ export const ENEMY_SENTRY: PixelArtSpec = {
   ]
 };
 
+/** Grenadier: bulky ordnance trooper with a bandolier and arm cannon, facing left. */
+export const ENEMY_GRENADIER: PixelArtSpec = {
+  palette: {
+    p: '#4a2a52', // armor shade
+    P: '#7a4a8a', // armor
+    o: '#ffd23f', // visor
+    g: '#31383f', // cannon
+    G: '#9aa7b4', // muzzle
+    n: '#6a8a4a', // grenade rounds
+    k: '#2a2030', // boots
+    l: '#3a2a44', // fatigues
+    L: '#584a66' // fatigues light
+  },
+  rows: [
+    '        pppppp',
+    '       pPPPPPPp',
+    '      pPPPPPPPPp',
+    '      pooooooop',
+    '      pppppppppp',
+    '       pppppppp',
+    '    PPppppppppPP',
+    '   PpPPPPPPPPPPpP',
+    '   PpPnPnPnPnPPpP',
+    '  ggPpPnPnPnPnPpP',
+    ' gGGpPPPPPPPPPPpP',
+    ' gGGpPPppPPppPPpP',
+    '  ggPPPPPPPPPPPp',
+    '   PpPPPPPPPPPp',
+    '   pppppppppppp',
+    '    llllllllll',
+    '    lLLLLllLLl',
+    '   lLLLLl  lLLLl',
+    '   lLLLl   lLLLl',
+    '   lLLLl   lLLLl',
+    '   kkkkk    kkkk',
+    '   kkkkk    kkkk',
+    '   kkkkk    kkkk',
+    '  kkkkkk    kkkkk',
+    '  kkkkkk    kkkkk',
+    '  kkkkkk    kkkkk',
+    '  kkkkkk    kkkkk',
+    '  kkkkkk    kkkkk',
+    '  kkkkkk    kkkkk',
+    '  kkkkkk    kkkkk'
+  ]
+};
+
+/** Drone: rotor attack craft with a red optic and chin guns, facing left. */
+export const ENEMY_DRONE: PixelArtSpec = {
+  palette: {
+    r: '#8a97a5', // rotor
+    m: '#4a525e', // hull shade
+    M: '#7a8494', // hull light
+    o: '#ff5533', // optic
+    g: '#31383f', // chin guns
+    f: '#ff9a3a' // thruster
+  },
+  rows: [
+    '         rr',
+    '   rrrrrrrrrrrrr',
+    '         rr',
+    '       mmmmmm',
+    '     mmmmmmmmmm',
+    '    mmMMMMMMMMmm',
+    '   mMMMMooooMMMMm',
+    '   mMMMoooooMMMm',
+    '   mMMMMooooMMMMm',
+    '    mmMMMMMMMMmm',
+    '     mmmmmmmmmm',
+    '      g      g',
+    '      g      g',
+    '      g      g',
+    '       f    f',
+    '       f    f',
+    '',
+    ''
+  ]
+};
+
 /* ------------------------------------------------------------------ */
 /* Projectiles and pickups.                                            */
 /* ------------------------------------------------------------------ */
@@ -620,6 +699,8 @@ export const SPRITE_SPECS = {
   'art/player-death': PLAYER_DEATH,
   'art/enemy-runner': ENEMY_RUNNER,
   'art/enemy-sentry': ENEMY_SENTRY,
+  'art/enemy-grenadier': ENEMY_GRENADIER,
+  'art/enemy-drone': ENEMY_DRONE,
   'art/bullet-pulse': BULLET_PULSE,
   'art/bullet-scatter': BULLET_SCATTER,
   'art/bullet-rapid': BULLET_RAPID,

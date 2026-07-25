@@ -70,19 +70,19 @@ Only one task should be actively worked on in a single loop iteration.
 
 ### TASK-004 - Implement enemy roster with recognizable visual identities
 
-- Status: TODO
+- Status: DONE
 - Requirement:
   Add at least four enemy types with distinct visuals and behaviors.
 - Acceptance criteria:
-  - [ ] At least 4 enemy types are implemented
-  - [ ] Enemy types are visually distinct and recognizable
-  - [ ] At least one enemy shoots
-  - [ ] At least one enemy rushes, jumps, or changes position aggressively
-  - [ ] At least one tougher enemy or mechanical/armored enemy exists
-  - [ ] Enemies can damage the player
-  - [ ] Enemies can be defeated
-  - [ ] Enemy death feedback is visible
-  - [ ] Core enemy behavior is stable during gameplay
+  - [x] At least 4 enemy types are implemented
+  - [x] Enemy types are visually distinct and recognizable
+  - [x] At least one enemy shoots
+  - [x] At least one enemy rushes, jumps, or changes position aggressively
+  - [x] At least one tougher enemy or mechanical/armored enemy exists
+  - [x] Enemies can damage the player
+  - [x] Enemies can be defeated
+  - [x] Enemy death feedback is visible
+  - [x] Core enemy behavior is stable during gameplay
 
 ---
 
