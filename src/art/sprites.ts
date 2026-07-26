@@ -1202,6 +1202,134 @@ export const DOOR_SECURITY: PixelArtSpec = {
   ]
 };
 
+/**
+ * Reactor Warden final boss: the fortress core - armored housing with a
+ * glowing reactor heart, warning band, conduits, and a bolted base mount.
+ * 72x72, symmetric (fires in both directions).
+ */
+export const BOSS_REACTOR_WARDEN: PixelArtSpec = {
+  palette: {
+    m: '#4a525e', // metal shade
+    M: '#68727f', // metal
+    h: '#8a97a5', // highlight
+    w: '#8a3a3a', // red plate shade
+    W: '#c84a34', // red plate
+    o: '#ffd23f', // warning amber
+    c: '#2a6a52', // reactor shade
+    C: '#57d9a3', // reactor glow
+    b: '#d8ffe8', // reactor hot core
+    k: '#242a31', // recess
+    g: '#31383f', // conduit
+    G: '#5a6672' // conduit light
+  },
+  rows: [
+    "                                   o",
+    "                                   g",
+    "                                  ggg",
+    "                             ggggggggggg",
+    "                            ggGGGGGGGGGgg",
+    "                            gGGGGGGGGGGGg",
+    "                             ggggggggggg",
+    "                          mmmMMMMMMMMMMMmmm",
+    "                        mmMMMMMMMMMMMMMMMMMmm",
+    "                      mmMMWWWWWWWWWWWWWWWMMmm",
+    "                     mMWWWWWWWWWWWWWWWWWWWWMm",
+    "                    mMWWWhWWWWWWWWWWWWWhWWWMm",
+    "                    mMWWWWWWWWWWWWWWWWWWWWMm",
+    "                    mMMMMMMMMMMMMMMMMMMMMMMMm",
+    "                   mMMoooooooooooooooooooooMMm",
+    "                   mMMoooooooooooooooooooooMMm",
+    "                    mMMMMMMMMMMMMMMMMMMMMMMMm",
+    "                    mMWhWWWWWWWWWWWWWWWWhWMm",
+    "                    mMWWWWWWWWWWWWWWWWWWWWMm",
+    "                   mMMMMMMMMMMMMMMMMMMMMMMMMm",
+    "                   mMkkkkkkkkkkkkkkkkkkkkkkMm",
+    "                   mMkcccccccccccccccccccckMm",
+    "                   mMkcccccccccccccccccccckMm",
+    "                   mMkccCCCCCCCCCCCCCCCCcckMm",
+    "                   mMkcCCCCCCCCCCCCCCCCCCckMm",
+    "                   mMkcCCCbbbbbbbbbbbbbCCCkMm",
+    "                   mMkcCCbbbbbbbbbbbbbbbCCkMm",
+    "                   mMkcCCbbbbbbbbbbbbbbbCCkMm",
+    "                   mMkcCCbbbbbbbbbbbbbbbCCkMm",
+    "                   mMkcCCCbbbbbbbbbbbbbCCCkMm",
+    "                   mMkcCCCCCCCCCCCCCCCCCCckMm",
+    "                   mMkccCCCCCCCCCCCCCCCCcckMm",
+    "                   mMkcccccccccccccccccccckMm",
+    "                   mMkcccccccccccccccccccckMm",
+    "                   mMkkkkkkkkkkkkkkkkkkkkkkMm",
+    "                   mMMMMMMMMMMMMMMMMMMMMMMMMm",
+    "                    mMWhWWWWWWWWWWWWWWWWhWMm",
+    "                    mMWWWWWWWWWWWWWWWWWWWWMm",
+    "                    mMMMMMMMMMMMMMMMMMMMMMMMm",
+    "                   mMMMMMMMMMMMMMMMMMMMMMMMMm",
+    "                   mMkMMkMMkMMkMMkMMkMMkMMkMm",
+    "                   mMMMMMMMMMMMMMMMMMMMMMMMMm",
+    "                  mMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMm",
+    "                 mMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMm",
+    "                mMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMm",
+    "               mMMhMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMhMMm",
+    "              mMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMm",
+    "             kkMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMkk",
+    "            kMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMk",
+    "         kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk",
+    "         kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk",
+    "         kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk",
+    "         kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk",
+    "         kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk",
+    "         kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk",
+    "         kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk",
+    "         kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk",
+    "         kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk",
+    "         kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk",
+    "         kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk",
+    "         kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk",
+    "         kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk",
+    "         kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk",
+    "         kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk",
+    "         kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk",
+    "         kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk",
+    "         kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk",
+    "         kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk",
+    "         kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk",
+    "         kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk",
+    "         kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk",
+    "         kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+  
+  ]
+};
+
+/** Subcomponent node: octagonal shield emitter with a glowing core. 18x18. */
+export const SUBCOMPONENT_NODE: PixelArtSpec = {
+  palette: {
+    m: '#4a525e', // frame shade
+    M: '#8a97a5', // frame light
+    c: '#2a6a52', // glow shade
+    C: '#57d9a3', // glow
+    b: '#d8ffe8' // hot center
+  },
+  rows: [
+    '     mMMMMMMm',
+    '   mMMCCCCCCMMm',
+    '  mMCCCCCCCCCCMm',
+    ' mMCCccccccccCCMm',
+    ' mMCcbbbbbbbbCcMm',
+    'mMCcbbbbbbbbbcCMm',
+    'mMCcbbbbbbbbcCMm',
+    'mMCcbbbbbbbbcCMm',
+    'mMCcbbbbbbbbcCMm',
+    'mMCcbbbbbbbbbcCMm',
+    ' mMCcbbbbbbbbCcMm',
+    ' mMCCccccccccCCMm',
+    '  mMCCCCCCCCCCMm',
+    '   mMMCCCCCCMMm',
+    '     mMMMMMMm',
+    '',
+    '',
+    ''
+  ]
+};
+
 /** Every sprite texture the game registers at scene start. */
 export const SPRITE_SPECS = {
   'art/player-idle': PLAYER_IDLE,
@@ -1227,6 +1355,8 @@ export const SPRITE_SPECS = {
   'art/tile-oneway': TILE_ONEWAY,
   'art/prop-skiff': PROP_SKIFF,
   'art/boss-siege-walker': BOSS_SIEGE_WALKER,
+  'art/boss-reactor-warden': BOSS_REACTOR_WARDEN,
+  'art/subcomponent-node': SUBCOMPONENT_NODE,
   'art/prop-bush': PROP_BUSH,
   'art/prop-rock': PROP_ROCK,
   'art/bg-ruin': BG_RUIN,

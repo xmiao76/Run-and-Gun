@@ -370,3 +370,45 @@ Include enough detail so the next iteration can continue without guessing.
   - TASK-008 - Implement final boss and full game completion flow
 - Blockers (if any):
   - none
+
+---
+
+### 2026-07-26 12:30 - TASK-008
+
+- Status before: TODO
+- Goal of this iteration:
+  Give the Reactor Warden its final-boss visual identity and prove the full title-to-ending completion flow.
+- Work completed:
+  - Audited: the Reactor Warden already existed with 2 phases gated by destructible subcomponents, burst/charge patterns, and the MISSION COMPLETE results flow. The gaps: it rendered as a rectangle, its subcomponents as mint squares, and no end-to-end completion test existed.
+  - Authored the Reactor Warden sprite (69x72 stretched to the 72x72 hitbox): armored housing with amber warning band, glowing cyan reactor core chamber, vented skirt, bolted plinth base; plus the octagonal shield-emitter subcomponent node sprite (18x18).
+  - Added pure `bossTexture(id)` mapping (`src/art/bossArt.ts`) with unit tests; LevelScene now renders both bosses as sprites (facing flip, vulnerable tint) and removed the rectangle fallback entirely; subcomponents render as emitter nodes.
+  - New e2e `fullGame.spec.ts`: title -> Enter -> Level 1 -> defeat Siege Walker -> exit -> results (final=false) -> Enter -> Level 2 -> defeat Reactor Warden -> exit -> MISSION COMPLETE (final=true) -> Enter -> title, with real key input for transitions.
+  - Repaired a mid-task file truncation self-inflicted via a script (missing `];` anchor) - recovered the sprite sheet tail and re-verified with the art test suite (25/25).
+- Files changed:
+  - src/art/sprites.ts, src/art/bossArt.ts (new)
+  - src/scenes/LevelScene.ts
+  - tests/unit/bossArt.test.ts (new), tests/e2e/fullGame.spec.ts (new)
+  - scripts/warden-check.mjs (new)
+- Assets added or updated:
+  - `art/boss-reactor-warden`, `art/subcomponent-node`.
+- Commands run:
+  - `npx vitest run tests/unit/bossArt.test.ts tests/unit/sprites.test.ts ...` (25 art tests passed)
+  - `npm run lint`, `npm run typecheck` (clean)
+  - `npm run test:unit` (190 passed, 38 files)
+  - `npm run build` (pass)
+  - `npx playwright test` (33 passed, incl. new fullGame spec)
+  - `node scripts/warden-check.mjs`
+- Verification result:
+  - All checks pass: lint, typecheck, 190 unit tests, build, 33 e2e tests.
+  - e2e `fullGame.spec.ts` completes the whole game from title to MISSION COMPLETE and back.
+  - Screenshots reviewed at 1x and 2x zoom: warden reads as a fortress core installation (reactor glow, housing, plinth, floating emitter nodes), clearly distinct from the Siege Walker.
+- Visual quality notes:
+  - Every actor and boss in the game is now sprite-based; no rectangles remain in combat presentation.
+  - Boss is single-pose like the walker; pattern-specific poses remain future polish.
+- Status after: DONE
+- Remaining work:
+  - none for this task.
+- Next recommended task:
+  - TASK-009 - Implement HUD, pause, game over, local save, and polish
+- Blockers (if any):
+  - none
