@@ -9,9 +9,9 @@ import Phaser from 'phaser';
 
 import { parsePixelArt, type PixelGrid } from './pixelArt';
 import { SPRITE_SPECS, type SpriteKey } from './sprites';
+import { SKY_TEXTURE, FORTRESS_SKY_TEXTURE } from './textureKeys';
 
-/** Texture key for the vertical dusk-sky gradient (not pixel art). */
-export const SKY_TEXTURE = 'art/bg-sky';
+export { SKY_TEXTURE, FORTRESS_SKY_TEXTURE } from './textureKeys';
 
 /** Sky gradient stops, top to bottom: dusk over a jungle war zone. */
 const SKY_STOPS: readonly { at: number; color: string }[] = [
@@ -19,6 +19,14 @@ const SKY_STOPS: readonly { at: number; color: string }[] = [
   { at: 0.55, color: '#274060' },
   { at: 0.85, color: '#3f5e58' },
   { at: 1, color: '#c96f3b' }
+];
+
+/** Interior gradient stops, top to bottom: murky fortress air. */
+const FORTRESS_SKY_STOPS: readonly { at: number; color: string }[] = [
+  { at: 0, color: '#10131a' },
+  { at: 0.5, color: '#1a201c' },
+  { at: 0.85, color: '#232b26' },
+  { at: 1, color: '#33413a' }
 ];
 
 function gridToCanvas(grid: PixelGrid): HTMLCanvasElement {
@@ -42,7 +50,7 @@ function gridToCanvas(grid: PixelGrid): HTMLCanvasElement {
   return canvas;
 }
 
-function skyCanvas(width: number, height: number): HTMLCanvasElement {
+function skyCanvas(width: number, height: number, stops: readonly { at: number; color: string }[]): HTMLCanvasElement {
   const canvas = document.createElement('canvas');
   canvas.width = width;
   canvas.height = height;
@@ -51,7 +59,7 @@ function skyCanvas(width: number, height: number): HTMLCanvasElement {
     throw new Error('2d canvas context unavailable for sky generation');
   }
   const gradient = ctx.createLinearGradient(0, 0, 0, height);
-  for (const stop of SKY_STOPS) {
+  for (const stop of stops) {
     gradient.addColorStop(stop.at, stop.color);
   }
   ctx.fillStyle = gradient;
@@ -74,6 +82,9 @@ export function ensureGameTextures(scene: Phaser.Scene): void {
   }
   if (!scene.textures.exists(SKY_TEXTURE)) {
     // 16px wide is enough for a horizontal-uniform gradient; it is stretched.
-    scene.textures.addCanvas(SKY_TEXTURE, skyCanvas(16, 256));
+    scene.textures.addCanvas(SKY_TEXTURE, skyCanvas(16, 256, SKY_STOPS));
+  }
+  if (!scene.textures.exists(FORTRESS_SKY_TEXTURE)) {
+    scene.textures.addCanvas(FORTRESS_SKY_TEXTURE, skyCanvas(16, 256, FORTRESS_SKY_STOPS));
   }
 }

@@ -67,12 +67,18 @@ test.describe('classic-feel polish pass', () => {
     await page.evaluate(() => window.__GAME_DEBUG__?.command('startLevel1'));
     await page.waitForFunction(() => window.__GAME_DEBUG__?.getState()?.runtime?.level === 'jungle-outpost');
 
-    // Muzzle flash on fire, expired shortly after.
-    await page.evaluate(() => window.__GAME_DEBUG__?.input('firePress'));
-    await page.evaluate(() => window.__GAME_DEBUG__?.input('fireRelease'));
-    await page.evaluate(() => window.__GAME_DEBUG__?.command('advanceSteps', 2));
+    // Muzzle flash on fire, expired shortly after. Input and stepping are
+    // driven in the same evaluate so real-time frames can't slip extra sim
+    // steps between them (the muzzle ttl is only ~5 steps).
+    await page.evaluate(() => {
+      window.__GAME_DEBUG__?.input('firePress');
+      window.__GAME_DEBUG__?.command('advanceSteps', 2);
+    });
     expect((await rt(page)).particleCount ?? 0).toBeGreaterThan(0);
-    await page.evaluate(() => window.__GAME_DEBUG__?.command('advanceSteps', 60));
+    await page.evaluate(() => {
+      window.__GAME_DEBUG__?.input('fireRelease');
+      window.__GAME_DEBUG__?.command('advanceSteps', 60);
+    });
     expect((await rt(page)).particleCount ?? 0).toBe(0);
 
     // Death burst + respawn beacon on a pit death.

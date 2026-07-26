@@ -813,6 +813,395 @@ export const BG_RIDGE: PixelArtSpec = {
   rows: ridgeRows(RIDGE_PROFILE, 20)
 };
 
+/* ------------------------------------------------------------------ */
+/* Fortress Interior theme (Level 2).                                  */
+/* ------------------------------------------------------------------ */
+
+/** Repeating metal deck tile: riveted steel plates with seams. 32x24. */
+export const TILE_METAL: PixelArtSpec = {
+  palette: {
+    p: '#454e58', // panel
+    P: '#57636f', // panel light
+    s: '#23282e', // seam
+    r: '#7a8694' // rivet
+  },
+  rows: [
+    'ssssssssssssssssssssssssssssssss',
+    'srppppppppppppppsrppppppppppppps',
+    'spPPPPPPPPPPPPPPspPPPPPPPPPPPPPs',
+    'spPpppppppppppppspPppppppppppPps',
+    'spppppppppppppppssppppppppppppps',
+    'spppppppppppppppssppppppppppppps',
+    'spppppppppppppppssppppppppppppps',
+    'spppppppppppppppssppppppppppppps',
+    'spppppppppppppppssppppppppppppps',
+    'spppppppppppppppssppppppppppppps',
+    'spppppppppppppppssppppppppppppps',
+    'srppppppppppppppsrppppppppppppps',
+    'ssssssssssssssssssssssssssssssss',
+    'srppppppppppppppsrppppppppppppps',
+    'spPPPPPPPPPPPPPPspPPPPPPPPPPPPPs',
+    'spPpppppppppppppspPppppppppppPps',
+    'spppppppppppppppssppppppppppppps',
+    'spppppppppppppppssppppppppppppps',
+    'spppppppppppppppssppppppppppppps',
+    'spppppppppppppppssppppppppppppps',
+    'spppppppppppppppssppppppppppppps',
+    'spppppppppppppppssppppppppppppps',
+    'spppppppppppppppssppppppppppppps',
+    'srppppppppppppppsrppppppppppppps'
+  ]
+};
+
+/** One-way platform tile for the fortress: metal grate with holes. 24x12. */
+export const TILE_GRATE: PixelArtSpec = {
+  palette: { m: '#4a525e', M: '#68727f', h: '#1a1e24' },
+  rows: [
+    'MMMMMMMMMMMMMMMMMMMMMMMM',
+    'MhhMhhMhhMhhMhhMhhMhhM',
+    'MhhMhhMhhMhhMhhMhhMhhM',
+    'MMMMMMMMMMMMMMMMMMMMMMMM',
+    'MhhMhhMhhMhhMhhMhhMhhM',
+    'MhhMhhMhhMhhMhhMhhMhhM',
+    'MMMMMMMMMMMMMMMMMMMMMMMM',
+    'MhhMhhMhhMhhMhhMhhMhhM',
+    'MhhMhhMhhMhhMhhMhhMhhM',
+    'MMMMMMMMMMMMMMMMMMMMMMMM',
+    'mmmmmmmmmmmmmmmmmmmmmmmm',
+    'mmmmmmmmmmmmmmmmmmmmmmmm'
+  ]
+};
+
+/** Fortress interior wall tile: riveted panels with a vent. 32x32. */
+export const TILE_WALL: PixelArtSpec = {
+  palette: {
+    w: '#20252c', // wall base
+    W: '#39424d', // panel
+    r: '#556070', // rivet
+    v: '#14181e' // vent
+  },
+  rows: [
+    'wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww',
+    'wrWWWWWWWWWWWWwwrWWWWWWWWWWWWwr',
+    'wWWWWWWWWWWWWWWwwWWWWWWWWWWWWWww',
+    'wWwwwwwwwwwwwwWwwWwwwwwwwwwwWwww',
+    'wWWWWWWWWWWWWWWwwWWWWWWWWWWWWWww',
+    'wWWWWWWWWWWWWWWwwWWWWWWWWWWWWWww',
+    'wWWWWWWWWWWWWWWwwWWWWWWWWWWWWWww',
+    'wWWWWWWWWWWWWWWwwWWWWWWWWWWWWWww',
+    'wWWWWWWWWWWWWWWwwWWWWWWWWWWWWWww',
+    'wWWWWWWWWWWWWWWwwWWWWWWWWWWWWWww',
+    'wWWWWWWWWWWWWWWwwWWWWWWWWWWWWWww',
+    'wWWWWWWWWWWWWWWwwWWWWWWWWWWWWWww',
+    'wWWWWWWWWWWWWWWwwWWWWWWWWWWWWWww',
+    'wWWWWWWWWWWWWWWwwWWWWWWWWWWWWWww',
+    'wrWWWWWWWWWWWWwwrWWWWWWWWWWWWwr',
+    'wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww',
+    'wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww',
+    'wrWWWWWWWWWWWWwwrWWWWWWWWWWWWwr',
+    'wWWWWWWWWWWWWWWwwWWWWWWWWWWWWWww',
+    'wWwwwwwwwwwwwwWwwWwwwwwwwwwwWwww',
+    'wWvvvvvvvvvvWwwwwWWWWWWWWWWWWWww',
+    'wWvvvvvvvvvvWwwwwWWWWWWWWWWWWWww',
+    'wWWWWWWWWWWWWWWwwWWWWWWWWWWWWWww',
+    'wWWWWWWWWWWWWWWwwWWWWWWWWWWWWWww',
+    'wWWWWWWWWWWWWWWwwWWWWWWWWWWWWWww',
+    'wWWWWWWWWWWWWWWwwWWWWWWWWWWWWWww',
+    'wWWWWWWWWWWWWWWwwWWWWWWWWWWWWWww',
+    'wWWWWWWWWWWWWWWwwWWWWWWWWWWWWWww',
+    'wWWWWWWWWWWWWWWwwWWWWWWWWWWWWWww',
+    'wWWWWWWWWWWWWWWwwWWWWWWWWWWWWWww',
+    'wrWWWWWWWWWWWWwwrWWWWWWWWWWWWwr',
+    'wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww'
+  ]
+};
+
+/** Pipe run band for the fortress ceiling line. 48x24, repeats horizontally. */
+export const BG_PIPES: PixelArtSpec = {
+  palette: { p: '#3f4a4a', P: '#5a6a68', h: '#7a8a86' },
+  rows: [
+    '',
+    '',
+    'pppppppppppppppPPPpppppppppppppppppppppPPPpppppp',
+    'pPhhhhhhhhhhhhhPPPPhhhhhhhhhhhhhhhhhhhPPPPhhhhhh',
+    'pPhhhhhhhhhhhhhPPPPhhhhhhhhhhhhhhhhhhhPPPPhhhhhh',
+    'pppppppppppppppPPPpppppppppppppppppppppPPPpppppp',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    'pppppppppppPPPPPpppppppppppppppppppPPPPPpppppppp',
+    'pPhhhhhhhhhPPPPPPhhhhhhhhhhhhhhhhhhhPPPPPPhhhhhh',
+    'pPhhhhhhhhhPPPPPPhhhhhhhhhhhhhhhhhhhPPPPPPhhhhhh',
+    'pppppppppppPPPPPpppppppppppppppppppPPPPPpppppppp',
+    '',
+    '',
+    '',
+    '',
+    '',
+    ''
+  ]
+};
+
+/** Machinery silhouette for the fortress ground line: terminal with screen. */
+export const BG_MACHINE: PixelArtSpec = {
+  palette: {
+    m: '#2a3038', // body shade
+    M: '#3a4149', // body
+    s: '#57d9a3', // screen
+    S: '#2a6a52', // screen shade
+    o: '#ffd23f' // indicator
+  },
+  rows: [
+    '        o',
+    '       mmm',
+    '      mMMMmm',
+    '     mMMMMMMMmm',
+    '    mMMsssssssMMm',
+    '    mMssSSSSsssMm',
+    '    mMsSSSSSSSSMm',
+    '    mMssSSSSsssMm',
+    '    mMMsssssssMMm',
+    '    mMMMMMMMMMMMm',
+    '    mMMMMMMMMMMMm',
+    '    mMMmMmMmMMMm',
+    '    mMMMMMMMMMMMm',
+    '   mMMMMMMMMMMMMM',
+    '   mMMMMMMMMMMMMM',
+    '   mMMMMMMMMMMMMM',
+    '   mMmMMMMMMMMmMm',
+    '   mMMMMMMMMMMMMM',
+    '   mMMMMMMMMMMMMM',
+    '   mMMMMMMMMMMMMM',
+    '   mMMMMMMMMMMMMM',
+    '   mMMMMMMMMMMMMM',
+    '   mMMMMMMMMMMMMM',
+    '   mMMMMMMMMMMMMM',
+    '   mMMMMMMMMMMMMM',
+    '   mMMMMMMMMMMMMM',
+    '   mMMMMMMMMMMMMM',
+    '   mMMMMMMMMMMMMM',
+    '   mMMMMMMMMMMMMM',
+    '   mMMMMMMMMMMMMM',
+    '   mMMMMMMMMMMMMM',
+    '   mMMMMMMMMMMMMM',
+    '   mMMMMMMMMMMMMM',
+    '   mMMMMMMMMMMMMM',
+    '   mMMMMMMMMMMMMM',
+    '   mMMMMMMMMMMMMM'
+  ]
+};
+
+/** Structural I-beam column silhouette for the fortress. */
+export const BG_COLUMN: PixelArtSpec = {
+  palette: { c: '#232930', C: '#2f363f' },
+  rows: [
+    '  cCCCCCCCccCCCc',
+    '  cCCCCCCCccCCCc',
+    '    cCCCCCccCCc',
+    '    cCCCCCccCCc',
+    '    cCCCCCccCCc',
+    '    cCCCCCccCCc',
+    '    cCCCCCccCCc',
+    '    cCCCCCccCCc',
+    '    cCCCCCccCCc',
+    '    cCCCCCccCCc',
+    '    cCCCCCccCCc',
+    '    cCCCCCccCCc',
+    '    cCCCCCccCCc',
+    '    cCCCCCccCCc',
+    '    cCCCCCccCCc',
+    '    cCCCCCccCCc',
+    '    cCCCCCccCCc',
+    '    cCCCCCccCCc',
+    '    cCCCCCccCCc',
+    '    cCCCCCccCCc',
+    '    cCCCCCccCCc',
+    '    cCCCCCccCCc',
+    '    cCCCCCccCCc',
+    '    cCCCCCccCCc',
+    '    cCCCCCccCCc',
+    '    cCCCCCccCCc',
+    '    cCCCCCccCCc',
+    '    cCCCCCccCCc',
+    '    cCCCCCccCCc',
+    '    cCCCCCccCCc',
+    '    cCCCCCccCCc',
+    '    cCCCCCccCCc',
+    '    cCCCCCccCCc',
+    '    cCCCCCccCCc',
+    '    cCCCCCccCCc',
+    '    cCCCCCccCCc',
+    '  cCCCCCCCccCCCc',
+    '  cCCCCCCCccCCCc',
+    '  cCCCCCCCccCCCc',
+    '  cCCCCCCCccCCCc',
+    '  cCCCCCCCccCCCc'
+  ]
+};
+
+/** Hazard barrel prop: rusty drum with a warning band. */
+export const PROP_BARREL: PixelArtSpec = {
+  palette: { b: '#7a5644', B: '#9a6a52', y: '#e8c832', k: '#3a2e28' },
+  rows: [
+    '    bbbbbbbb',
+    '   bBBBBBBBBbb',
+    '   bBBBBBBBBBb',
+    '   bBBBBBBBBBb',
+    '   byyyyyyyyyb',
+    '   byyyyyyyyyb',
+    '   bBBBBBBBBBb',
+    '   bBBBBBBBBBb',
+    '   bBBBBBBBBBb',
+    '   bBBBBBBBBBb',
+    '   byyyyyyyyyb',
+    '   byyyyyyyyyb',
+    '   bBBBBBBBBBb',
+    '   bBBBBBBBBBb',
+    '   bBBBBBBBBBb',
+    '   bBkkBBBBkkb',
+    '   bbbbbbbbbbb',
+    '    bbbbbbbb'
+  ]
+};
+
+/** Metal storage crate prop for the fortress. */
+export const PROP_CRATE_METAL: PixelArtSpec = {
+  palette: { m: '#4a525e', M: '#68727f', d: '#333a44', r: '#9aa7b4' },
+  rows: [
+    'mmmmmmmmmmmmmmmmmm',
+    'mMMMMMMMMMMMMMMMMm',
+    'mMddMMMMMMMMMMddMm',
+    'mMMddMMMMMMMMddMMm',
+    'mMMMddMMMMMMddMMM',
+    'mMMMMddMMMMddMMMM',
+    'mMMMMMddMMddMMMMM',
+    'mMMMMMMddddMMMMMM',
+    'mMMMMMMddddMMMMMM',
+    'mMMMMMddMMddMMMMM',
+    'mMMMMddMMMMddMMMM',
+    'mMMMddMMMMMMddMMM',
+    'mMMddMMMMMMMMddMMm',
+    'mMddMMMMMMMMMMddMm',
+    'mMMMMMMMMMMMMMMMMm',
+    'mMrMMMMMMMMMMMMrMm',
+    'mMMMMMMMMMMMMMMMMm',
+    'mmmmmmmmmmmmmmmmmm'
+  ]
+};
+
+/** Security blast door for the fortress: riveted panel, beacon, hazard base. 16x96. */
+export const DOOR_SECURITY: PixelArtSpec = {
+  palette: {
+    d: '#3a4149', // panel
+    D: '#4a545e', // panel light
+    k: '#242a31', // seam
+    o: '#ffd23f', // beacon
+    y: '#e8c832', // hazard
+    r: '#68727f' // rivet
+  },
+  rows: [
+    'ddddddkddddddddd',
+    'ddDdddkdddDddddd',
+    'dddookoookdddddd',
+    'dddddkkddddddddd',
+    'ddddddkddddddddd',
+    'ddDdddkdddDddddd',
+    'ddddddkddddddddd',
+    'dddddokddddddddd',
+    'ddddddkddddddddd',
+    'ddddddkddddddddd',
+    'ddDdddkdddDddddd',
+    'ddddddkddddddddd',
+    'ddddddkddddddddd',
+    'ddddddkddddddddd',
+    'ddddddkddddddddd',
+    'ddDdddkdddDddddd',
+    'ddddddkddddddddd',
+    'ddddddkddddddddd',
+    'ddddddkddddddddd',
+    'ddddddkddddddddd',
+    'ddDdddkdddDddddd',
+    'ddddddkddddddddd',
+    'ddddddkddddddddd',
+    'ddddddkddddddddd',
+    'ddddddkddddddddd',
+    'ddDdddkdddDddddd',
+    'ddddddkddddddddd',
+    'ddddddkddddddddd',
+    'ddddddkddddddddd',
+    'ddddddkddddddddd',
+    'ddDdddkdddDddddd',
+    'ddddddkddddddddd',
+    'ddddddkddddddddd',
+    'ddddddkddddddddd',
+    'ddddddkddddddddd',
+    'ddDdddkdddDddddd',
+    'ddddddkddddddddd',
+    'ddddddkddddddddd',
+    'ddddddkddddddddd',
+    'ddddddkddddddddd',
+    'ddDdddkdddDddddd',
+    'ddddddkddddddddd',
+    'ddddddkddddddddd',
+    'ddddddkddddddddd',
+    'ddddddkddddddddd',
+    'ddDdddkdddDddddd',
+    'ddddddkddddddddd',
+    'ddddddkddddddddd',
+    'ddddddkddddddddd',
+    'ddddddkddddddddd',
+    'ddDdddkdddDddddd',
+    'ddddddkddddddddd',
+    'ddddddkddddddddd',
+    'ddddddkddddddddd',
+    'ddddddkddddddddd',
+    'ddDdddkdddDddddd',
+    'ddddddkddddddddd',
+    'ddddddkddddddddd',
+    'ddddddkddddddddd',
+    'ddddddkddddddddd',
+    'ddDdddkdddDddddd',
+    'ddddddkddddddddd',
+    'ddddddkddddddddd',
+    'ddddddkddddddddd',
+    'ddddddkddddddddd',
+    'ddDdddkdddDddddd',
+    'ddddddkddddddddd',
+    'ddddddkddddddddd',
+    'ddddddkddddddddd',
+    'ddddddkddddddddd',
+    'ddDdddkdddDddddd',
+    'ddddddkddddddddd',
+    'ddddddkddddddddd',
+    'ddddddkddddddddd',
+    'ddddddkddddddddd',
+    'ddDdddkdddDddddd',
+    'ddddddkddddddddd',
+    'ddddddkddddddddd',
+    'ddddddkddddddddd',
+    'ddddddkddddddddd',
+    'ddDdddkdddDddddd',
+    'ddddddkddddddddd',
+    'ddddddkddddddddd',
+    'ddddddkddddddddd',
+    'ddddddkddddddddd',
+    'ddDdddkdddDddddd',
+    'ddddddkddddddddd',
+    'ddddddkddddddddd',
+    'ddddddkddddddddd',
+    'ddddddkddddddddd',
+    'yyyykkkkyyyykkkk',
+    'kkkkyyyykkkkyyyy',
+    'yyyykkkkyyyykkkk',
+    'kkkkyyyykkkkyyyy'
+  ]
+};
+
 /** Every sprite texture the game registers at scene start. */
 export const SPRITE_SPECS = {
   'art/player-idle': PLAYER_IDLE,
@@ -843,7 +1232,16 @@ export const SPRITE_SPECS = {
   'art/bg-ruin': BG_RUIN,
   'art/bg-tree': BG_TREE,
   'art/bg-ridge': BG_RIDGE,
-  'art/bg-stars': BG_STARS
+  'art/bg-stars': BG_STARS,
+  'art/tile-metal': TILE_METAL,
+  'art/tile-grate': TILE_GRATE,
+  'art/tile-wall': TILE_WALL,
+  'art/bg-pipes': BG_PIPES,
+  'art/bg-machine': BG_MACHINE,
+  'art/bg-column': BG_COLUMN,
+  'art/prop-barrel': PROP_BARREL,
+  'art/prop-crate-metal': PROP_CRATE_METAL,
+  'art/door-security': DOOR_SECURITY
 } as const;
 
 export type SpriteKey = keyof typeof SPRITE_SPECS;

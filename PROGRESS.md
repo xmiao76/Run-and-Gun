@@ -326,3 +326,47 @@ Include enough detail so the next iteration can continue without guessing.
   - TASK-007 - Build Level 2 as a complete second stage with stronger visual identity
 - Blockers (if any):
   - none
+
+---
+
+### 2026-07-25 13:40 - TASK-007
+
+- Status before: TODO
+- Goal of this iteration:
+  Give Level 2 its own industrial-fortress visual identity, distinct from Level 1's dusk jungle, on top of its existing complete layout.
+- Work completed:
+  - Audited: Level 2 (fortress-interior) already had its own layout (pit + moving platforms, trigger-gated door, hazards), 3 enemy waves, pickups, 3 checkpoints, and the Reactor Warden arena - all e2e-covered. The gap was identity: it inherited the jungle theme (night sky, trees, grass).
+  - Authored 9 fortress sprites: metal deck tile, grate platform tile, interior wall tile, pipes band, machine + I-beam column silhouettes, hazard barrel + metal crate props, security blast door; plus a murky interior gradient (new texture, key extracted to pure `src/art/textureKeys.ts` so levelTheme stays Phaser-free).
+  - Extended the theme system (`src/art/levelTheme.ts`): sky key, star toggle, configurable mid band (ridge vs wall), optional pipes band, per-theme horizon/prop/tile keys; `themeForLevel('fortress-interior')` returns the new FORTRESS_THEME.
+  - LevelScene renders the themed layer stack per level; doors now use the blast-door sprite (open-state alpha kept), moving platforms use themed grate tiles with world-tracked tile offsets.
+  - Contrast pass after screenshot review: lighter deck vs darker wall for floor/wall separation, brighter horizon silhouettes (alpha 0.75), brighter barrel.
+  - Fixed a latent e2e race exposed by the richer scene: polish.spec's muzzle-particle assertion could let real-time steps expire the ~5-step muzzle ttl between evaluates; input + advanceSteps now run in one atomic evaluate.
+- Files changed:
+  - src/art/sprites.ts, src/art/textures.ts, src/art/textureKeys.ts (new), src/art/levelTheme.ts
+  - src/scenes/LevelScene.ts
+  - tests/unit/levelTheme.test.ts (rewritten for the expanded theme system)
+  - tests/e2e/level2Visuals.spec.ts (new), tests/e2e/polish.spec.ts (determinism fix)
+  - scripts/level2-check.mjs (new)
+- Assets added or updated:
+  - `art/tile-metal`, `art/tile-grate`, `art/tile-wall`, `art/bg-pipes`, `art/bg-machine`, `art/bg-column`, `art/prop-barrel`, `art/prop-crate-metal`, `art/door-security`, `art/bg-sky-fortress`.
+- Commands run:
+  - `npx vitest run tests/unit/levelTheme.test.ts tests/unit/sprites.test.ts` (17 passed)
+  - `npm run lint`, `npm run typecheck` (clean)
+  - `npm run test:unit` (188 passed, 37 files)
+  - `npm run build` (pass)
+  - `npx playwright test` (32 passed, incl. new level2Visuals spec)
+  - `node scripts/level2-check.mjs`
+- Verification result:
+  - All checks pass: lint, typecheck, 188 unit tests, build, 32 e2e tests.
+  - e2e `level2Visuals.spec.ts` asserts metal deck, wall band, pipes, grate platforms, blast door, machinery silhouettes, and zero jungle textures in Level 2.
+  - Screenshots reviewed at start/pit/door/arena: industrial interior clearly distinct from Level 1's jungle; combat readable after the contrast pass.
+- Visual quality notes:
+  - Level 2 is now fully representational: paneled walls, pipe runs, machinery, metal deck, security door, themed platforms.
+  - The Reactor Warden boss is still a rectangle - deferred to TASK-008 (final boss pass).
+- Status after: DONE
+- Remaining work:
+  - none for this task.
+- Next recommended task:
+  - TASK-008 - Implement final boss and full game completion flow
+- Blockers (if any):
+  - none

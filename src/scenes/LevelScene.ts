@@ -87,7 +87,6 @@ import { selectPlayerPose, playerPoseTexture, type PlayerPoseKey } from '../art/
 import { bulletTexture } from '../art/weaponArt';
 import { enemyTexture } from '../art/enemyArt';
 import { propsForSolid, horizonForLevel, themeForLevel } from '../art/levelTheme';
-import { SKY_TEXTURE } from '../art/textures';
 import { hookShutdown } from './sceneLifecycle';
 import {
   spawnParticles,
@@ -224,9 +223,11 @@ export class LevelScene extends Phaser.Scene {
   private hazardRims: Phaser.GameObjects.TileSprite[] = [];
   private propImages: { image: Phaser.GameObjects.Image; worldX: number; baseY: number }[] = [];
   private starsLayer?: Phaser.GameObjects.TileSprite;
-  private ridgeLayer?: Phaser.GameObjects.TileSprite;
-  private movingPlatformRects: Phaser.GameObjects.Rectangle[] = [];
-  private doorRects: Phaser.GameObjects.Rectangle[] = [];
+  private bandLayer?: Phaser.GameObjects.TileSprite;
+  private pipesLayer?: Phaser.GameObjects.TileSprite;
+  private bandScrollFactor = 0.3;
+  private movingPlatformTiles: Phaser.GameObjects.TileSprite[] = [];
+  private doorImages: Phaser.GameObjects.Image[] = [];
   private containerImages: Phaser.GameObjects.Image[] = [];
   private particleRects: Phaser.GameObjects.Rectangle[] = [];
   private carrierImages: Phaser.GameObjects.Image[] = [];
@@ -268,8 +269,8 @@ export class LevelScene extends Phaser.Scene {
     this.hazardVoids = [];
     this.hazardRims = [];
     this.propImages = [];
-    this.movingPlatformRects = [];
-    this.doorRects = [];
+    this.movingPlatformTiles = [];
+    this.doorImages = [];
     this.subcomponentRects = [];
     this.enemyImages = [];
     this.telegraphRects = [];
@@ -1235,39 +1236,52 @@ export class LevelScene extends Phaser.Scene {
   }
 
   /**
-   * Builds the level's themed environment: a parallax dusk-jungle backdrop
-   * (sky, stars, distant ridge, near canopy), textured ground and platform
-   * tiles, hazard-striped pit voids, and deterministic scenic props. Terrain
-   * art is world-anchored (tile offsets set from world x) so it never swims
-   * under the camera; the background layers scroll at reduced rates for depth.
+   * Builds the level's themed environment: base gradient, optional star field
+   * and second band, a parallax mid band (jungle ridge / fortress wall),
+   * world-anchored horizon silhouettes, themed ground/platform tiles,
+   * hazard-striped pit voids, and deterministic scenic props. Terrain art is
+   * world-anchored (tile offsets set from world x) so it never swims under
+   * the camera; the background layers scroll at reduced rates for depth.
    */
   private buildEnvironment(): void {
     const theme = themeForLevel(this.level.id);
+    this.bandScrollFactor = theme.bandScroll;
 
     this.add
-      .image(0, 0, SKY_TEXTURE)
+      .image(0, 0, theme.skyKey)
       .setOrigin(0, 0)
       .setDisplaySize(LOGICAL_WIDTH, LOGICAL_HEIGHT);
-    this.starsLayer = this.add
-      .tileSprite(0, 0, LOGICAL_WIDTH, 300, 'art/bg-stars')
-      .setOrigin(0, 0)
-      .setAlpha(0.8);
-    this.ridgeLayer = this.add
-      .tileSprite(0, 250, LOGICAL_WIDTH, 130, 'art/bg-ridge')
-      .setOrigin(0, 0)
-      .setTileScale(4, 6)
-      .setTint(theme.ridgeTint);
+    if (theme.showStars) {
+      this.starsLayer = this.add
+        .tileSprite(0, 0, LOGICAL_WIDTH, 300, 'art/bg-stars')
+        .setOrigin(0, 0)
+        .setAlpha(0.8);
+    }
+    if (theme.pipesKey !== null) {
+      this.pipesLayer = this.add
+        .tileSprite(0, 40, LOGICAL_WIDTH, 48, theme.pipesKey)
+        .setOrigin(0, 0)
+        .setTileScale(2, 2)
+        .setAlpha(0.85);
+    }
+    if (theme.bandKey !== null) {
+      this.bandLayer = this.add
+        .tileSprite(0, theme.bandY, LOGICAL_WIDTH, theme.bandHeight, theme.bandKey)
+        .setOrigin(0, 0)
+        .setTileScale(theme.bandTileScale, theme.bandTileScale)
+        .setTint(theme.bandTint);
+    }
 
     // World-anchored silhouettes on the far ground line: they read against the
-    // sky's horizon glow and break up the tiled bands.
-    for (const h of horizonForLevel(this.level.width, GROUND_Y)) {
+    // backdrop gradient and break up the tiled bands.
+    for (const h of horizonForLevel(this.level.width, GROUND_Y, theme.horizonKeys)) {
       const image = this.add.image(0, 0, h.key).setOrigin(0, 1).setScale(h.scale).setAlpha(h.alpha);
       this.propImages.push({ image, worldX: h.x, baseY: h.y });
     }
 
     for (const r of this.level.solids) {
       const tile = this.add.tileSprite(0, 0, r.width, r.height, theme.groundTile).setOrigin(0, 0);
-      // World-anchored pattern: the grass never slides as the camera moves.
+      // World-anchored pattern: the surface never slides as the camera moves.
       tile.tilePositionX = r.x;
       this.groundTiles.push(tile);
       for (const prop of propsForSolid(r, theme, r.y)) {
@@ -1290,6 +1304,13 @@ export class LevelScene extends Phaser.Scene {
       rim.tilePositionX = r.x;
       this.hazardRims.push(rim);
     }
+
+    // Moving platforms use the level's one-way platform tile (world-tracked).
+    for (const mp of this.movingPlatforms) {
+      const r = movingPlatformRect(mp);
+      const tile = this.add.tileSprite(0, 0, r.width, r.height, theme.oneWayTile).setOrigin(0, 0);
+      this.movingPlatformTiles.push(tile);
+    }
   }
 
   private render(): void {
@@ -1297,9 +1318,14 @@ export class LevelScene extends Phaser.Scene {
       return;
     }
     // Parallax backdrop: farther layers scroll slower.
-    if (this.starsLayer && this.ridgeLayer) {
+    if (this.starsLayer) {
       this.starsLayer.tilePositionX = this.cameraX * 0.15;
-      this.ridgeLayer.tilePositionX = this.cameraX * 0.3;
+    }
+    if (this.pipesLayer) {
+      this.pipesLayer.tilePositionX = this.cameraX * 0.35;
+    }
+    if (this.bandLayer) {
+      this.bandLayer.tilePositionX = this.cameraX * this.bandScrollFactor;
     }
 
     this.groundTiles.forEach((tile, i) => {
@@ -1322,22 +1348,21 @@ export class LevelScene extends Phaser.Scene {
       tile.setPosition(r.x - this.cameraX, r.y);
     });
 
-    this.syncPool(this.movingPlatformRects, this.movingPlatforms.length, 12, 12, 0x5a7a3a);
     this.movingPlatforms.forEach((mp, i) => {
-      const rect = this.movingPlatformRects[i];
+      const tile = this.movingPlatformTiles[i];
       const r = movingPlatformRect(mp);
-      rect.setSize(r.width, r.height);
-      rect.setVisible(true);
-      rect.setPosition(r.x - this.cameraX, r.y);
+      tile.setPosition(r.x - this.cameraX, r.y);
+      tile.tilePositionX = r.x;
     });
 
-    this.syncPool(this.doorRects, this.doors.length, 16, 96, 0xcc7733);
+    this.syncImagePool(this.doorImages, this.doors.length, 'art/door-security');
     this.doors.forEach((d, i) => {
-      const rect = this.doorRects[i];
-      rect.setSize(d.rect.width, d.rect.height);
-      rect.setVisible(true);
-      rect.setAlpha(d.open ? 0.25 : 1);
-      rect.setPosition(d.rect.x - this.cameraX, d.rect.y);
+      const image = this.doorImages[i];
+      image.setVisible(true);
+      image.setOrigin(0, 0);
+      image.setDisplaySize(d.rect.width, d.rect.height);
+      image.setAlpha(d.open ? 0.25 : 1);
+      image.setPosition(d.rect.x - this.cameraX, d.rect.y);
     });
 
     this.syncImagePool(this.containerImages, this.containers.length, 'art/pickup-crate');

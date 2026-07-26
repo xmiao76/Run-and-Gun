@@ -120,17 +120,17 @@ Only one task should be actively worked on in a single loop iteration.
 
 ### TASK-007 - Build Level 2 as a complete second stage with stronger visual identity
 
-- Status: TODO
+- Status: DONE
 - Requirement:
   Build the second level with a different environment theme and stronger escalation.
 - Acceptance criteria:
-  - [ ] Level 2 has a distinct visual theme such as enemy base or industrial fortress
-  - [ ] Level 2 visually differs from Level 1
-  - [ ] Level 2 contains its own terrain/platform layout
-  - [ ] Level 2 contains enemy encounters and pickups
-  - [ ] Level 2 includes checkpoint support
-  - [ ] Level 2 is playable from start to final boss encounter
-  - [ ] Environment visuals are representational and non-abstract
+  - [x] Level 2 has a distinct visual theme such as enemy base or industrial fortress
+  - [x] Level 2 visually differs from Level 1
+  - [x] Level 2 contains its own terrain/platform layout
+  - [x] Level 2 contains enemy encounters and pickups
+  - [x] Level 2 includes checkpoint support
+  - [x] Level 2 is playable from start to final boss encounter
+  - [x] Environment visuals are representational and non-abstract
 
 ---
 
