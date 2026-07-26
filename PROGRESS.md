@@ -412,3 +412,42 @@ Include enough detail so the next iteration can continue without guessing.
   - TASK-009 - Implement HUD, pause, game over, local save, and polish
 - Blockers (if any):
   - none
+
+---
+
+### 2026-07-26 13:10 - TASK-009
+
+- Status before: TODO
+- Goal of this iteration:
+  Finish the user-facing loop with a HUD that is visually coherent with the pixel-art presentation, and verify the remaining flow criteria.
+- Work completed:
+  - Audited: pause/resume (smoke/input e2e), game over + restart R/T (level2.spec), high-score and settings persistence (settings.spec) all existed and were covered. The HUD itself was a single plain text line, and world objects could overlap it (creation-order rendering).
+  - Rebuilt the HUD: life count as commando-helmet icons (new `art/ui-life` sprite), current weapon shown as its projectile sprite + name, right-aligned score readout, small version label, boss name plate above the boss health bar (uses the boss def names).
+  - Set explicit depths (HUD 100, overlays 110) so pooled world sprites created during render can never cover the interface.
+  - New e2e `hud.spec.ts`: 3 life icons at start, icon+name follow the scatter pickup, a life icon disappears after a pit death, and the SIEGE WALKER name plate appears with the boss bar.
+- Files changed:
+  - src/art/sprites.ts (art/ui-life)
+  - src/scenes/LevelScene.ts (HUD restructure + depths)
+  - tests/e2e/hud.spec.ts (new)
+  - scripts/hud-check.mjs (new)
+- Assets added or updated:
+  - `art/ui-life` helmet icon.
+- Commands run:
+  - `npm run lint`, `npm run typecheck` (clean)
+  - `npm run test:unit` (190 passed, 38 files)
+  - `npm run build` (pass)
+  - `npx playwright test` (34 passed, incl. new hud spec)
+  - `node scripts/hud-check.mjs`
+- Verification result:
+  - All checks pass: lint, typecheck, 190 unit tests, build, 34 e2e tests.
+  - Screenshots reviewed: helmet icons + weapon readout top-left, score top-right, SIEGE WALKER name plate with boss bar - readable and coherent with the game.
+- Visual quality notes:
+  - The whole game presentation is now sprite-driven: actors, terrain, pickups, bosses, and HUD icons; only effects (particles) and UI strokes remain primitives, which is appropriate.
+  - Horizon silhouettes currently read as faint haze; acceptable depth cue, could be tuned in the TASK-011 polish pass if desired.
+- Status after: DONE
+- Remaining work:
+  - none for this task.
+- Next recommended task:
+  - TASK-010 - Add touch/gamepad support and responsive presentation
+- Blockers (if any):
+  - none

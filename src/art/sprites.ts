@@ -1330,6 +1330,32 @@ export const SUBCOMPONENT_NODE: PixelArtSpec = {
   ]
 };
 
+/** HUD life icon: the commando's helmet. 12x12. */
+export const UI_LIFE: PixelArtSpec = {
+  palette: {
+    h: '#356e42',
+    H: '#5cab64',
+    r: '#d6493b',
+    s: '#e8b06f',
+    S: '#b98548',
+    v: '#1c2733'
+  },
+  rows: [
+    '   hhhhhh',
+    '  hHHHHHHh',
+    ' hHHHHHHHHh',
+    ' hhhhhhhhhh',
+    ' rrrrrrrrrr',
+    ' ssssssssss',
+    ' ssssvvssss',
+    ' SSSSSSSSSS',
+    '  SSSSSSSS',
+    '',
+    '',
+    ''
+  ]
+};
+
 /** Every sprite texture the game registers at scene start. */
 export const SPRITE_SPECS = {
   'art/player-idle': PLAYER_IDLE,
@@ -1357,6 +1383,7 @@ export const SPRITE_SPECS = {
   'art/boss-siege-walker': BOSS_SIEGE_WALKER,
   'art/boss-reactor-warden': BOSS_REACTOR_WARDEN,
   'art/subcomponent-node': SUBCOMPONENT_NODE,
+  'art/ui-life': UI_LIFE,
   'art/prop-bush': PROP_BUSH,
   'art/prop-rock': PROP_ROCK,
   'art/bg-ruin': BG_RUIN,

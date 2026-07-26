@@ -247,7 +247,11 @@ export class LevelScene extends Phaser.Scene {
   private bossImage?: Phaser.GameObjects.Image;
   private bossTeleRect?: Phaser.GameObjects.Rectangle;
   private bossZoneRect?: Phaser.GameObjects.Rectangle;
-  private hudText?: Phaser.GameObjects.Text;
+  private lifeImages: Phaser.GameObjects.Image[] = [];
+  private weaponIcon?: Phaser.GameObjects.Image;
+  private weaponText?: Phaser.GameObjects.Text;
+  private scoreText?: Phaser.GameObjects.Text;
+  private bossLabelText?: Phaser.GameObjects.Text;
   private bossBarBack?: Phaser.GameObjects.Rectangle;
   private bossBarFill?: Phaser.GameObjects.Rectangle;
   private overlayText?: Phaser.GameObjects.Text;
@@ -282,6 +286,7 @@ export class LevelScene extends Phaser.Scene {
     this.containerImages = [];
     this.particleRects = [];
     this.carrierImages = [];
+    this.lifeImages = [];
     this.resetRun();
     ensureGameTextures(this);
     this.buildEnvironment();
@@ -296,22 +301,44 @@ export class LevelScene extends Phaser.Scene {
     this.bossZoneRect = this.add.rectangle(0, 0, SHOCKWAVE_RADIUS * 2, 6, 0xffcc44);
     this.bossZoneRect.setOrigin(0.5, 1);
     this.bossZoneRect.setVisible(false);
-    this.hudText = this.add.text(12, 16, '', { fontFamily: 'monospace', fontSize: '16px', color: '#e8f1ff' });
+
+    // HUD (depth >= 100 so world objects can never cover it).
+    for (let i = 0; i < MAX_LIVES; i++) {
+      this.lifeImages.push(this.add.image(14 + i * 16, 8, 'art/ui-life').setOrigin(0, 0).setDepth(100));
+    }
+    this.weaponIcon = this.add.image(72, 12, 'art/bullet-pulse').setOrigin(0, 0).setDepth(100);
+    this.weaponText = this.add.text(90, 16, '', { fontFamily: 'monospace', fontSize: '16px', color: '#e8f1ff' }).setDepth(100);
+    this.scoreText = this.add
+      .text(LOGICAL_WIDTH - 12, 16, '', { fontFamily: 'monospace', fontSize: '16px', color: '#e8f1ff' })
+      .setOrigin(1, 0)
+      .setDepth(100);
+    this.add
+      .text(LOGICAL_WIDTH - 12, LOGICAL_HEIGHT - 16, 'v' + GAME_VERSION, { fontFamily: 'monospace', fontSize: '12px', color: '#5c6c8c' })
+      .setOrigin(1, 0.5)
+      .setDepth(100);
     this.add
       .text(12, LOGICAL_HEIGHT - 16, 'Move A/D  Jump W/Space  Crouch/Drop S  Fire J  Pause Esc', {
         fontFamily: 'monospace',
         fontSize: '13px',
         color: '#5c6c8c'
       })
-      .setOrigin(0, 0.5);
-    this.bossBarBack = this.add.rectangle(LOGICAL_WIDTH / 2 - 150, 18, 300, 10, 0x331111);
+      .setOrigin(0, 0.5)
+      .setDepth(100);
+    this.bossLabelText = this.add
+      .text(LOGICAL_WIDTH / 2, 4, '', { fontFamily: 'monospace', fontSize: '12px', color: '#ffb3a7' })
+      .setOrigin(0.5, 0)
+      .setDepth(100)
+      .setVisible(false);
+    this.bossBarBack = this.add.rectangle(LOGICAL_WIDTH / 2 - 150, 28, 300, 10, 0x331111);
     this.bossBarBack.setOrigin(0, 0.5);
     this.bossBarBack.setVisible(false);
-    this.bossBarFill = this.add.rectangle(LOGICAL_WIDTH / 2 - 150, 18, 300, 10, 0xff5544);
+    this.bossBarBack.setDepth(100);
+    this.bossBarFill = this.add.rectangle(LOGICAL_WIDTH / 2 - 150, 28, 300, 10, 0xff5544);
     this.bossBarFill.setOrigin(0, 0.5);
     this.bossBarFill.setVisible(false);
-    this.overlayText = this.add.text(LOGICAL_WIDTH / 2, LOGICAL_HEIGHT / 2, '', { fontFamily: 'monospace', fontSize: '34px', color: '#e8f1ff' }).setOrigin(0.5);
-    this.overlaySubText = this.add.text(LOGICAL_WIDTH / 2, LOGICAL_HEIGHT / 2 + 40, '', { fontFamily: 'monospace', fontSize: '16px', color: '#8fa3c7' }).setOrigin(0.5);
+    this.bossBarFill.setDepth(100);
+    this.overlayText = this.add.text(LOGICAL_WIDTH / 2, LOGICAL_HEIGHT / 2, '', { fontFamily: 'monospace', fontSize: '34px', color: '#e8f1ff' }).setOrigin(0.5).setDepth(110);
+    this.overlaySubText = this.add.text(LOGICAL_WIDTH / 2, LOGICAL_HEIGHT / 2 + 40, '', { fontFamily: 'monospace', fontSize: '16px', color: '#8fa3c7' }).setOrigin(0.5).setDepth(110);
     this.overlayText.setVisible(false);
     this.overlaySubText.setVisible(false);
     this.keyboard.attach(window);
@@ -1311,7 +1338,7 @@ export class LevelScene extends Phaser.Scene {
   }
 
   private render(): void {
-    if (!this.playerImage || !this.hudText) {
+    if (!this.playerImage || !this.weaponText || !this.scoreText) {
       return;
     }
     // Parallax backdrop: farther layers scroll slower.
@@ -1518,12 +1545,19 @@ export class LevelScene extends Phaser.Scene {
     const showBossBar = this.boss.active && isBossAlive(this.boss);
     this.bossBarBack?.setVisible(showBossBar);
     this.bossBarFill?.setVisible(showBossBar);
-    if (showBossBar && this.bossBarFill) {
+    this.bossLabelText?.setVisible(showBossBar);
+    if (showBossBar && this.bossBarFill && this.bossLabelText) {
       this.bossBarFill.setSize((300 * Math.max(0, this.boss.health)) / bossDef.health, 10);
+      this.bossLabelText.setText(bossDef.name.toUpperCase());
     }
 
-    const def = getWeapon(this.weapon.id);
-    this.hudText.setText('LIVES ' + this.health.lives + '   ' + def.name.toUpperCase() + '   SCORE ' + this.score + '   v' + GAME_VERSION);
+    // HUD: life icons, weapon icon + name, score.
+    this.lifeImages.forEach((icon, i) => {
+      icon.setVisible(i < this.health.lives);
+    });
+    this.weaponIcon?.setTexture(bulletTexture(this.weapon.id));
+    this.weaponText.setText(getWeapon(this.weapon.id).name.toUpperCase());
+    this.scoreText.setText('SCORE ' + this.score);
 
     if (this.completionTimer >= 0) {
       this.showOverlay('LEVEL COMPLETE', '');

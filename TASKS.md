@@ -151,18 +151,18 @@ Only one task should be actively worked on in a single loop iteration.
 
 ### TASK-009 - Implement HUD, pause, game over, local save, and polish
 
-- Status: TODO
+- Status: DONE
 - Requirement:
   Finish the core user-facing loop and readable interface.
 - Acceptance criteria:
-  - [ ] HUD shows at least lives, score, and current weapon
-  - [ ] Pause and resume work
-  - [ ] Game over flow works
-  - [ ] Restart flow works
-  - [ ] High score is stored in local storage
-  - [ ] Basic settings such as mute or volume are stored in local storage
-  - [ ] HUD is readable and visually coherent with the game presentation
-  - [ ] The game no longer looks like a prototype built from blocks
+  - [x] HUD shows at least lives, score, and current weapon
+  - [x] Pause and resume work
+  - [x] Game over flow works
+  - [x] Restart flow works
+  - [x] High score is stored in local storage
+  - [x] Basic settings such as mute or volume are stored in local storage
+  - [x] HUD is readable and visually coherent with the game presentation
+  - [x] The game no longer looks like a prototype built from blocks
 
 ---
 
