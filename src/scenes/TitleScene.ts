@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { GAME_VERSION, LOGICAL_HEIGHT, LOGICAL_WIDTH, SCENE_KEYS, TITLE_HEADING } from '../app/config';
 import { reportScene, reportTitleHeading } from '../debug/debugBridge';
 import { type AudioService } from '../audio/AudioService';
+import { attachMenuConfirm } from '../input/menuConfirm';
 import { hookShutdown } from './sceneLifecycle';
 
 const HEADING_Y = 190;
@@ -11,12 +12,13 @@ const TAGLINE_Y = 248;
  * Title screen for Operation Iron Echo.
  *
  * Renders the original title, a tagline, a start prompt, and a version label
- * using system fonts only - no external asset files are required. Pressing
- * Enter or Space (or the debug `startLevel1` command) starts Level 1 and
- * unlocks audio on that first user gesture; P opens the prototype room.
+ * using system fonts only - no external asset files are required. Starting
+ * works from any device (Enter/Space, tap, or gamepad A/Start) and unlocks
+ * audio on that first gesture; H/S/P open help, settings, and the prototype room.
  */
 export class TitleScene extends Phaser.Scene {
   private onStart?: (e: KeyboardEvent) => void;
+  private detachConfirm?: () => void;
 
   constructor() {
     super(SCENE_KEYS.title);
@@ -72,6 +74,13 @@ export class TitleScene extends Phaser.Scene {
     this.tweens.add({ targets: heading, alpha: 0.55, duration: 900, yoyo: true, repeat: -1 });
     this.tweens.add({ targets: prompt, alpha: 0.3, duration: 700, yoyo: true, repeat: -1 });
 
+    const startGame = (): void => {
+      const audio = this.registry.get('audio') as AudioService | undefined;
+      audio?.unlock();
+      this.registry.set('currentLevelIndex', 0);
+      this.scene.start(SCENE_KEYS.level);
+    };
+
     this.onStart = (e: KeyboardEvent): void => {
       if (e.code === 'KeyH') {
         e.preventDefault();
@@ -90,16 +99,9 @@ export class TitleScene extends Phaser.Scene {
         this.scene.start(SCENE_KEYS.sandbox);
         return;
       }
-      if (e.code !== 'Enter' && e.code !== 'Space') {
-        return;
-      }
-      e.preventDefault();
-      const audio = this.registry.get('audio') as AudioService | undefined;
-      audio?.unlock();
-      this.registry.set('currentLevelIndex', 0);
-      this.scene.start(SCENE_KEYS.level);
     };
     window.addEventListener('keydown', this.onStart);
+    this.detachConfirm = attachMenuConfirm(this, startGame);
     hookShutdown(this.events, () => this.shutdown());
   }
 
@@ -107,6 +109,10 @@ export class TitleScene extends Phaser.Scene {
     if (this.onStart) {
       window.removeEventListener('keydown', this.onStart);
       this.onStart = undefined;
+    }
+    if (this.detachConfirm) {
+      this.detachConfirm();
+      this.detachConfirm = undefined;
     }
   }
 }

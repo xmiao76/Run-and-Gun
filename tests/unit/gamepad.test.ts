@@ -60,4 +60,24 @@ describe('gamepad adapter edge detection', () => {
     expect(third.jumpPressed).toBe(true);
     expect(pad.pauseEdge()).toBe(true);
   });
+
+  it('edge-triggers the Back button independently of Start', () => {
+    let state = snap([0, 0], [8]);
+    const pad = createGamepadInput(() => state);
+
+    pad.build();
+    expect(pad.backEdge()).toBe(true);
+    expect(pad.pauseEdge()).toBe(false);
+
+    // Held: no repeat.
+    pad.build();
+    expect(pad.backEdge()).toBe(false);
+
+    // Release, then a fresh press.
+    state = snap([0, 0], []);
+    pad.build();
+    state = snap([0, 0], [8]);
+    pad.build();
+    expect(pad.backEdge()).toBe(true);
+  });
 });

@@ -4,15 +4,17 @@ import { LEVELS } from '../levels/levels';
 import { reportRuntime, reportScene } from '../debug/debugBridge';
 import { DEFAULT_SETTINGS, type Settings } from '../persistence/schema';
 import { saveSettings } from '../persistence/StorageService';
+import { attachMenuConfirm } from '../input/menuConfirm';
 import { hookShutdown } from './sceneLifecycle';
 
 /**
  * Level-complete / final-completion screen. After a non-final level it offers
- * the next level; after the last level it shows mission completion. Enter or
- * Space continues. Persists the best score through validated storage.
+ * the next level; after the last level it shows mission completion. Continuing
+ * works from any device (Enter/Space, tap, or gamepad A/Start). Persists the
+ * best score through validated storage.
  */
 export class ResultsScene extends Phaser.Scene {
-  private onContinue?: (e: KeyboardEvent) => void;
+  private detachConfirm?: () => void;
 
   constructor() {
     super(SCENE_KEYS.results);
@@ -60,11 +62,7 @@ export class ResultsScene extends Phaser.Scene {
       .setOrigin(0.5);
     this.tweens.add({ targets: prompt, alpha: 0.3, duration: 700, yoyo: true, repeat: -1 });
 
-    this.onContinue = (e: KeyboardEvent): void => {
-      if (e.code !== 'Enter' && e.code !== 'Space') {
-        return;
-      }
-      e.preventDefault();
+    this.detachConfirm = attachMenuConfirm(this, () => {
       if (final) {
         this.registry.set('currentLevelIndex', 0);
         this.scene.start(SCENE_KEYS.title);
@@ -72,15 +70,14 @@ export class ResultsScene extends Phaser.Scene {
         this.registry.set('currentLevelIndex', idx + 1);
         this.scene.start(SCENE_KEYS.level);
       }
-    };
-    window.addEventListener('keydown', this.onContinue);
+    });
     hookShutdown(this.events, () => this.shutdown());
   }
 
   public shutdown(): void {
-    if (this.onContinue) {
-      window.removeEventListener('keydown', this.onContinue);
-      this.onContinue = undefined;
+    if (this.detachConfirm) {
+      this.detachConfirm();
+      this.detachConfirm = undefined;
     }
   }
 }

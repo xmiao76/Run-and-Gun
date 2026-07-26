@@ -451,3 +451,41 @@ Include enough detail so the next iteration can continue without guessing.
   - TASK-010 - Add touch/gamepad support and responsive presentation
 - Blockers (if any):
   - none
+
+---
+
+### 2026-07-26 13:50 - TASK-010
+
+- Status before: TODO
+- Goal of this iteration:
+  Close the remaining device-accessibility gaps and verify the responsive presentation.
+- Work completed:
+  - Audited: in-game gamepad (input.spec fake-pad), touch buttons (responsive.spec phone viewport), 16:9 scaling at 3 viewports (responsive.spec), and keyboard reliability (TASK-002 listener-leak fix) were all in place. The real gap: menus were keyboard-only - a gamepad or touch user could not start the game, continue after results, or restart after game over.
+  - Added `backEdge()` (Back/Select button 8) to the gamepad adapter with a TDD unit test.
+  - Added `attachMenuConfirm(scene, onConfirm, {onBack})` (`src/input/menuConfirm.ts`): keyboard Enter/Space, tap/click, and gamepad A/X/Start to confirm, Escape/Back for the secondary action; returns a detach wired into the existing hookShutdown lifecycle.
+  - Wired Title (start), Results (continue), GameOver (restart / Back->title), and Help (back); updated the help screen with a MENUS section documenting the confirm/back controls.
+  - New e2e `menuControls.spec.ts`: gamepad A starts the game, tap starts and restarts after game over, gamepad Back returns to title - all without keyboard input.
+- Files changed:
+  - src/input/GamepadInput.ts (backEdge), src/input/menuConfirm.ts (new)
+  - src/scenes/TitleScene.ts, ResultsScene.ts, GameOverScene.ts, HelpScene.ts
+  - tests/unit/gamepad.test.ts, tests/e2e/menuControls.spec.ts (new)
+- Assets added or updated:
+  - none (input/UI only).
+- Commands run:
+  - `npx vitest run tests/unit/gamepad.test.ts` (RED then GREEN, 6 passed)
+  - `npm run lint`, `npm run typecheck` (clean)
+  - `npm run test:unit` (191 passed, 38 files)
+  - `npm run build` (pass)
+  - `npx playwright test` (37 passed, incl. 3 new menuControls specs)
+- Verification result:
+  - All checks pass: lint, typecheck, 191 unit tests, build, 37 e2e tests.
+  - Menus are now fully navigable by keyboard, touch, and gamepad; keyboard-only e2e flows (fullGame etc.) remain green, confirming no input regressions.
+- Visual quality notes:
+  - Help screen documents all three input methods plus menu controls.
+- Status after: DONE
+- Remaining work:
+  - none for this task.
+- Next recommended task:
+  - TASK-011 - Final quality pass and deployment readiness
+- Blockers (if any):
+  - none

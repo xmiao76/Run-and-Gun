@@ -168,15 +168,15 @@ Only one task should be actively worked on in a single loop iteration.
 
 ### TASK-010 - Add touch/gamepad support and responsive presentation
 
-- Status: TODO
+- Status: DONE
 - Requirement:
   Improve accessibility across devices.
 - Acceptance criteria:
-  - [ ] Keyboard controls work reliably
-  - [ ] Gamepad support works if feasible
-  - [ ] Touch controls exist if feasible for first release
-  - [ ] The layout remains usable on common desktop and mobile viewport sizes
-  - [ ] Touch/gamepad support does not break keyboard play
+  - [x] Keyboard controls work reliably
+  - [x] Gamepad support works if feasible
+  - [x] Touch controls exist if feasible for first release
+  - [x] The layout remains usable on common desktop and mobile viewport sizes
+  - [x] Touch/gamepad support does not break keyboard play
 
 ---
 

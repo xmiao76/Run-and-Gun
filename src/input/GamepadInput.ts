@@ -21,6 +21,7 @@ const DEADZONE = 0.35;
 const BTN_A = 0;
 const BTN_X = 2;
 const BTN_RB = 5;
+const BTN_BACK = 8;
 const BTN_START = 9;
 const BTN_DUP = 12;
 const BTN_DDOWN = 13;
@@ -59,6 +60,8 @@ export interface GamepadInput {
   build(): InputState;
   /** Edge-triggered Start-button press, consumed on read. */
   pauseEdge(): boolean;
+  /** Edge-triggered Back/Select-button press, consumed on read. */
+  backEdge(): boolean;
 }
 
 export function createGamepadInput(
@@ -67,7 +70,9 @@ export function createGamepadInput(
   let prevJump = false;
   let prevFire = false;
   let prevStart = false;
+  let prevBack = false;
   let startEdge = false;
+  let backEdge = false;
 
   return {
     build(): InputState {
@@ -82,11 +87,20 @@ export function createGamepadInput(
       startEdge = start && !prevStart;
       prevStart = start;
 
+      const back = snap.connected ? snap.buttons[BTN_BACK]?.pressed ?? false : false;
+      backEdge = back && !prevBack;
+      prevBack = back;
+
       return { ...mapped, jumpPressed, firePressed };
     },
     pauseEdge(): boolean {
       const edge = startEdge;
       startEdge = false;
+      return edge;
+    },
+    backEdge(): boolean {
+      const edge = backEdge;
+      backEdge = false;
       return edge;
     }
   };

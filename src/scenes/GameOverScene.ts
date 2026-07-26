@@ -3,15 +3,17 @@ import { LOGICAL_WIDTH, SCENE_KEYS } from '../app/config';
 import { reportRuntime, reportScene } from '../debug/debugBridge';
 import { DEFAULT_SETTINGS, type Settings } from '../persistence/schema';
 import { saveSettings } from '../persistence/StorageService';
+import { attachMenuConfirm } from '../input/menuConfirm';
 import { hookShutdown } from './sceneLifecycle';
 
 /**
- * Game-over screen (GAME_REQUIREMENTS.md section 11). Shown when all lives are
- * lost. R restarts the current level; T returns to the title screen. Persists
- * the best score through validated storage.
+ * Game-over screen. Shown when all lives are lost. R (or Enter/tap/gamepad
+ * A/Start) restarts the current level; T (or Escape/gamepad Back) returns to
+ * the title screen. Persists the best score through validated storage.
  */
 export class GameOverScene extends Phaser.Scene {
   private onKey?: (e: KeyboardEvent) => void;
+  private detachConfirm?: () => void;
 
   constructor() {
     super(SCENE_KEYS.gameOver);
@@ -41,16 +43,24 @@ export class GameOverScene extends Phaser.Scene {
       .setOrigin(0.5);
     this.tweens.add({ targets: prompt, alpha: 0.3, duration: 700, yoyo: true, repeat: -1 });
 
+    const restart = (): void => {
+      this.scene.start(SCENE_KEYS.level);
+    };
+    const toTitle = (): void => {
+      this.scene.start(SCENE_KEYS.title);
+    };
+
     this.onKey = (e: KeyboardEvent): void => {
       if (e.code === 'KeyR') {
         e.preventDefault();
-        this.scene.start(SCENE_KEYS.level);
+        restart();
       } else if (e.code === 'KeyT') {
         e.preventDefault();
-        this.scene.start(SCENE_KEYS.title);
+        toTitle();
       }
     };
     window.addEventListener('keydown', this.onKey);
+    this.detachConfirm = attachMenuConfirm(this, restart, { onBack: toTitle });
     hookShutdown(this.events, () => this.shutdown());
   }
 
@@ -58,6 +68,10 @@ export class GameOverScene extends Phaser.Scene {
     if (this.onKey) {
       window.removeEventListener('keydown', this.onKey);
       this.onKey = undefined;
+    }
+    if (this.detachConfirm) {
+      this.detachConfirm();
+      this.detachConfirm = undefined;
     }
   }
 }

@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { LOGICAL_WIDTH, SCENE_KEYS } from '../app/config';
 import { reportRuntime, reportScene } from '../debug/debugBridge';
+import { attachMenuConfirm } from '../input/menuConfirm';
 import { hookShutdown } from './sceneLifecycle';
 
 const LINES: { text: string; y: number; size: number; color: string }[] = [
@@ -14,12 +15,15 @@ const LINES: { text: string; y: number; size: number; color: string }[] = [
   { text: 'D-pad / left stick - move + aim    A - jump    X or RB - fire    Start - pause', y: 308, size: 15, color: '#cdd9f0' },
   { text: 'TOUCH', y: 354, size: 20, color: '#8fb3ff' },
   { text: 'On-screen buttons: move, aim-up, jump, fire, pause', y: 384, size: 15, color: '#cdd9f0' },
-  { text: 'ESC / ENTER - BACK', y: 450, size: 16, color: '#5c6c8c' }
+  { text: 'MENUS', y: 428, size: 20, color: '#8fb3ff' },
+  { text: 'Enter/Space, tap, or gamepad A/Start - confirm    Esc/gamepad Back - back', y: 456, size: 15, color: '#cdd9f0' },
+  { text: 'ESC / ENTER - BACK', y: 500, size: 16, color: '#5c6c8c' }
 ];
 
-/** Controls/help screen (GAME_REQUIREMENTS.md section 11, B4). */
+/** Controls/help screen: lists keyboard, gamepad, and touch controls. */
 export class HelpScene extends Phaser.Scene {
   private onKey?: (e: KeyboardEvent) => void;
+  private detachConfirm?: () => void;
 
   constructor() {
     super(SCENE_KEYS.help);
@@ -42,13 +46,16 @@ export class HelpScene extends Phaser.Scene {
     }
 
     this.onKey = (e: KeyboardEvent): void => {
-      if (e.code !== 'Escape' && e.code !== 'Enter' && e.code !== 'Space' && e.code !== 'KeyH') {
+      if (e.code !== 'KeyH') {
         return;
       }
       e.preventDefault();
       this.scene.start(SCENE_KEYS.title);
     };
     window.addEventListener('keydown', this.onKey);
+    this.detachConfirm = attachMenuConfirm(this, () => this.scene.start(SCENE_KEYS.title), {
+      onBack: () => this.scene.start(SCENE_KEYS.title)
+    });
     hookShutdown(this.events, () => this.shutdown());
   }
 
@@ -56,6 +63,10 @@ export class HelpScene extends Phaser.Scene {
     if (this.onKey) {
       window.removeEventListener('keydown', this.onKey);
       this.onKey = undefined;
+    }
+    if (this.detachConfirm) {
+      this.detachConfirm();
+      this.detachConfirm = undefined;
     }
   }
 }
