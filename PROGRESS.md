@@ -590,3 +590,66 @@ Include enough detail so the next iteration can continue without guessing.
 - Blockers (if any):
   - TASK-015 carries an open question (difficulty direction) recorded in the
     task; answer it before that task is started.
+
+---
+
+### 2026-07-26 15:45 - TASK-012 (completed; TASK-013 merged in)
+
+- Status before: DONE for the rebinding half, with the diagonal-firing half
+  outstanding. Per user request, the former TASK-013 was merged into TASK-012
+  and TASK-013 removed from the list; TASK-014/015 keep their ids so history
+  references stay valid.
+- Goal of this iteration:
+  Finish the merged task: prove all eight fire directions work with the real PC
+  bindings, and surface the control scheme on the title screen.
+- Work completed:
+  - Merged TASK-013's requirement and criteria into TASK-012 and deleted the
+    separate task, restating the requirement to cover layout + diagonals + the
+    title-screen discoverability the user asked for.
+  - New e2e `keyboardAim.spec.ts` (4 tests) covering every aim angle through
+    real key presses: forward 0, straight up -90, up-diagonals -45/-135,
+    airborne straight down 90, down-diagonals 45/135, grounded-Down staying
+    crouch-fire forward, and projectile rotation matching the flight vector.
+    Real keys drive the bindings while `advanceSteps` drives the clock, so the
+    short airborne window is deterministic rather than wall-clock dependent.
+  - Debug finding: the first airborne draft packed three shots into one jump -
+    38 sim steps (0.63s) against a ~0.69s airtime and a 0.22s pulse cooldown,
+    so the player landed mid-test. Restructured to one jump per shot via an
+    `airborneShot` helper; also documents why Down is pressed only after
+    leaving the ground (crouching blocks a jump).
+  - Title screen: added a framed KEYBOARD card listing the primary bindings
+    (arrows / Z / X / diagonal combo) with key names highlighted, an alias line
+    beneath it, and relabelled the menu hint to "H - FULL CONTROLS & HELP" so
+    the deeper help screen is an obvious link. Repositioned the start prompt to
+    make room.
+  - Layout fix after screenshot review: the alias line originally sat on the
+    panel border and the two-bindings-per-row layout read unevenly; switched to
+    five single-binding rows and moved the alias line below the frame.
+- Files changed:
+  - TASKS.md (merge + completion), src/scenes/TitleScene.ts (controls card)
+  - tests/e2e/keyboardAim.spec.ts (new), scripts/controls-check.mjs (title capture)
+- Assets added or updated:
+  - none (UI text/layout only).
+- Commands run:
+  - `npx playwright test tests/e2e/keyboardAim.spec.ts` (1 failure diagnosed, then 4 passed)
+  - `npm run lint`, `npm run typecheck` (clean)
+  - `npm run test:unit` (201 passed, 39 files)
+  - `npm run build` (pass)
+  - `npx playwright test` (41 passed, up from 37)
+  - `node scripts/controls-check.mjs` (live key checks + title capture)
+- Verification result:
+  - All checks pass: lint, typecheck, 201 unit tests, build, 41 e2e tests.
+  - All eight directions asserted from real key presses; live check reconfirmed
+    ArrowUp aims without jumping and Up+Right+X fires at -45.
+  - `title-controls.png` reviewed: the controls card is centred, aligned, and
+    free of overlaps.
+- Visual quality notes:
+  - A new player now sees the exact keys on the front page before starting, with
+    the full three-device reference one key (H) away.
+- Status after: DONE
+- Remaining work:
+  - none for this task.
+- Next recommended task:
+  - TASK-014 - Selectable starting lives (3 default, 30 practice option)
+- Blockers (if any):
+  - TASK-015 still carries the open difficulty-direction question.

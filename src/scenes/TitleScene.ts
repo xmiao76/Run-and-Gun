@@ -48,18 +48,21 @@ export class TitleScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     const prompt = this.add
-      .text(centerX, 330, 'PRESS ENTER OR SPACE TO START', {
+      .text(centerX, 300, 'PRESS ENTER OR SPACE TO START', {
         fontFamily: 'monospace',
         fontSize: '18px',
         color: '#cdd9f0'
       })
       .setOrigin(0.5);
 
+    // Primary controls, shown up front so a new player never has to hunt.
+    this.buildControlsPanel(centerX, 334);
+
     this.add
-      .text(centerX, 366, 'H - HELP      S - SETTINGS      P - PROTOTYPE ROOM      F10 - FULLSCREEN', {
+      .text(centerX, LOGICAL_HEIGHT - 42, 'H - FULL CONTROLS & HELP      S - SETTINGS      P - PROTOTYPE ROOM      F10 - FULLSCREEN', {
         fontFamily: 'monospace',
-        fontSize: '14px',
-        color: '#5c6c8c'
+        fontSize: '13px',
+        color: '#6b7c9c'
       })
       .setOrigin(0.5);
 
@@ -103,6 +106,53 @@ export class TitleScene extends Phaser.Scene {
     window.addEventListener('keydown', this.onStart);
     this.detachConfirm = attachMenuConfirm(this, startGame);
     hookShutdown(this.events, () => this.shutdown());
+  }
+
+  /**
+   * Compact keyboard-controls card: a framed panel listing the primary
+   * bindings, with the key names highlighted so they read at a glance.
+   */
+  private buildControlsPanel(centerX: number, top: number): void {
+    const rows: readonly { keys: string; action: string }[] = [
+      { keys: '← →', action: 'move' },
+      { keys: '↑ / ↓', action: 'aim up / crouch' },
+      { keys: 'Z', action: 'jump' },
+      { keys: 'X', action: 'fire' },
+      { keys: '↑ + → + X', action: 'shoot diagonally (45°)' }
+    ];
+    const rowHeight = 19;
+    const panelHeight = rowHeight * rows.length + 30;
+    const panelWidth = 380;
+
+    this.add
+      .rectangle(centerX, top, panelWidth, panelHeight, 0x111a2b, 0.85)
+      .setOrigin(0.5, 0)
+      .setStrokeStyle(1, 0x33415e);
+    this.add
+      .text(centerX, top + 7, 'KEYBOARD', { fontFamily: 'monospace', fontSize: '12px', color: '#8fb3ff' })
+      .setOrigin(0.5, 0);
+
+    // Two columns: right-aligned keys, left-aligned actions, so they line up.
+    const keyColumnRight = centerX - 54;
+    const actionColumnLeft = centerX - 38;
+    rows.forEach((row, i) => {
+      const y = top + 25 + i * rowHeight;
+      this.add
+        .text(keyColumnRight, y, row.keys, { fontFamily: 'monospace', fontSize: '14px', color: '#ffd970' })
+        .setOrigin(1, 0);
+      this.add
+        .text(actionColumnLeft, y, row.action, { fontFamily: 'monospace', fontSize: '14px', color: '#cdd9f0' })
+        .setOrigin(0, 0);
+    });
+
+    // Sits below the panel frame, not on it.
+    this.add
+      .text(centerX, top + panelHeight + 6, 'also: WASD move    Space jump    J fire', {
+        fontFamily: 'monospace',
+        fontSize: '11px',
+        color: '#6b7c9c'
+      })
+      .setOrigin(0.5, 0);
   }
 
   public shutdown(): void {

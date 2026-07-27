@@ -206,14 +206,19 @@ Do not start them until the core release tasks above are complete or explicitly 
 
 ---
 
-### TASK-012 - Rebind keyboard controls to a classic PC run-and-gun layout
+### TASK-012 - Classic PC keyboard layout with fully usable 45-degree firing
 
 - Status: DONE
 - Requirement:
   Rebind the keyboard so the game is comfortable on a PC: movement and aiming
   on the arrow keys (right hand), jump and fire on dedicated left-hand keys, in
-  the layout used by classic PC/emulated run-and-gun games. Critically, aiming
-  up must no longer be bound to the jump key.
+  the layout used by classic PC/emulated run-and-gun games. Aiming up must no
+  longer be bound to the jump key - that binding is what made diagonal firing
+  unreachable, even though the aim math in `src/simulation/aim.ts` already
+  returns -45/-135/45/135. Then make all four 45-degree directions usable and
+  readable in play, and surface the control scheme on the title screen so a new
+  player can see it without hunting.
+  (Merged: this task absorbed the former TASK-013.)
 - Acceptance criteria:
   - [x] Arrow Left/Right move; Arrow Up aims up; Arrow Down crouches / drops through platforms
   - [x] `Z` jumps and `X` fires (left hand, matching NES-emulator/Cave Story defaults)
@@ -222,30 +227,18 @@ Do not start them until the core release tasks above are complete or explicitly 
   - [x] `W`/`A`/`S`/`D` remain usable as movement/aim aliases
   - [x] The help screen and the in-level control hint show the new primary bindings
   - [x] Unit tests cover the key-to-action mapping, including the Up-is-not-jump regression
+  - [x] Up + Right fires at -45 degrees and Up + Left at -135 (ground or air)
+  - [x] While airborne, Down + Right fires at 45 degrees, Down + Left at 135, and Down alone at 90
+  - [x] The player sprite shows the diagonal aim pose for up-diagonals
+  - [x] The projectile sprite is rotated along its actual flight vector for every diagonal
+  - [x] E2E coverage asserts every aim angle driven through real key presses
+  - [x] The title screen shows the primary controls (or an obvious link to them) so users understand them immediately
 - Non-goals / constraints:
   - Do not change gamepad or touch bindings.
   - Do not change movement physics, fire rate, or any balance value.
-  - Existing e2e specs drive the debug input bridge, not raw keys; they must stay green unchanged.
-
----
-
-### TASK-013 - Make 45-degree diagonal firing fully usable from the keyboard
-
-- Status: TODO
-- Requirement:
-  Diagonal aim math already exists (`src/simulation/aim.ts` returns -45/-135/45/135)
-  but is unreachable in practice because aim-up shares the jump key. After
-  TASK-012 frees the aim keys, verify and finish diagonal firing so all four
-  45-degree directions are usable and readable during play.
-- Acceptance criteria:
-  - [ ] Holding Arrow Up + Arrow Right and firing produces a projectile at -45 degrees; Up + Left produces -135
-  - [ ] While airborne, Arrow Down + Right fires at 45 degrees; Down + Left fires at 135
-  - [ ] The player sprite shows the diagonal aim pose for up-diagonals
-  - [ ] The projectile sprite is rotated along its actual flight vector for every diagonal
-  - [ ] E2E coverage asserts all four diagonal angles driven through real key input
-- Non-goals / constraints:
   - Keep the existing grounded behaviour: Down while grounded is crouch-fire forward (angle 0), not a downward shot.
   - Do not add new aim directions beyond the existing 8.
+  - Existing e2e specs drive the debug input bridge, not raw keys; they must stay green unchanged.
 
 ---
 

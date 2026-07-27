@@ -11,6 +11,12 @@ async function main() {
   const rt = () => page.evaluate(() => window.__GAME_DEBUG__?.getState()?.runtime);
 
   await page.goto('http://localhost:4173/?debug=1&renderer=canvas');
+
+  // Title screen now carries the controls card; capture it for review.
+  await page.waitForFunction(() => window.__GAME_DEBUG__?.getState()?.scene === 'title');
+  await page.waitForTimeout(600);
+  await page.screenshot({ path: 'test-results/shots/title-controls.png' });
+
   await page.evaluate(() => window.__GAME_DEBUG__?.command('startLevel1'));
   await page.waitForFunction(() => window.__GAME_DEBUG__?.getState()?.runtime?.level === 'jungle-outpost');
 
