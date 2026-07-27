@@ -12,18 +12,24 @@ The game runs entirely in the browser; there is no backend.
 
 ## Controls
 
+The keyboard layout follows the classic PC/emulated run-and-gun convention:
+the arrow cluster is the D-pad (right hand) and `Z`/`X` are the face buttons
+(left hand). WASD, `Space`, and `J`/`K`/`Enter` also work as aliases.
+
 | Action | Keyboard | Gamepad | Touch |
 | ------ | -------- | ------- | ----- |
-| Move / aim | A/D or arrows | D-pad / left stick | on-screen buttons |
-| Jump | Space / W / Up | A | JUMP button |
-| Crouch / drop | S / Down | Down | - |
-| Fire | J / K / Enter | X or RB | FIRE button |
+| Move | Arrow Left/Right (or A/D) | D-pad / left stick | on-screen buttons |
+| Aim up | Arrow Up (or W) | Up | ▲ button |
+| Crouch / drop | Arrow Down (or S) | Down | - |
+| Jump | `Z` (or Space) | A | JUMP button |
+| Fire | `X` (or J/K/Enter) | X or RB | FIRE button |
 | Pause | Esc | Start | pause button |
 | Menus | Enter/Space, Esc | A/Start, Back | tap |
 
-Hold a direction while firing to shoot in 8 directions. F10 toggles
-fullscreen. High score and settings (volume, mute, reduced flash) persist in
-local storage.
+Aiming up is a dedicated key, so you can fire diagonally: hold Arrow Up plus a
+direction and fire for a 45-degree shot. Holding Down while airborne fires
+downward; on the ground it is crouch-fire. F10 toggles fullscreen. High score
+and settings (volume, mute, reduced flash) persist in local storage.
 
 ## Game content
 

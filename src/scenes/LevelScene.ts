@@ -317,7 +317,7 @@ export class LevelScene extends Phaser.Scene {
       .setOrigin(1, 0.5)
       .setDepth(100);
     this.add
-      .text(12, LOGICAL_HEIGHT - 16, 'Move A/D  Jump W/Space  Crouch/Drop S  Fire J  Pause Esc', {
+      .text(12, LOGICAL_HEIGHT - 16, 'Arrows move/aim   Z jump   X fire   Up+X diagonal   Esc pause', {
         fontFamily: 'monospace',
         fontSize: '13px',
         color: '#5c6c8c'

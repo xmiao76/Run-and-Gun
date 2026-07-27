@@ -148,7 +148,7 @@ export class SandboxScene extends Phaser.Scene {
     this.playerImage = this.add.image(0, 0, 'art/player-idle').setOrigin(0, 0).setDepth(30);
     this.hudText = this.add.text(12, HUD_Y, '', { fontFamily: 'monospace', fontSize: '16px', color: '#e8f1ff' }).setDepth(100);
     this.add
-      .text(12, LOGICAL_HEIGHT - 22, 'Move: A/D or arrows  Jump: Space/W/Up  Fire: J/K/Enter', {
+      .text(12, LOGICAL_HEIGHT - 22, 'Arrows: move/aim   Z: jump   X: fire', {
         fontFamily: 'monospace',
         fontSize: '13px',
         color: '#8fa3c7'

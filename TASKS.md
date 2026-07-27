@@ -203,3 +203,91 @@ Only one task should be actively worked on in a single loop iteration.
 
 Add new enhancement tasks below this section later.
 Do not start them until the core release tasks above are complete or explicitly reprioritized.
+
+---
+
+### TASK-012 - Rebind keyboard controls to a classic PC run-and-gun layout
+
+- Status: DONE
+- Requirement:
+  Rebind the keyboard so the game is comfortable on a PC: movement and aiming
+  on the arrow keys (right hand), jump and fire on dedicated left-hand keys, in
+  the layout used by classic PC/emulated run-and-gun games. Critically, aiming
+  up must no longer be bound to the jump key.
+- Acceptance criteria:
+  - [x] Arrow Left/Right move; Arrow Up aims up; Arrow Down crouches / drops through platforms
+  - [x] `Z` jumps and `X` fires (left hand, matching NES-emulator/Cave Story defaults)
+  - [x] Pressing Arrow Up does NOT cause a jump
+  - [x] `Space` still jumps and `J`/`K`/`Enter` still fire (kept as aliases so existing muscle memory and tests keep working)
+  - [x] `W`/`A`/`S`/`D` remain usable as movement/aim aliases
+  - [x] The help screen and the in-level control hint show the new primary bindings
+  - [x] Unit tests cover the key-to-action mapping, including the Up-is-not-jump regression
+- Non-goals / constraints:
+  - Do not change gamepad or touch bindings.
+  - Do not change movement physics, fire rate, or any balance value.
+  - Existing e2e specs drive the debug input bridge, not raw keys; they must stay green unchanged.
+
+---
+
+### TASK-013 - Make 45-degree diagonal firing fully usable from the keyboard
+
+- Status: TODO
+- Requirement:
+  Diagonal aim math already exists (`src/simulation/aim.ts` returns -45/-135/45/135)
+  but is unreachable in practice because aim-up shares the jump key. After
+  TASK-012 frees the aim keys, verify and finish diagonal firing so all four
+  45-degree directions are usable and readable during play.
+- Acceptance criteria:
+  - [ ] Holding Arrow Up + Arrow Right and firing produces a projectile at -45 degrees; Up + Left produces -135
+  - [ ] While airborne, Arrow Down + Right fires at 45 degrees; Down + Left fires at 135
+  - [ ] The player sprite shows the diagonal aim pose for up-diagonals
+  - [ ] The projectile sprite is rotated along its actual flight vector for every diagonal
+  - [ ] E2E coverage asserts all four diagonal angles driven through real key input
+- Non-goals / constraints:
+  - Keep the existing grounded behaviour: Down while grounded is crouch-fire forward (angle 0), not a downward shot.
+  - Do not add new aim directions beyond the existing 8.
+
+---
+
+### TASK-014 - Selectable starting lives (3 default, 30 practice option)
+
+- Status: TODO
+- Requirement:
+  Let the player choose the starting life count from the settings screen, with
+  the current 3 as the default and 30 as an additional option, persisted in
+  local storage like the other settings.
+- Acceptance criteria:
+  - [ ] Settings screen exposes a starting-lives option with at least the values 3 and 30
+  - [ ] Default remains 3 for a fresh profile
+  - [ ] A new run starts with the selected life count and the HUD reflects it
+  - [ ] The choice persists across a page reload through the existing validated storage service
+  - [ ] Corrupt or out-of-range stored values fall back to 3
+  - [ ] Unit tests cover settings validation/defaulting for the new field
+- Non-goals / constraints:
+  - Do not change checkpoint, respawn, or game-over logic beyond honouring the configured count.
+  - The HUD life row must stay readable at 30 lives (show a count rather than 30 icons).
+
+---
+
+### TASK-015 - Classic arcade feel pass
+
+- Status: TODO
+- Requirement:
+  Tune the moment-to-moment gameplay closer to a classic arcade run-and-gun:
+  brisker movement, denser and more aggressive encounters, and punchier combat
+  feedback, without changing the level layouts or adding new systems.
+- Acceptance criteria:
+  - [ ] Player run speed and jump arc retuned for arcade pacing, with the values recorded in `src/balance/player.ts`
+  - [ ] Enemy encounters are denser: wave sizes and/or spawn cadence increased in both levels
+  - [ ] The spread weapon fires a visibly wider fan of pellets
+  - [ ] Firing, hits, and deaths have stronger feedback (screen-shake or equivalent, respecting the reduced-flash setting)
+  - [ ] Both levels remain completable start-to-finish; the full-game e2e stays green
+  - [ ] The soak test still shows bounded enemy/projectile counts and a flat heap
+- Non-goals / constraints:
+  - Do not change level geometry, add levels, or add enemy archetypes.
+  - Do not remove the existing telegraph wind-ups; readability must not regress.
+  - Keep one-hit-per-life damage (already the current model).
+- Open question (answer before starting):
+  - Should difficulty rise overall (fewer safety nets, faster enemies) or stay
+    approachable with only pacing and feedback improved? The criteria above
+    assume "pacing and feedback, difficulty roughly unchanged".

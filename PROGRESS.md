@@ -526,3 +526,67 @@ Include enough detail so the next iteration can continue without guessing.
   - none - core release complete; add enhancement tasks to TASKS.md if desired.
 - Blockers (if any):
   - none
+
+---
+
+### 2026-07-26 15:05 - TASK-012 (+ enhancement backlog added)
+
+- Status before: TODO (task created this iteration from a user enhancement request)
+- Goal of this iteration:
+  Record the four requested enhancements as bounded tasks, then rebind the
+  keyboard to a classic PC run-and-gun layout so the game is comfortable to
+  play on a PC.
+- Work completed:
+  - Added TASK-012 through TASK-015 to the Future enhancements section with
+    bounded requirements, objective acceptance criteria, and non-goals:
+    012 PC control layout, 013 diagonal firing usability, 014 selectable
+    starting lives (3 / 30), 015 classic arcade feel pass.
+  - Researched the genre convention before choosing bindings: NES-emulator
+    defaults and retro PC platformers (Cave Story, Celeste) put direction on
+    the arrow cluster (right hand) and the face buttons on Z/X (left hand),
+    with Z = A = jump and X = B = shoot. Confirmed the ordering with the user.
+  - Root-caused the diagonal-aim complaint: the aim math already produced
+    -45/-135/45/135, but `aimUp` was bound to the jump key, so aiming up made
+    the player jump. Aim-up now has its own key.
+  - Refactored `KeyboardInput` into pure, unit-testable pieces
+    (`resolveKeyAction`, `buildInputFromRaw`, `createRawKeyState`) with a thin
+    DOM adapter over them; the raw state gained a dedicated `up` field.
+  - New layout: Arrows move/aim-up/crouch, Z jump, X fire. Aliases retained so
+    nothing regresses: WASD move/aim, Space jump, J/K/Enter fire.
+  - Updated the help screen (now documents diagonals explicitly), the in-level
+    hint, the prototype-room hint, and the README control table.
+- Files changed:
+  - TASKS.md (4 new tasks), src/input/KeyboardInput.ts (refactor + rebind)
+  - src/scenes/HelpScene.ts, LevelScene.ts, SandboxScene.ts, README.md
+  - tests/unit/keyboard.test.ts (new), scripts/controls-check.mjs (new)
+- Assets added or updated:
+  - none (input/text only).
+- Commands run:
+  - `npx vitest run tests/unit/keyboard.test.ts` (RED 10 failures -> GREEN 10 passed)
+  - `npm run lint`, `npm run typecheck` (clean)
+  - `npm run test:unit` (201 passed, 39 files)
+  - `npm run build` (pass)
+  - `npx playwright test` (37 passed, unchanged)
+  - `node scripts/controls-check.mjs` (live real-key verification)
+- Verification result:
+  - All checks pass: lint, typecheck, 201 unit tests, build, 37 e2e tests.
+  - Live key verification: ArrowRight moved 60 -> 129.67; ArrowUp kept
+    `grounded: true` with the `aim-up` pose (the old jump bug is gone); Z left
+    the ground; X fired at angle 0; Up+Right+X fired at -45 with the
+    `aim-diag` pose; Up+X fired at -90. Zero page errors.
+  - Existing e2e specs needed no changes: they drive the debug input bridge,
+    and the only raw keys they press (`s`, `ArrowRight`) map as before.
+- Visual quality notes:
+  - Screenshot `controls-diagonal.png` shows the bolt climbing at 45 degrees
+    from the muzzle with the diagonal aim pose - the feature is now reachable.
+- Status after: DONE
+- Remaining work:
+  - TASK-013 is now mostly satisfied incidentally (up-right diagonal, pose, and
+    projectile rotation all verified live). What remains for it: verify up-left
+    (-135) and the airborne down diagonals (45/135), and add e2e coverage
+    asserting all four angles through real key input.
+- Next recommended task:
+  - TASK-013 - Make 45-degree diagonal firing fully usable from the keyboard
+- Blockers (if any):
+  - TASK-015 carries an open question (difficulty direction) recorded in the
+    task; answer it before that task is started.
