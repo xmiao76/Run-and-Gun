@@ -717,3 +717,75 @@ Include enough detail so the next iteration can continue without guessing.
   - TASK-014 - Selectable starting lives (3 default, 30 practice option)
 - Blockers (if any):
   - none
+
+---
+
+### 2026-07-26 17:20 - BUGFIX: unresponsive input after the browser steals focus
+
+- Status before: user reported "X shoots in Chrome but does nothing in Edge".
+- Goal of this iteration:
+  Reproduce and fix the reported cross-browser input failure.
+- Investigation:
+  - Could NOT reproduce a key-mapping fault in Edge. Drove real Microsoft Edge
+    150 (Playwright `channel: 'msedge'`), headless and headed, on the plain
+    production URL with a click-to-focus first: firing worked, and the page
+    received `{code: 'KeyX', key: 'x', isComposing: false}` with zero errors.
+    Screenshot `edge-firing.png` shows two bullets in flight. So `event.code`
+    handling and the X binding were not the fault.
+  - Re-examined the scene for state that differs between a clean automation
+    profile and a real browsing session, and found the real defect: `blur`
+    auto-paused the game and NOTHING resumed it. There was no `focus` or
+    pointer listener - the only exits were Esc, gamepad Start, or the touch
+    pause button. Edge steals window focus far more readily than Chrome
+    (Copilot/sidebar, "Save password?" bubble, shopping popups, Drop,
+    notification toasts), so in Edge the game silently pauses and every key,
+    including X, stops responding. That matches the report exactly.
+  - While writing the regression test, uncovered a SECOND real bug: the Esc
+    pause toggle polled whether Esc was *held* (`isDown`) rather than consuming
+    a keydown edge, so a quick tap that started and ended between two frames was
+    dropped entirely. Never caught before because no test pressed a real Esc -
+    the existing specs used the debug `pause`/`resume` commands or gamepad Start.
+- Work completed:
+  - Auto-pause is now distinguishable from a deliberate pause (`autoPaused`).
+    Regaining window focus, or clicking/tapping the game, lifts an auto-pause;
+    an explicit Esc pause is deliberately left alone so it still needs Esc.
+  - The pause overlay now states the cause and the remedy: "LOST WINDOW FOCUS -
+    CLICK THE GAME OR PRESS ESC TO RESUME".
+  - Pause/mute/reduced-flash are edge-triggered via a consumed keydown set, so
+    no quick tap is dropped; removed the now-dead polled fields and `isDown`.
+  - Keyboard hardening: `resolveKeyAction` accepts the produced character as a
+    fallback when the physical code is unrecognised (odd layouts), preferring
+    the code when both are known; events with `isComposing` are ignored so an
+    active IME cannot corrupt held-key state.
+  - Published `autoPaused` in the runtime snapshot for test observability.
+- Files changed:
+  - src/scenes/LevelScene.ts (auto-pause recovery, edge-triggered toggles)
+  - src/input/KeyboardInput.ts (character fallback, IME guard)
+  - tests/unit/keyboard.test.ts (+4 cases), tests/e2e/focusResume.spec.ts (new)
+  - playwright.config.ts (real `msedge` project over the input-critical specs)
+  - eslint.config.js (script globals), scripts/edge-repro.mjs, scripts/edge-diag.mjs (new)
+- Commands run:
+  - `npx playwright install msedge`
+  - `node scripts/edge-repro.mjs msedge` / `node scripts/edge-diag.mjs msedge`
+  - `npx playwright test tests/e2e/focusResume.spec.ts` (3 failed -> diagnosed
+    a stale preview server on 4173 serving the pre-fix bundle, killed it, then
+    1 genuine failure exposing the dropped-Esc bug, then 3 passed)
+  - `npm run lint`, `npm run typecheck`, `npm run test:unit`, `npm run build`
+  - `npx playwright test` (53 passed across chromium + msedge)
+  - `npm run deploy`, then `edge-repro.mjs` against the live URL in both browsers
+- Verification result:
+  - Local: lint, typecheck, 204 unit tests, build, and 53 e2e tests pass -
+    the input-critical specs now run in real Edge as well as Chromium.
+  - Live after deploy: fire/jump/move all OK in real Edge AND Chrome against
+    https://run-and-gun.pages.dev, zero page errors in both.
+- Visual quality notes:
+  - An auto-paused game now explains itself instead of appearing frozen.
+- Status after: fixed and deployed.
+- Remaining work:
+  - If the user still sees a dead X key, the next thing to capture is whether
+    the PAUSED overlay is on screen (which would confirm this path) or whether
+    an extension/IME is swallowing keydown entirely.
+- Next recommended task:
+  - TASK-014 - Selectable starting lives (3 default, 30 practice option)
+- Blockers (if any):
+  - none

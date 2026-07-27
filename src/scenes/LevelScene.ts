@@ -196,16 +196,21 @@ export class LevelScene extends Phaser.Scene {
   private gamepad: GamepadInput = createGamepadInput();
   private touch: TouchControls | null = null;
   private onBlur: (() => void) | null = null;
+  private onRegainFocus: (() => void) | null = null;
+  /**
+   * True when the pause came from losing window focus rather than from the
+   * player. Auto-pauses clear themselves as soon as focus returns, so a browser
+   * stealing focus (Edge's sidebar, password bubbles, notification toasts)
+   * cannot leave the game permanently unresponsive.
+   */
+  private autoPaused = false;
   private ledger: DamageLedger = createDamageLedger();
   private nextId = 1;
   private paused = false;
-  private prevEsc = false;
   private completionTimer = -1;
   private maxEnemiesSeen = 0;
   private maxPlayerBulletsSeen = 0;
   private maxEnemyBulletsSeen = 0;
-  private prevM = false;
-  private prevF = false;
   private settings: Settings = { ...DEFAULT_SETTINGS };
   private movingPlatforms: MovingPlatformState[] = [];
   private doors: DoorState[] = [];
@@ -345,11 +350,28 @@ export class LevelScene extends Phaser.Scene {
     LevelScene.attachKeys();
     this.touch = this.shouldShowTouchControls() ? createTouchControls() : null;
     this.onBlur = (): void => {
-      // H5: losing window focus pauses and neutralizes held inputs.
+      // H5: losing window focus pauses and neutralizes held inputs. Only mark
+      // it auto-paused when the player had not already paused deliberately.
+      if (!this.paused) {
+        this.autoPaused = true;
+      }
       this.paused = true;
       this.keyboard.clear();
     };
     window.addEventListener('blur', this.onBlur);
+
+    // Regaining focus (or clicking/tapping the game) lifts an auto-pause. A
+    // deliberate Esc pause is left alone so it still needs an explicit resume.
+    this.onRegainFocus = (): void => {
+      if (this.autoPaused) {
+        this.autoPaused = false;
+        this.paused = false;
+        // Held keys were cleared on blur; re-sync so nothing sticks.
+        this.keyboard.clear();
+      }
+    };
+    window.addEventListener('focus', this.onRegainFocus);
+    window.addEventListener('pointerdown', this.onRegainFocus);
     this.registerDebugCommands();
     hookShutdown(this.events, () => this.shutdown());
     reportScene(SCENE_KEYS.level);
@@ -367,6 +389,11 @@ export class LevelScene extends Phaser.Scene {
       window.removeEventListener('blur', this.onBlur);
       this.onBlur = null;
     }
+    if (this.onRegainFocus) {
+      window.removeEventListener('focus', this.onRegainFocus);
+      window.removeEventListener('pointerdown', this.onRegainFocus);
+      this.onRegainFocus = null;
+    }
     if (this.touch) {
       this.touch.destroy();
       this.touch = null;
@@ -376,11 +403,14 @@ export class LevelScene extends Phaser.Scene {
   }
 
   public override update(_time: number, deltaMs: number): void {
-    const esc = this.keyboardEsc() || this.gamepad.pauseEdge() || (this.touch?.consumePauseEdge() ?? false);
-    if (esc && !this.prevEsc) {
+    // All three sources are edge-triggered, so a quick tap is never dropped.
+    const pauseEdge =
+      LevelScene.consumePress('Escape') || this.gamepad.pauseEdge() || (this.touch?.consumePauseEdge() ?? false);
+    if (pauseEdge) {
       this.paused = !this.paused;
+      // An explicit toggle takes ownership of the pause state either way.
+      this.autoPaused = false;
     }
-    this.prevEsc = esc;
 
     if (this.paused) {
       // Keep the gamepad Start-button edge tracking alive while paused so it
@@ -400,10 +430,6 @@ export class LevelScene extends Phaser.Scene {
     }
     this.animTimeMs += deltaMs;
     this.render();
-  }
-
-  private keyboardEsc(): boolean {
-    return LevelScene.isDown('Escape');
   }
 
   /** Real touch devices always get touch controls; a debug `touch` query param forces them for automation. */
@@ -1196,18 +1222,14 @@ export class LevelScene extends Phaser.Scene {
   }
 
   private handlePauseInput(): void {
-    const m = LevelScene.isDown('KeyM');
-    if (m && !this.prevM) {
+    if (LevelScene.consumePress('KeyM')) {
       this.settings = { ...this.settings, mute: !this.settings.mute };
       this.persistSettings();
     }
-    this.prevM = m;
-    const f = LevelScene.isDown('KeyF');
-    if (f && !this.prevF) {
+    if (LevelScene.consumePress('KeyF')) {
       this.settings = { ...this.settings, reducedFlash: !this.settings.reducedFlash };
       this.persistSettings();
     }
-    this.prevF = f;
   }
 
   private persistSettings(): void {
@@ -1246,6 +1268,7 @@ export class LevelScene extends Phaser.Scene {
       supplyCarriersAlive: this.supplyCarriers.filter((c) => c.alive).length,
       supplyCarrierX: this.supplyCarriers.find((c) => c.alive)?.x ?? null,
       pickupsAvailable: this.pickups.filter((p) => !p.collected).length,
+      autoPaused: this.autoPaused,
       telegraphCount: this.enemies.filter((e) => e.telegraphing).length,
       bossPattern: this.boss.active ? currentPattern(this.boss, getBossDef(this.level.boss.id)) : null,
       maxEnemiesSeen: this.maxEnemiesSeen,
@@ -1596,6 +1619,11 @@ export class LevelScene extends Phaser.Scene {
   }
 
   private renderPauseOverlay(): void {
+    if (this.autoPaused) {
+      // Focus was taken from the game; say plainly how to get back in.
+      this.showOverlay('PAUSED', 'LOST WINDOW FOCUS - CLICK THE GAME OR PRESS ESC TO RESUME');
+      return;
+    }
     this.showOverlay('PAUSED', 'ESC resume   M mute (' + (this.settings.mute ? 'on' : 'off') + ')   F reduced-flash (' + (this.settings.reducedFlash ? 'on' : 'off') + ')');
   }
 
@@ -1646,6 +1674,12 @@ export class LevelScene extends Phaser.Scene {
   }
 
   private static keys = new Set<string>();
+  /**
+   * Keydown edges awaiting consumption. Polling `keys` for a toggle drops taps
+   * that begin and end between two frames, which made a quick Esc do nothing;
+   * these edges survive until the frame that reads them.
+   */
+  private static pressed = new Set<string>();
   private static keyHandlers: { down: (e: KeyboardEvent) => void; up: (e: KeyboardEvent) => void } | null = null;
 
   private static attachKeys(): void {
@@ -1653,6 +1687,9 @@ export class LevelScene extends Phaser.Scene {
       return;
     }
     const down = (e: KeyboardEvent): void => {
+      if (!e.repeat) {
+        LevelScene.pressed.add(e.code);
+      }
       LevelScene.keys.add(e.code);
     };
     const up = (e: KeyboardEvent): void => {
@@ -1671,10 +1708,16 @@ export class LevelScene extends Phaser.Scene {
     window.removeEventListener('keyup', LevelScene.keyHandlers.up);
     LevelScene.keyHandlers = null;
     LevelScene.keys.clear();
+    LevelScene.pressed.clear();
   }
 
-  private static isDown(code: string): boolean {
-    return LevelScene.keys.has(code);
+  /** True once per physical press of `code`; the edge is cleared on read. */
+  private static consumePress(code: string): boolean {
+    if (!LevelScene.pressed.has(code)) {
+      return false;
+    }
+    LevelScene.pressed.delete(code);
+    return true;
   }
 }
 

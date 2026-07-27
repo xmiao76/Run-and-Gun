@@ -21,7 +21,8 @@ export default tseslint.config(
         console: 'readonly',
         process: 'readonly',
         window: 'readonly',
-        document: 'readonly'
+        document: 'readonly',
+        navigator: 'readonly'
       }
     }
   }

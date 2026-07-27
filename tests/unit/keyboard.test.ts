@@ -49,6 +49,23 @@ describe('resolveKeyAction', () => {
     expect(resolveKeyAction('KeyQ')).toBeNull();
     expect(resolveKeyAction('F5')).toBeNull();
   });
+
+  it('falls back to the produced character when the code is unrecognised', () => {
+    // Layouts that report an unexpected physical code still work.
+    expect(resolveKeyAction('Unidentified', 'x')).toBe('fire');
+    expect(resolveKeyAction('', 'z')).toBe('jump');
+    expect(resolveKeyAction('Unidentified', 'X')).toBe('fire');
+  });
+
+  it('prefers the physical code over the character', () => {
+    // Dvorak-style: physical KeyX produces 'q'; the binding follows the key.
+    expect(resolveKeyAction('KeyX', 'q')).toBe('fire');
+  });
+
+  it('does not treat multi-character key names as characters', () => {
+    expect(resolveKeyAction('Unidentified', 'Shift')).toBeNull();
+    expect(resolveKeyAction('Unidentified', 'Process')).toBeNull();
+  });
 });
 
 describe('buildInputFromRaw', () => {

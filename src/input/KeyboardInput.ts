@@ -56,9 +56,31 @@ const KEY_ACTIONS: Readonly<Record<string, KeyAction>> = {
   Enter: 'fire'
 };
 
+/**
+ * Fallback map on the produced character, for keyboards/layouts where the
+ * physical `code` is not the QWERTY position we expect. `code` is tried first.
+ */
+const CHAR_ACTIONS: Readonly<Record<string, KeyAction>> = {
+  a: 'left',
+  d: 'right',
+  w: 'up',
+  s: 'down',
+  z: 'jump',
+  x: 'fire',
+  j: 'fire',
+  k: 'fire'
+};
+
 /** The logical action a physical key drives, or null when the game ignores it. */
-export function resolveKeyAction(code: string): KeyAction | null {
-  return KEY_ACTIONS[code] ?? null;
+export function resolveKeyAction(code: string, key?: string): KeyAction | null {
+  const byCode = KEY_ACTIONS[code];
+  if (byCode !== undefined) {
+    return byCode;
+  }
+  if (key !== undefined && key.length === 1) {
+    return CHAR_ACTIONS[key.toLowerCase()] ?? null;
+  }
+  return null;
 }
 
 /**
@@ -93,7 +115,11 @@ export function createKeyboardInput(): KeyboardInput {
   const raw = createRawKeyState();
 
   const applyEvent = (event: KeyboardEvent, down: boolean): void => {
-    const action = resolveKeyAction(event.code);
+    // While an IME is composing, the keystrokes belong to the IME, not the game.
+    if (event.isComposing) {
+      return;
+    }
+    const action = resolveKeyAction(event.code, event.key);
     if (action === null) {
       return;
     }
