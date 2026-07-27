@@ -182,20 +182,20 @@ Only one task should be actively worked on in a single loop iteration.
 
 ### TASK-011 - Final quality pass and deployment readiness
 
-- Status: TODO
+- Status: DONE
 - Requirement:
   Make the game release-ready for static deployment.
 - Acceptance criteria:
-  - [ ] `npm run lint` passes
-  - [ ] `npm run typecheck` passes
-  - [ ] `npm run test:unit` passes
-  - [ ] `npm run test:e2e` passes
-  - [ ] `npm run build` passes
-  - [ ] `dist/` is generated correctly
-  - [ ] The build is suitable for static hosting
-  - [ ] No major placeholder art remains in the main user-facing flow
-  - [ ] The final product clearly contains recognizable characters, weapons, enemies, and scenes
-  - [ ] The project is ready for manual deployment to Cloudflare Pages
+  - [x] `npm run lint` passes
+  - [x] `npm run typecheck` passes
+  - [x] `npm run test:unit` passes
+  - [x] `npm run test:e2e` passes
+  - [x] `npm run build` passes
+  - [x] `dist/` is generated correctly
+  - [x] The build is suitable for static hosting
+  - [x] No major placeholder art remains in the main user-facing flow
+  - [x] The final product clearly contains recognizable characters, weapons, enemies, and scenes
+  - [x] The project is ready for manual deployment to Cloudflare Pages
 
 ---
 

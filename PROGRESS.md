@@ -489,3 +489,40 @@ Include enough detail so the next iteration can continue without guessing.
   - TASK-011 - Final quality pass and deployment readiness
 - Blockers (if any):
   - none
+
+---
+
+### 2026-07-26 14:10 - TASK-011
+
+- Status before: TODO
+- Goal of this iteration:
+  Final release gate: verify every command, audit the static build output, confirm no placeholder art remains, and finish release documentation.
+- Work completed:
+  - Ran the full verification suite fresh: `npm run lint` (pass), `npm run typecheck` (pass), `npm run test:unit` (191 passed, 38 files), `npm run build` (pass; the >500 kB chunk notice is informational - Phaser bundle size, not an error), `npm run test:e2e` (37 passed).
+  - Audited `dist/`: index.html + hashed JS bundle + favicon, 1.5 MB total, relative `./assets/` paths (vite base './'), no backend dependency - suitable for static hosting anywhere, including Cloudflare Pages.
+  - Final visual audit (`scripts/final-audit.mjs`): captured title, help, prototype room, Level 1 exploration/combat/boss, Level 2 exploration/boss, game over, and MISSION COMPLETE screens - zero page errors, no placeholder blocks anywhere; characters, weapons, enemies, bosses, and scenes are all recognizable sprite art.
+  - Rewrote README.md as the actual game README: play instructions, full control table (keyboard/gamepad/touch), game content, dev commands, project layout, deployment notes, and the original-assets policy.
+- Files changed:
+  - README.md (rewritten for the game)
+  - scripts/final-audit.mjs (new)
+- Assets added or updated:
+  - none.
+- Commands run:
+  - `npm run lint`, `npm run typecheck` (clean)
+  - `npm run test:unit` (191 passed)
+  - `npm run build` (pass)
+  - `npm run test:e2e` (37 passed)
+  - `node scripts/final-audit.mjs` (10 screens, 0 page errors)
+- Verification result:
+  - Every acceptance criterion verified with evidence above.
+- Visual quality notes:
+  - The game presents a coherent original pixel-art identity end to end: dusk jungle (L1), industrial fortress (L2), four enemy archetypes, two detailed bosses, weapon-distinct projectiles, and icon-based HUD.
+- Status after: DONE
+- Remaining work:
+  - Core release task list complete (TASK-001 through TASK-011 all DONE).
+  - Optional: manual deployment to Cloudflare Pages (user action; loop rules prohibit deploys).
+  - Enhancement ideas for the future-enhancements section: boss leg/pattern animations, richer title art, additional weapon, gameplay balance pass.
+- Next recommended task:
+  - none - core release complete; add enhancement tasks to TASKS.md if desired.
+- Blockers (if any):
+  - none
