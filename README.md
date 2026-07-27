@@ -82,8 +82,25 @@ This needs an authenticated Cloudflare session (`npx wrangler login`) with
 argument. After deploying, smoke-test the live site:
 
 ```bash
-node scripts/live-check.mjs https://run-and-gun.pages.dev
+node scripts/live-check.mjs https://run-and-gun.pages.dev   # headers + gameplay
+node scripts/reload-check.mjs                               # no hard reload needed
 ```
+
+### Cache policy
+
+`public/_headers` sets the rule that makes a deploy apply on a **plain reload**,
+with no hard reload ever required:
+
+- `index.html` has a stable name and points at the hashed bundle, so it is
+  `max-age=0, must-revalidate` — every load checks the server.
+- `assets/*.js` / `assets/*.css` are content-hashed by Vite (a new build means a
+  new filename), so they are `immutable` for a year and load instantly on
+  repeat visits.
+- Stable-named files such as `assets/images/favicon.svg` are deliberately left
+  revalidating, so they are never frozen.
+
+`scripts/live-check.mjs` asserts these headers after every deploy so the policy
+cannot silently regress.
 
 ## Asset policy
 

@@ -7,9 +7,38 @@ import { chromium } from '@playwright/test';
  */
 const BASE = process.argv[2] ?? 'https://run-and-gun.pages.dev';
 
+/**
+ * Cache policy is what makes a fix take effect without a hard reload, so it is
+ * asserted rather than assumed: the entry point must revalidate every load, and
+ * the content-hashed bundle must be cacheable long-term.
+ */
+async function checkCacheHeaders() {
+  let problems = 0;
+  const htmlRes = await fetch(`${BASE}/`, { cache: 'no-store' });
+  const htmlCc = htmlRes.headers.get('cache-control') ?? '';
+  const revalidates = /no-cache|no-store|max-age=0/.test(htmlCc) || /must-revalidate/.test(htmlCc);
+  console.log('index.html Cache-Control:', htmlCc, revalidates ? 'OK (revalidates)' : 'FAIL (may serve stale)');
+  if (!revalidates) problems++;
+
+  const html = await htmlRes.text();
+  const assetPath = html.match(/assets\/[^"']+\.js/)?.[0];
+  if (!assetPath) {
+    console.log('bundle reference: FAIL (not found in index.html)');
+    return problems + 1;
+  }
+  const assetRes = await fetch(`${BASE}/${assetPath}`, { cache: 'no-store' });
+  const assetCc = assetRes.headers.get('cache-control') ?? '';
+  const immutable = /immutable/.test(assetCc) || /max-age=[1-9]/.test(assetCc);
+  console.log(`${assetPath} Cache-Control:`, assetCc, immutable ? 'OK (cacheable)' : 'WARN (revalidated every load)');
+  if (!immutable) problems++;
+  return problems;
+}
+
 async function main() {
   const browser = await chromium.launch();
   let failures = 0;
+
+  failures += await checkCacheHeaders();
 
   // 1. Plain visitor load: canvas renders, no console/page errors.
   const plain = await browser.newPage({ viewport: { width: 960, height: 540 } });

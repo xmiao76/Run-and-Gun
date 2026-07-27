@@ -20,6 +20,7 @@ export default tseslint.config(
       globals: {
         console: 'readonly',
         process: 'readonly',
+        fetch: 'readonly',
         window: 'readonly',
         document: 'readonly',
         navigator: 'readonly'

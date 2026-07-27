@@ -1,0 +1,25 @@
+# Cloudflare Pages response headers.
+#
+# Cache policy has one rule: anything whose filename changes when its bytes
+# change may be cached forever; anything with a stable name must revalidate.
+# That combination means a plain reload always picks up a new deploy - a hard
+# reload is never required - while repeat visits still load instantly.
+
+# Vite emits content-hashed build output (assets/index-<hash>.js). A new build
+# produces a new filename, so these can never go stale.
+# Scoped by extension so the stable-named files under assets/images/ are not
+# accidentally frozen for a year.
+/assets/*.js
+  Cache-Control: public, max-age=31536000, immutable
+
+/assets/*.css
+  Cache-Control: public, max-age=31536000, immutable
+
+# The entry point has a stable name and names the hashed bundle to load, so it
+# must be revalidated on every load. This is what makes fixes take effect
+# without a hard reload.
+/
+  Cache-Control: public, max-age=0, must-revalidate
+
+/index.html
+  Cache-Control: public, max-age=0, must-revalidate

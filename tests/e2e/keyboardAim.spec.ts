@@ -154,19 +154,24 @@ test.describe('keyboard aiming in all directions', () => {
     await page.keyboard.down('x');
     await step(page, 2);
 
-    const rotations = await page.evaluate(() => {
-      const scene = window.__GAME__?.scene.getScene('level');
-      if (!scene) {
-        return [];
-      }
-      return scene.children.list
-        .map((c) => c as unknown as { type: string; visible: boolean; texture?: { key?: string }; rotation: number })
-        .filter((o) => o.type === 'Image' && o.visible && (o.texture?.key ?? '').startsWith('art/bullet-'))
-        .map((o) => o.rotation);
-    });
-    expect(rotations.length).toBeGreaterThanOrEqual(1);
-    // -45 degrees in radians.
-    expect(rotations.some((r) => Math.abs(r + Math.PI / 4) < 0.01)).toBe(true);
+    // `advanceSteps` drives the simulation but not a render pass, so the sprite
+    // pool syncs on a later frame; poll until the rotated bullet is on screen
+    // rather than sampling once and racing the renderer.
+    await page.waitForFunction(
+      () => {
+        const scene = window.__GAME__?.scene.getScene('level');
+        if (!scene) {
+          return false;
+        }
+        return scene.children.list
+          .map((c) => c as unknown as { type: string; visible: boolean; texture?: { key?: string }; rotation: number })
+          .filter((o) => o.type === 'Image' && o.visible && (o.texture?.key ?? '').startsWith('art/bullet-'))
+          // -45 degrees in radians.
+          .some((o) => Math.abs(o.rotation + Math.PI / 4) < 0.01);
+      },
+      null,
+      { timeout: 10_000 }
+    );
 
     await page.keyboard.up('x');
     await page.keyboard.up('ArrowRight');

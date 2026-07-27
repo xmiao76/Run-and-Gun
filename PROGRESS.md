@@ -720,6 +720,58 @@ Include enough detail so the next iteration can continue without guessing.
 
 ---
 
+### 2026-07-26 17:55 - CACHE POLICY: deploys apply without a hard reload
+
+- Status before: users were being told to hard-reload after a deploy.
+- Goal of this iteration:
+  Remove the need for a hard reload, and stop guessing about caching by
+  measuring the real response headers.
+- Investigation:
+  - Measured the live headers instead of assuming. `index.html` was already
+    `public, max-age=0, must-revalidate`, so a plain reload always picked up a
+    new deploy - the hard-reload advice given to the user was over-cautious and
+    is now retracted.
+  - The same measurement exposed a real performance miss: the content-hashed
+    1.49 MB bundle was also `max-age=0, must-revalidate`, so every single load
+    paid a revalidation round trip for bytes that can never change.
+- Work completed:
+  - Added `public/_headers` (Vite copies it to `dist/`, Cloudflare Pages applies
+    it): the stable-named entry point revalidates every load, while
+    `assets/*.js` / `assets/*.css` are `immutable` for a year. Scoped by
+    extension on purpose so stable-named files under `assets/images/` are not
+    frozen for a year - a trap a blanket `/assets/*` rule would have set.
+  - `scripts/live-check.mjs` now asserts both headers, so the policy cannot
+    silently regress on a future deploy.
+  - Added `scripts/reload-check.mjs`, which proves the behaviour in a real
+    browser rather than arguing from headers alone.
+  - Documented the policy and the reasoning in the README.
+  - Fixed a genuine test-robustness bug surfaced by the new Edge project:
+    `keyboardAim`'s projectile-rotation check sampled the display list right
+    after `advanceSteps`, but that command drives the simulation without a
+    render pass, so the sprite pool had not necessarily synced. It passed in
+    Chromium and failed in Edge purely on timing. Now polls for the rendered
+    sprite; verified stable over three consecutive Edge runs.
+- Files changed:
+  - public/_headers (new), scripts/live-check.mjs (header assertions),
+    scripts/reload-check.mjs (new), tests/e2e/keyboardAim.spec.ts (render poll),
+    eslint.config.js (fetch global), README.md (cache policy section)
+- Verification result:
+  - Live headers after deploy: `/` -> `max-age=0, must-revalidate`;
+    `assets/index-<hash>.js` -> `max-age=31536000, immutable`;
+    `assets/images/favicon.svg` -> still revalidating (not frozen).
+  - `reload-check.mjs` in real Edge: on a plain reload with a warm cache the
+    entry point still hit the network (status 200, not served blindly from
+    cache), and the game loaded - so a deploy applies without Ctrl+F5.
+  - `live-check.mjs` PASSED end to end (headers + gameplay + boss).
+  - Local: lint, typecheck, 204 unit tests, build, 53 e2e (chromium + msedge).
+- Status after: deployed; hard reload no longer required.
+- Next recommended task:
+  - TASK-014 - Selectable starting lives (3 default, 30 practice option)
+- Blockers (if any):
+  - none
+
+---
+
 ### 2026-07-26 17:20 - BUGFIX: unresponsive input after the browser steals focus
 
 - Status before: user reported "X shoots in Chrome but does nothing in Edge".
