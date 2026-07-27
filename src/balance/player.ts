@@ -8,14 +8,26 @@
 export const PLAYER_WIDTH = 22;
 export const PLAYER_HEIGHT = 32;
 
-/** Horizontal speed when a direction is held (px/s). */
-export const MOVE_SPEED = 190;
+/**
+ * Horizontal speed when a direction is held (px/s).
+ *
+ * Arcade-feel pass: raised from 190 so traversal feels brisk rather than
+ * deliberate, while staying slow enough to react to a telegraphed shot.
+ */
+export const MOVE_SPEED = 215;
 
-/** Downward acceleration while airborne (px/s^2). */
-export const GRAVITY = 1500;
+/**
+ * Downward acceleration while airborne (px/s^2).
+ *
+ * Raised together with JUMP_VELOCITY so the jump gets snappier without changing
+ * its height: peak height is v^2/(2g), and 560^2/(2*1750) = 89.6px matches the
+ * previous 520^2/(2*1500) = 90.1px. Airtime drops from 0.69s to 0.64s, so the
+ * jump feels punchier while every platform stays exactly as reachable.
+ */
+export const GRAVITY = 1750;
 
-/** Initial upward velocity on jump (px/s; negative is up). */
-export const JUMP_VELOCITY = -520;
+/** Initial upward velocity on jump (px/s; negative is up). See GRAVITY. */
+export const JUMP_VELOCITY = -560;
 
 /**
  * Fraction of upward velocity retained when the jump button is released early,

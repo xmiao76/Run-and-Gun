@@ -790,6 +790,88 @@ Include enough detail so the next iteration can continue without guessing.
 
 ---
 
+### 2026-07-27 11:40 - TASK-015
+
+- Status before: TODO, carrying an open question about difficulty direction.
+- Decision on the open question:
+  Rather than block a third iteration with nothing delivered, this was built to
+  the default already recorded in the task: improve pacing and feedback, leave
+  difficulty roughly unchanged. Loop rule 4 asks for BLOCKED only when the
+  acceptance criteria are unclear, and they were concrete and testable; the
+  unanswered question affected magnitude, not testability. Enemy health, speed,
+  fire rates, telegraph durations, and player damage were all left untouched, so
+  the work is low-regret if a harder pass is wanted later - the levers are
+  isolated in `src/balance/enemies.ts` and `bosses.ts`, and that is now recorded
+  in the task itself.
+- Work completed:
+  - Physics retune (`src/balance/player.ts`): MOVE_SPEED 190 -> 215, and
+    JUMP_VELOCITY -520 -> -560 with GRAVITY 1500 -> 1750. The jump pair was
+    chosen so peak height is preserved: 560^2/(2*1750) = 89.6px against the old
+    520^2/(2*1500) = 90.1px, so every platform stays exactly as reachable while
+    airtime drops 0.69s -> 0.64s. Horizontal reach per jump actually rises
+    (215*0.64 = 138px vs 190*0.69 = 132px), so pits got no harder. The reasoning
+    is recorded in the file next to the values.
+  - Spread weapon (`src/balance/weapons.ts`): scatter fan widened from +/-12 to
+    +/-24 degrees. Pellet count and damage deliberately unchanged, so this is a
+    readability change rather than a power change - and every scatter assertion
+    derives from `spreadAngles.length`, so nothing needed updating.
+  - Denser encounters: one extra defender per wave in both levels (Level 1 now
+    3/3/4, Level 2 3/3/4). Each added position was placed on a verified solid
+    ground segment and clear of the trigger line so the spawn-safety margin
+    still admits it.
+  - Combat feedback: new pure `src/ui/screenShake.ts` maps four events
+    (bossHit < explosion < playerDeath < bossDefeat) to escalating shake specs
+    and returns null under reduced-flash, wired into LevelScene at those four
+    moments. Shake is motion rather than colour, but it is suppressed entirely
+    for reduced-flash users, which is the conservative reading of that setting.
+- Files changed:
+  - src/balance/player.ts, src/balance/weapons.ts
+  - src/levels/level1.ts, src/levels/level2.ts
+  - src/ui/screenShake.ts (new), src/scenes/LevelScene.ts
+  - tests/unit/screenShake.test.ts (new), tests/e2e/arcadeFeel.spec.ts (new)
+  - scripts/arcade-feel-check.mjs (new)
+- Commands run:
+  - `npx vitest run tests/unit/screenShake.test.ts` (4 passed)
+  - `npm run lint`, `npm run typecheck` (clean)
+  - `npm run test:unit` (220 passed, 41 files)
+  - `npm run build` (pass)
+  - `npx playwright test` (63 passed, chromium + msedge)
+  - `npx playwright test tests/e2e/soak.spec.ts` and `fullGame.spec.ts`
+  - `node scripts/arcade-feel-check.mjs`
+- Verification result:
+  - All checks pass: lint, typecheck, 220 unit tests, build, 63 e2e tests.
+  - Completability: `fullGame.spec.ts` still green end to end, and a targeted
+    probe confirmed the retuned jump still clears the first pit - running at the
+    720-840 pit and jumping at the edge ended at x=907 with all 3 lives intact.
+  - Soak: still bounded and heap-flat after the density increase
+    (`maxEnemies=3`, `maxPlayerBullets=1`, `maxEnemyBullets=2` against a cap of
+    12; heapBefore == heapAfter).
+  - Live probes: wave 1 now fields 3 (was 2); camera shake confirmed running
+    after a player death and confirmed NOT running with reducedFlash=true;
+    scatter pellets measured at -24/0/+24 degrees.
+  - Screenshot `feel-scatter-fan.png` shows the three pellets visibly fanning.
+- Two probe artifacts worth recording (neither a product defect):
+  - The first scatter measurement returned a single pellet because it sampled
+    the display list straight after `advanceSteps`, which drives the simulation
+    without a render pass. This is the same trap that bit the Edge run of
+    `keyboardAim`; the check script now waits for real frames and says why.
+  - A first traversal probe reported lives=0, but it was holding right and
+    jumping on a blind fixed cadence, so it walked into the pit. Replaced with a
+    deliberate jump-at-the-edge crossing, which passes.
+- Status after: DONE
+- Remaining work:
+  - Every task in TASKS.md is now DONE. Not deployed this iteration (loop rules
+    forbid it); run `npm run deploy` to publish.
+  - Optional follow-up if a harder difficulty is wanted: raise the values in
+    `src/balance/enemies.ts` / `bosses.ts` as noted in TASK-015.
+- Next recommended task:
+  - none - the list is complete. Add further enhancements to TASKS.md to
+    continue the loop.
+- Blockers (if any):
+  - none
+
+---
+
 ### 2026-07-26 19:20 - ROOT CAUSE CONFIRMED: extension stealing letter keys
 
 - Status before: Z/X/S dead in the user's Edge; cause unconfirmed.

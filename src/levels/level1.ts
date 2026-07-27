@@ -49,6 +49,10 @@ const pickups = [
   { id: 'l1-rapid', x: 1700, y: GROUND_Y - 24, weapon: 'rapid' as const }
 ];
 
+// Arcade-feel pass: each wave gained one extra defender so encounters read as
+// a squad rather than a pair. Every added position sits on a solid ground
+// segment (0-720, 840-1320, 1440-2560, 2560+) and well clear of the trigger
+// line, so the spawn-safety margin still admits it.
 const triggers = [
   {
     id: 'l1-wave1',
@@ -56,7 +60,8 @@ const triggers = [
     x1: 560,
     spawns: [
       { kind: 'runner' as const, x: 760, y: GROUND_Y - 30 },
-      { kind: 'drone' as const, x: 820, y: 300 }
+      { kind: 'drone' as const, x: 820, y: 300 },
+      { kind: 'runner' as const, x: 900, y: GROUND_Y - 30 }
     ]
   },
   {
@@ -65,7 +70,8 @@ const triggers = [
     x1: 1060,
     spawns: [
       { kind: 'sentry' as const, x: 1240, y: GROUND_Y - 24 },
-      { kind: 'grenadier' as const, x: 1500, y: GROUND_Y - 30 }
+      { kind: 'grenadier' as const, x: 1500, y: GROUND_Y - 30 },
+      { kind: 'runner' as const, x: 1600, y: GROUND_Y - 30 }
     ]
   },
   {
@@ -75,7 +81,8 @@ const triggers = [
     spawns: [
       { kind: 'runner' as const, x: 1980, y: GROUND_Y - 30 },
       { kind: 'drone' as const, x: 2040, y: 300 },
-      { kind: 'grenadier' as const, x: 2200, y: GROUND_Y - 30 }
+      { kind: 'grenadier' as const, x: 2200, y: GROUND_Y - 30 },
+      { kind: 'sentry' as const, x: 2380, y: GROUND_Y - 24 }
     ]
   }
 ];

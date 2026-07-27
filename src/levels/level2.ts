@@ -40,6 +40,9 @@ const pickups = [
   { id: 'l2-scatter', x: 1640, y: GROUND_Y - 24, weapon: 'scatter' as const }
 ];
 
+// Arcade-feel pass: one extra defender per wave, matching Level 1. Added
+// positions sit on the solid floor (0-700, 860-3240), clear of the pit and of
+// each trigger line so the spawn-safety margin still admits them.
 const triggers = [
   {
     id: 'l2-wave1',
@@ -47,7 +50,8 @@ const triggers = [
     x1: 400,
     spawns: [
       { kind: 'runner' as const, x: 560, y: GROUND_Y - 30 },
-      { kind: 'drone' as const, x: 620, y: 300 }
+      { kind: 'drone' as const, x: 620, y: 300 },
+      { kind: 'runner' as const, x: 660, y: GROUND_Y - 30 }
     ]
   },
   {
@@ -56,7 +60,8 @@ const triggers = [
     x1: 1040,
     spawns: [
       { kind: 'sentry' as const, x: 1240, y: GROUND_Y - 24 },
-      { kind: 'grenadier' as const, x: 1460, y: GROUND_Y - 30 }
+      { kind: 'grenadier' as const, x: 1460, y: GROUND_Y - 30 },
+      { kind: 'runner' as const, x: 1560, y: GROUND_Y - 30 }
     ]
   },
   {
@@ -66,7 +71,8 @@ const triggers = [
     spawns: [
       { kind: 'runner' as const, x: 2120, y: GROUND_Y - 30 },
       { kind: 'drone' as const, x: 2180, y: 300 },
-      { kind: 'grenadier' as const, x: 2300, y: GROUND_Y - 30 }
+      { kind: 'grenadier' as const, x: 2300, y: GROUND_Y - 30 },
+      { kind: 'sentry' as const, x: 2420, y: GROUND_Y - 24 }
     ]
   }
 ];

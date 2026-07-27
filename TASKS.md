@@ -264,23 +264,29 @@ Do not start them until the core release tasks above are complete or explicitly 
 
 ### TASK-015 - Classic arcade feel pass
 
-- Status: TODO
+- Status: DONE
 - Requirement:
   Tune the moment-to-moment gameplay closer to a classic arcade run-and-gun:
   brisker movement, denser and more aggressive encounters, and punchier combat
   feedback, without changing the level layouts or adding new systems.
 - Acceptance criteria:
-  - [ ] Player run speed and jump arc retuned for arcade pacing, with the values recorded in `src/balance/player.ts`
-  - [ ] Enemy encounters are denser: wave sizes and/or spawn cadence increased in both levels
-  - [ ] The spread weapon fires a visibly wider fan of pellets
-  - [ ] Firing, hits, and deaths have stronger feedback (screen-shake or equivalent, respecting the reduced-flash setting)
-  - [ ] Both levels remain completable start-to-finish; the full-game e2e stays green
-  - [ ] The soak test still shows bounded enemy/projectile counts and a flat heap
+  - [x] Player run speed and jump arc retuned for arcade pacing, with the values recorded in `src/balance/player.ts`
+  - [x] Enemy encounters are denser: wave sizes and/or spawn cadence increased in both levels
+  - [x] The spread weapon fires a visibly wider fan of pellets
+  - [x] Firing, hits, and deaths have stronger feedback (screen-shake or equivalent, respecting the reduced-flash setting)
+  - [x] Both levels remain completable start-to-finish; the full-game e2e stays green
+  - [x] The soak test still shows bounded enemy/projectile counts and a flat heap
 - Non-goals / constraints:
   - Do not change level geometry, add levels, or add enemy archetypes.
   - Do not remove the existing telegraph wind-ups; readability must not regress.
   - Keep one-hit-per-life damage (already the current model).
-- Open question (answer before starting):
+- Open question (resolved by proceeding on the recorded default):
   - Should difficulty rise overall (fewer safety nets, faster enemies) or stay
-    approachable with only pacing and feedback improved? The criteria above
-    assume "pacing and feedback, difficulty roughly unchanged".
+    approachable with only pacing and feedback improved? Implemented as the
+    recorded default: pacing and feedback, difficulty roughly unchanged. Enemy
+    health/speed/fire rates and player damage were all left alone; the only
+    difficulty-adjacent change is one extra defender per wave.
+  - If a harder pass is wanted later, the levers are already isolated:
+    `src/balance/enemies.ts` (health, moveSpeed, fireInterval, telegraph
+    duration) and `src/balance/bosses.ts`. Raise them there rather than
+    reworking scenes.

@@ -88,6 +88,7 @@ import { enemyTexture } from '../art/enemyArt';
 import { bossTexture } from '../art/bossArt';
 import { propsForSolid, horizonForLevel, themeForLevel } from '../art/levelTheme';
 import { lifeHudLayout, MAX_LIFE_ICONS } from '../ui/hudLives';
+import { shakeFor, type ShakeEvent } from '../ui/screenShake';
 import { hookShutdown } from './sceneLifecycle';
 import {
   spawnParticles,
@@ -832,6 +833,7 @@ export class LevelScene extends Phaser.Scene {
         { kind: 'burst', x: this.boss.x + bossDef.width / 2, y: this.boss.y + bossDef.height / 2 }
       ]);
       this.sfx('explosion');
+      this.shake('bossDefeat');
     }
     if (result.action.kind === 'shockwave') {
       this.sfx('explosion');
@@ -1001,6 +1003,7 @@ export class LevelScene extends Phaser.Scene {
           this.score += c.scoreValue;
           this.spawnFx([{ kind: 'burst', x: c.x + c.width / 2, y: c.y + c.height / 2 }]);
           this.sfx('explosion');
+          this.shake('explosion');
         }
         consumed = true;
         break;
@@ -1110,6 +1113,7 @@ export class LevelScene extends Phaser.Scene {
         if (result.applied) {
           this.spawnFx([{ kind: 'spark', x: bullet.x, y: bullet.y }]);
           this.sfx('hit');
+          this.shake('bossHit');
         }
       } else {
         surviving.push(bullet);
@@ -1184,6 +1188,7 @@ export class LevelScene extends Phaser.Scene {
     this.deathTimer = DEATH_DURATION;
     this.spawnFx([{ kind: 'burst', x: this.player.x + PLAYER_WIDTH / 2, y: this.player.y - PLAYER_HEIGHT / 2 }]);
     this.sfx('explosion');
+    this.shake('playerDeath');
   }
 
   /** Applies the life loss at the end of the death pause, then respawns at the checkpoint or ends the run. */
@@ -1233,6 +1238,15 @@ export class LevelScene extends Phaser.Scene {
   private sfx(name: Parameters<AudioService['playSfx']>[0]): void {
     const audio = this.registry.get('audio') as AudioService | undefined;
     audio?.playSfx(name);
+  }
+
+  /** Camera kick for combat impact; suppressed by the reduced-flash setting. */
+  private shake(event: ShakeEvent): void {
+    const spec = shakeFor(event, this.settings.reducedFlash);
+    if (spec === null) {
+      return;
+    }
+    this.cameras.main.shake(spec.duration, spec.intensity);
   }
 
   private handlePauseInput(): void {

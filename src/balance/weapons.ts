@@ -40,8 +40,11 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
     cooldown: 0.4,
     damage: 0.5,
     projectileSpeed: 420,
+    // Arcade-feel pass: the fan was widened from +/-12 to +/-24 degrees so the
+    // spread reads as a shotgun at a glance. Pellet count and damage are
+    // unchanged, so this is a readability change, not a power change.
     projectileLifetime: 0.9,
-    spreadAngles: [-12, 0, 12]
+    spreadAngles: [-24, 0, 24]
   },
   rapid: {
     id: 'rapid',
