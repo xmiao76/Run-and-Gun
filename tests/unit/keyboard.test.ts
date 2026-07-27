@@ -66,6 +66,20 @@ describe('resolveKeyAction', () => {
     expect(resolveKeyAction('Unidentified', 'Shift')).toBeNull();
     expect(resolveKeyAction('Unidentified', 'Process')).toBeNull();
   });
+
+  // With an IME active the event can arrive with no usable code and
+  // key === 'Process'; keyCode is then the only surviving key identity.
+  it('falls back to the legacy keyCode when code and key are both unusable', () => {
+    expect(resolveKeyAction('', 'Process', 90)).toBe('jump'); // Z
+    expect(resolveKeyAction('', 'Process', 88)).toBe('fire'); // X
+    expect(resolveKeyAction('Unidentified', 'Process', 39)).toBe('right');
+    expect(resolveKeyAction('', 'Process', 38)).toBe('up');
+  });
+
+  it('ignores an unmapped keyCode', () => {
+    expect(resolveKeyAction('', 'Process', 81)).toBeNull(); // Q
+    expect(resolveKeyAction('', 'Process', 0)).toBeNull();
+  });
 });
 
 describe('buildInputFromRaw', () => {

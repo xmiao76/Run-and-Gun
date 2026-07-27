@@ -71,14 +71,49 @@ const CHAR_ACTIONS: Readonly<Record<string, KeyAction>> = {
   k: 'fire'
 };
 
-/** The logical action a physical key drives, or null when the game ignores it. */
-export function resolveKeyAction(code: string, key?: string): KeyAction | null {
+/**
+ * Last-resort map on the legacy `keyCode`. Needed when an IME is active: the
+ * event can arrive with an empty `code` and `key === 'Process'`, and `keyCode`
+ * is then the only surviving identity of the physical key.
+ */
+const KEYCODE_ACTIONS: Readonly<Record<number, KeyAction>> = {
+  37: 'left',
+  39: 'right',
+  38: 'up',
+  40: 'down',
+  65: 'left', // A
+  68: 'right', // D
+  87: 'up', // W
+  83: 'down', // S
+  90: 'jump', // Z
+  32: 'jump', // Space
+  88: 'fire', // X
+  74: 'fire', // J
+  75: 'fire', // K
+  13: 'fire' // Enter
+};
+
+/**
+ * The logical action a key drives, or null when the game ignores it.
+ *
+ * Resolution order is deliberate: the physical `code` is layout- and
+ * IME-independent so it wins; the produced character covers layouts that report
+ * an unexpected code; `keyCode` is the last resort for IME events that carry
+ * neither a usable code nor a real character.
+ */
+export function resolveKeyAction(code: string, key?: string, keyCode?: number): KeyAction | null {
   const byCode = KEY_ACTIONS[code];
   if (byCode !== undefined) {
     return byCode;
   }
   if (key !== undefined && key.length === 1) {
-    return CHAR_ACTIONS[key.toLowerCase()] ?? null;
+    const byChar = CHAR_ACTIONS[key.toLowerCase()];
+    if (byChar !== undefined) {
+      return byChar;
+    }
+  }
+  if (keyCode !== undefined && keyCode > 0) {
+    return KEYCODE_ACTIONS[keyCode] ?? null;
   }
   return null;
 }
@@ -115,11 +150,9 @@ export function createKeyboardInput(): KeyboardInput {
   const raw = createRawKeyState();
 
   const applyEvent = (event: KeyboardEvent, down: boolean): void => {
-    // While an IME is composing, the keystrokes belong to the IME, not the game.
-    if (event.isComposing) {
-      return;
-    }
-    const action = resolveKeyAction(event.code, event.key);
+    // Resolve by physical key even while an IME reports composition: this game
+    // has no text fields, so a composing IME must never make the controls dead.
+    const action = resolveKeyAction(event.code, event.key, event.keyCode);
     if (action === null) {
       return;
     }

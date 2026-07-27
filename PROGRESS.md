@@ -720,6 +720,67 @@ Include enough detail so the next iteration can continue without guessing.
 
 ---
 
+### 2026-07-26 18:40 - Z/X still dead in the user's Edge: IME hardening + input diagnostic
+
+- Status before: user reported that after reloading, BOTH Z and X do nothing in
+  their Edge (previously only X was mentioned).
+- Investigation:
+  - Confirmed the live bundle is the fixed one: it contains the focus-recovery
+    marker and both `KeyZ`/`KeyX` bindings, and its hash matches the local
+    `dist/`. So the deployed code is correct and the fault is specific to that
+    machine's Edge session - meaning further blind guessing was not going to
+    close this.
+  - Found a regression I had introduced in the previous iteration: the
+    `if (event.isComposing) return;` guard actively DROPS key events. If an IME
+    (e.g. Microsoft Pinyin) is active in Edge, letter keys arrive flagged as
+    composing while arrow keys do not - which matches "Z and X dead, arrows
+    fine" precisely. That guard made the reported symptom more likely, not less.
+- Work completed:
+  - Removed the composing early-return. Resolution is now by physical `code`
+    first, which is layout- and IME-independent; this game has no text fields,
+    so a composing IME must never make the controls dead.
+  - Added a legacy `keyCode` fallback as the last resort, for IME events that
+    arrive with an empty `code` and `key === 'Process'` - in that state
+    `keyCode` is the only surviving identity of the physical key.
+    Resolution order is now code -> character -> keyCode.
+  - Added `src/debug/keyOverlay.ts`, an opt-in diagnostic at `?keys=1`. It
+    lists every keydown/keyup with `code`, `key`, `keyCode`, `isComposing` and
+    the action the game resolved it to, plus scene/paused/autoPaused, focus
+    state, and explicit notices for `compositionstart` (IME) and window
+    blur/focus. Deliberately plain DOM rather than a Phaser scene so it still
+    reports when the game loop or renderer is itself the broken thing, and
+    registered in the capture phase so anything the game stops is still shown.
+- Files changed:
+  - src/input/KeyboardInput.ts (drop composing guard, keyCode fallback)
+  - src/debug/keyOverlay.ts (new), src/main.ts (install when `?keys=1`)
+  - tests/unit/keyboard.test.ts (+2 cases: keyCode fallback, unmapped keyCode)
+  - scripts/overlay-check.mjs (new)
+- Verification result:
+  - Local: lint, typecheck, 206 unit tests, build, 53 e2e (chromium + msedge).
+  - `overlay-check.mjs` against the live site classifies correctly:
+    `KeyZ -> jump`, `KeyX -> fire`, `ArrowRight -> right`, `KeyQ -> IGNORED`.
+  - `live-check.mjs` PASSED (headers + gameplay + boss).
+  - Note: the first live overlay check failed on visibility; re-checking showed
+    the element attaches in 1.28s and is visible with a real bounding box, so
+    that was Cloudflare edge propagation lag right after deploy, not a defect.
+- Status after: hardened and deployed; awaiting the diagnostic output from the
+  affected machine to identify the remaining cause.
+- Remaining work:
+  - The user should open `https://run-and-gun.pages.dev/?keys=1&debug=1` in the
+    affected Edge and report what the overlay shows when pressing Z and X. The
+    three outcomes are decisive: no rows at all = the browser/extension is
+    swallowing the key before the page; rows with `composing=true` or
+    `key=Process` = IME (now handled by the keyCode fallback); rows resolving to
+    jump/fire while nothing happens in game = the fault is in the game state,
+    not input.
+- Next recommended task:
+  - TASK-014 - Selectable starting lives (3 default, 30 practice option)
+- Blockers (if any):
+  - Root cause on the affected machine is still unconfirmed; the diagnostic
+    exists specifically to resolve that.
+
+---
+
 ### 2026-07-26 17:55 - CACHE POLICY: deploys apply without a hard reload
 
 - Status before: users were being told to hard-reload after a deploy.

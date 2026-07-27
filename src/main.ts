@@ -2,6 +2,7 @@ import { SCENE_KEYS } from './app/config';
 import { createGame } from './app/createGame';
 import { createAudioService } from './audio/AudioService';
 import { getDebugInput, installDebugBridge, isDebugEnabled, registerCommand } from './debug/debugBridge';
+import { installKeyOverlay, isKeyOverlayEnabled } from './debug/keyOverlay';
 import { loadSettings } from './persistence/StorageService';
 import type Phaser from 'phaser';
 
@@ -13,6 +14,12 @@ declare global {
 }
 
 installDebugBridge();
+
+// Opt-in input diagnostic (`?keys=1`); installed before the game so it also
+// reports when the game itself fails to start.
+if (isKeyOverlayEnabled()) {
+  installKeyOverlay();
+}
 
 const game = createGame(document.getElementById('game') ?? undefined);
 
