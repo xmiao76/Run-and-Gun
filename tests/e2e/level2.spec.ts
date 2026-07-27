@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test';
 
+import { DEFAULT_SETTINGS } from '../../src/persistence/schema';
+
 interface LevelRuntime {
   scene?: string;
   level?: string;
@@ -38,14 +40,17 @@ test.describe('M4 checkpoints and game-over flow', () => {
     await page.waitForFunction(() => window.__GAME_DEBUG__?.getState()?.runtime?.level === 'jungle-outpost');
 
     // Drop the player into the first pit: below the death-fall threshold.
+    // Asserted as one life lost, not an absolute count, so the configured
+    // default is irrelevant to this test.
+    const livesAtStart = (await rt(page)).lives as number;
     await page.evaluate(() => window.__GAME_DEBUG__?.command('teleportPlayer', { x: 780, y: 800 }));
-    await page.waitForFunction(() => {
+    await page.waitForFunction((n) => {
       const r = window.__GAME_DEBUG__?.getState()?.runtime;
-      return r !== null && r !== undefined && (r.lives as number) === 2;
-    });
+      return r !== null && r !== undefined && (r.lives as number) === n - 1;
+    }, livesAtStart);
 
     const after = await rt(page);
-    expect(after.lives).toBe(2);
+    expect(after.lives).toBe(livesAtStart - 1);
     expect(after.invuln).toBe(true);
     expect(after.checkpoint).toBe('start');
     expect(after.playerX).toBe(60);
@@ -68,10 +73,10 @@ test.describe('M4 checkpoints and game-over flow', () => {
     await page.evaluate(() => window.__GAME_DEBUG__?.command('triggerGameOver'));
     await page.waitForFunction(() => window.__GAME_DEBUG__?.getState()?.scene === 'gameOver');
     await page.keyboard.press('r');
-    await page.waitForFunction(() => {
+    await page.waitForFunction((n) => {
       const r = window.__GAME_DEBUG__?.getState()?.runtime;
-      return r?.level === 'jungle-outpost' && (r.lives as number) === 3;
-    });
+      return r?.level === 'jungle-outpost' && (r.lives as number) === n;
+    }, DEFAULT_SETTINGS.startingLives);
     expect((await rt(page)).gameOver).toBe(false);
 
     // Force it again, then return to the title with T.
@@ -105,7 +110,7 @@ test.describe('M4 Level 2 and final flow', () => {
 
     const l2 = await rt(page);
     expect(l2.level).toBe('fortress-interior');
-    expect(l2.lives).toBe(3);
+    expect(l2.lives).toBe(DEFAULT_SETTINGS.startingLives);
 
     // Activate the Reactor Warden, defeat it, and complete the level.
     await page.evaluate(() => window.__GAME_DEBUG__?.command('teleportPlayer', { x: 2600 }));

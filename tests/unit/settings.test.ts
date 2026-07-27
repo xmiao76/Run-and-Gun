@@ -54,10 +54,10 @@ describe('starting lives setting', () => {
     expect(STARTING_LIVES_OPTIONS).toContain(30);
   });
 
-  it('defaults to 3 for a fresh profile', () => {
-    expect(DEFAULT_SETTINGS.startingLives).toBe(3);
-    expect(parseSettings({}).startingLives).toBe(3);
-    expect(parseSettings(null).startingLives).toBe(3);
+  it('defaults to 30 for a fresh profile', () => {
+    expect(DEFAULT_SETTINGS.startingLives).toBe(30);
+    expect(parseSettings({}).startingLives).toBe(30);
+    expect(parseSettings(null).startingLives).toBe(30);
   });
 
   it('preserves every offered value', () => {
@@ -66,14 +66,19 @@ describe('starting lives setting', () => {
     }
   });
 
-  it('falls back to 3 for corrupt or out-of-range stored values', () => {
-    expect(parseSettings({ startingLives: 0 }).startingLives).toBe(3);
-    expect(parseSettings({ startingLives: -5 }).startingLives).toBe(3);
-    expect(parseSettings({ startingLives: 999 }).startingLives).toBe(3);
-    expect(parseSettings({ startingLives: 7 }).startingLives).toBe(3); // not an offered value
-    expect(parseSettings({ startingLives: 'lots' }).startingLives).toBe(3);
-    expect(parseSettings({ startingLives: NaN }).startingLives).toBe(3);
-    expect(parseSettings({ startingLives: 3.5 }).startingLives).toBe(3);
+  it('falls back to the default for corrupt or out-of-range stored values', () => {
+    const fallback = DEFAULT_SETTINGS.startingLives;
+    expect(parseSettings({ startingLives: 0 }).startingLives).toBe(fallback);
+    expect(parseSettings({ startingLives: -5 }).startingLives).toBe(fallback);
+    expect(parseSettings({ startingLives: 999 }).startingLives).toBe(fallback);
+    expect(parseSettings({ startingLives: 7 }).startingLives).toBe(fallback); // not an offered value
+    expect(parseSettings({ startingLives: 'lots' }).startingLives).toBe(fallback);
+    expect(parseSettings({ startingLives: NaN }).startingLives).toBe(fallback);
+    expect(parseSettings({ startingLives: 3.5 }).startingLives).toBe(fallback);
+  });
+
+  it('still accepts an explicitly chosen 3-life arcade run', () => {
+    expect(parseSettings({ startingLives: 3 }).startingLives).toBe(3);
   });
 
   it('cycles through the offered values and wraps around', () => {

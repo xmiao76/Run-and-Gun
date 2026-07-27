@@ -34,9 +34,10 @@ downward; on the ground it is crouch-fire. F10 toggles fullscreen. High score
 and settings (volume, mute, reduced flash, starting lives) persist in local
 storage.
 
-Press `S` on the title screen for settings. Starting lives can be set to 3
-(the arcade default), 5, 10, or 30 with the `L` key — pick 30 to practise or
-explore without a game over.
+Press `S` on the title screen for settings. Starting lives default to **30**, so
+you can see both levels without a quick game over; cycle to 10, 5, or 3 with the
+`L` key, where 3 is the authentic arcade run. At high counts the HUD shows one
+icon plus a multiplier (`x30`) rather than a row of thirty icons.
 
 ## Troubleshooting: some keys do nothing
 

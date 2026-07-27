@@ -12,10 +12,10 @@ export const SETTINGS_VERSION = 1;
 export type ControlScheme = 'keyboard' | 'gamepad' | 'touch';
 
 /**
- * Selectable starting life counts. 3 is the arcade default; the larger values
- * exist so a player can practise or sightsee without a game over. Stored values
- * must be one of these, so a corrupt or unsupported number cannot smuggle in an
- * absurd life count.
+ * Selectable starting life counts. 30 is the default so a new player can see
+ * both levels without a quick game over; 3 is the authentic arcade run. Stored
+ * values must be one of these, so a corrupt or unsupported number cannot
+ * smuggle in an absurd life count.
  */
 export const STARTING_LIVES_OPTIONS: readonly number[] = [3, 5, 10, 30];
 
@@ -40,7 +40,7 @@ export const DEFAULT_SETTINGS: Settings = {
   reducedFlash: false,
   controls: 'keyboard',
   bestScore: 0,
-  startingLives: 3
+  startingLives: 30
 };
 
 /** The next offered life count, wrapping around; unknown values restart the cycle. */

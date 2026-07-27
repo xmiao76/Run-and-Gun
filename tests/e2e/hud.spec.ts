@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test';
 
+import { seedStartingLives, waitForLives } from './helpers/lives';
+
 async function hudInfo(page: import('@playwright/test').Page): Promise<{
   lifeIcons: number;
   weaponIcon: string;
@@ -51,6 +53,10 @@ test.describe('HUD presentation', () => {
 
     await page.goto('/?debug=1&renderer=canvas');
     await expect(page.locator('canvas')).toBeVisible({ timeout: 15_000 });
+    // Pin 3 lives so this test exercises the one-icon-per-life row; the
+    // collapsed "icon xN" form at high counts is covered by startingLives.spec.
+    await seedStartingLives(page, 3);
+    await expect(page.locator('canvas')).toBeVisible({ timeout: 15_000 });
     await page.evaluate(() => window.__GAME_DEBUG__?.command('startLevel1'));
     await page.waitForFunction(() => window.__GAME_DEBUG__?.getState()?.runtime?.level === 'jungle-outpost');
 
@@ -69,7 +75,7 @@ test.describe('HUD presentation', () => {
 
     // Pit death: one life icon disappears after respawn.
     await page.evaluate(() => window.__GAME_DEBUG__?.command('teleportPlayer', { x: 780, y: 800 }));
-    await page.waitForFunction(() => (window.__GAME_DEBUG__?.getState()?.runtime?.lives ?? 3) === 2);
+    await waitForLives(page, 2);
     hud = await hudInfo(page);
     expect(hud.lifeIcons).toBe(2);
 

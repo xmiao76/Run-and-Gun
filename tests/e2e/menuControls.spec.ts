@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test';
 
+import { DEFAULT_SETTINGS } from '../../src/persistence/schema';
+
 /**
  * Menu navigation across devices (TASK-010): menus must be usable with
  * gamepad and touch, not only the keyboard.
@@ -65,10 +67,10 @@ test.describe('menu navigation by gamepad and touch', () => {
     await page.evaluate(() => window.__GAME_DEBUG__?.command('triggerGameOver'));
     await page.waitForFunction(() => window.__GAME_DEBUG__?.getState()?.scene === 'gameOver');
     await page.mouse.click(480, 270);
-    await page.waitForFunction(() => {
+    await page.waitForFunction((n) => {
       const r = window.__GAME_DEBUG__?.getState()?.runtime;
-      return r?.level === 'jungle-outpost' && (r.lives as number) === 3;
-    });
+      return r?.level === 'jungle-outpost' && (r.lives as number) === n;
+    }, DEFAULT_SETTINGS.startingLives);
 
     expect(pageErrors).toEqual([]);
   });

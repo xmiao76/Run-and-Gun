@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test';
 
+import { DEFAULT_SETTINGS } from '../../src/persistence/schema';
+
 type Page = import('@playwright/test').Page;
 
 function runtime(page: Page): Promise<Record<string, unknown>> {
@@ -48,7 +50,7 @@ function lifeHud(page: Page): Promise<{ icons: number; label: string }> {
  * persist, have a new run honour it, and keep the HUD readable at 30.
  */
 test.describe('starting lives setting', () => {
-  test('defaults to 3 lives and shows one icon per life', async ({ page }) => {
+  test('defaults to 30 lives, collapsing the HUD to an icon plus a count', async ({ page }) => {
     const pageErrors: string[] = [];
     page.on('pageerror', (e) => pageErrors.push(String(e)));
 
@@ -57,45 +59,13 @@ test.describe('starting lives setting', () => {
     await page.evaluate(() => window.__GAME_DEBUG__?.command('startLevel1'));
     await page.waitForFunction(() => window.__GAME_DEBUG__?.getState()?.runtime?.level === 'jungle-outpost');
 
-    expect((await runtime(page)).lives).toBe(3);
-    expect(await lifeHud(page)).toEqual({ icons: 3, label: '' });
-
-    expect(pageErrors).toEqual([]);
-  });
-
-  test('selecting 30 lives persists across a reload and a new run starts with 30', async ({ page }) => {
-    const pageErrors: string[] = [];
-    page.on('pageerror', (e) => pageErrors.push(String(e)));
-
-    await page.goto('/?debug=1&renderer=canvas');
-    await expect(page.locator('canvas')).toBeVisible({ timeout: 15_000 });
-
-    // Title -> settings, then cycle to 30 with L.
-    await page.waitForFunction(() => window.__GAME_DEBUG__?.getState()?.scene === 'title');
-    await page.keyboard.press('s');
-    await page.waitForFunction(() => window.__GAME_DEBUG__?.getState()?.scene === 'settings');
-    expect((await runtime(page)).startingLives).toBe(3);
-    await selectStartingLives(page, 30);
-
-    // Persisted: survives a full reload.
-    await page.reload();
-    await expect(page.locator('canvas')).toBeVisible({ timeout: 15_000 });
-    await page.waitForFunction(() => window.__GAME_DEBUG__?.getState()?.scene === 'title');
-    await page.keyboard.press('s');
-    await page.waitForFunction(() => window.__GAME_DEBUG__?.getState()?.scene === 'settings');
-    expect((await runtime(page)).startingLives).toBe(30);
-    await page.keyboard.press('Escape');
-    await page.waitForFunction(() => window.__GAME_DEBUG__?.getState()?.scene === 'title');
-
-    // A new run honours it, and the HUD collapses to an icon + count.
-    await page.keyboard.press('Enter');
-    await page.waitForFunction(() => window.__GAME_DEBUG__?.getState()?.runtime?.level === 'jungle-outpost');
+    expect(DEFAULT_SETTINGS.startingLives).toBe(30);
     expect((await runtime(page)).lives).toBe(30);
     const hud = await lifeHud(page);
     expect(hud.label).toBe('x30');
     expect(hud.icons).toBe(1); // not 30 icons across the screen
 
-    // Losing a life decrements from the configured count, not from 3.
+    // A death decrements from 30, not from the old default of 3.
     await page.evaluate(() => window.__GAME_DEBUG__?.command('teleportPlayer', { x: 780, y: 800 }));
     await page.waitForFunction(() => window.__GAME_DEBUG__?.getState()?.runtime?.lives === 29);
     expect((await lifeHud(page)).label).toBe('x29');
@@ -103,7 +73,45 @@ test.describe('starting lives setting', () => {
     expect(pageErrors).toEqual([]);
   });
 
-  test('a corrupt stored value falls back to 3 lives', async ({ page }) => {
+  test('selecting the 3-life arcade run persists across a reload and is honoured', async ({ page }) => {
+    const pageErrors: string[] = [];
+    page.on('pageerror', (e) => pageErrors.push(String(e)));
+
+    await page.goto('/?debug=1&renderer=canvas');
+    await expect(page.locator('canvas')).toBeVisible({ timeout: 15_000 });
+
+    // Title -> settings, then cycle away from the 30 default down to 3 with L.
+    await page.waitForFunction(() => window.__GAME_DEBUG__?.getState()?.scene === 'title');
+    await page.keyboard.press('s');
+    await page.waitForFunction(() => window.__GAME_DEBUG__?.getState()?.scene === 'settings');
+    expect((await runtime(page)).startingLives).toBe(30);
+    await selectStartingLives(page, 3);
+
+    // Persisted: survives a full reload.
+    await page.reload();
+    await expect(page.locator('canvas')).toBeVisible({ timeout: 15_000 });
+    await page.waitForFunction(() => window.__GAME_DEBUG__?.getState()?.scene === 'title');
+    await page.keyboard.press('s');
+    await page.waitForFunction(() => window.__GAME_DEBUG__?.getState()?.scene === 'settings');
+    expect((await runtime(page)).startingLives).toBe(3);
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => window.__GAME_DEBUG__?.getState()?.scene === 'title');
+
+    // A new run honours it, with one icon per life and no multiplier label.
+    await page.keyboard.press('Enter');
+    await page.waitForFunction(() => window.__GAME_DEBUG__?.getState()?.runtime?.level === 'jungle-outpost');
+    expect((await runtime(page)).lives).toBe(3);
+    expect(await lifeHud(page)).toEqual({ icons: 3, label: '' });
+
+    // And a death decrements from the selected 3.
+    await page.evaluate(() => window.__GAME_DEBUG__?.command('teleportPlayer', { x: 780, y: 800 }));
+    await page.waitForFunction(() => window.__GAME_DEBUG__?.getState()?.runtime?.lives === 2);
+    expect(await lifeHud(page)).toEqual({ icons: 2, label: '' });
+
+    expect(pageErrors).toEqual([]);
+  });
+
+  test('a corrupt stored value falls back to the default', async ({ page }) => {
     const pageErrors: string[] = [];
     page.on('pageerror', (e) => pageErrors.push(String(e)));
 
@@ -120,7 +128,7 @@ test.describe('starting lives setting', () => {
     await page.evaluate(() => window.__GAME_DEBUG__?.command('startLevel1'));
     await page.waitForFunction(() => window.__GAME_DEBUG__?.getState()?.runtime?.level === 'jungle-outpost');
 
-    expect((await runtime(page)).lives).toBe(3);
+    expect((await runtime(page)).lives).toBe(DEFAULT_SETTINGS.startingLives);
 
     expect(pageErrors).toEqual([]);
   });

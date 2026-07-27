@@ -81,11 +81,13 @@ test.describe('classic-feel polish pass', () => {
     });
     expect((await rt(page)).particleCount ?? 0).toBe(0);
 
-    // Death burst + respawn beacon on a pit death.
+    // Death burst + respawn beacon on a pit death. Asserted as one life lost so
+    // the configured starting-lives default does not matter here.
+    const livesAtStart = (await rt(page)).lives as number;
     await page.evaluate(() => window.__GAME_DEBUG__?.command('teleportPlayer', { x: 780, y: 800 }));
-    await page.waitForFunction(() => (window.__GAME_DEBUG__?.getState()?.runtime?.lives as number) === 2);
+    await page.waitForFunction((n) => (window.__GAME_DEBUG__?.getState()?.runtime?.lives as number) === n - 1, livesAtStart);
     const after = await rt(page);
-    expect(after.lives).toBe(2);
+    expect(after.lives).toBe(livesAtStart - 1);
     expect(after.particleCount ?? 0).toBeGreaterThan(0);
 
     expect(pageErrors).toEqual([]);
@@ -112,8 +114,9 @@ test.describe('classic-feel polish pass', () => {
     await page.evaluate(() => window.__GAME_DEBUG__?.command('teleportPlayer', { x: 2700 }));
     const resolved = await advanceUntil(page, (r) => r.bossPattern === 'stomp' && r.bossState === 'attack', 60);
     expect(resolved.bossPattern).toBe('stomp');
-    const after = await advanceUntil(page, (r) => (r.lives ?? 3) < 3, 10);
-    expect(after.lives ?? 3).toBeLessThan(3);
+    const livesBeforeStomp = (await rt(page)).lives ?? 0;
+    const after = await advanceUntil(page, (r) => (r.lives ?? 0) < livesBeforeStomp, 10);
+    expect(after.lives ?? 0).toBeLessThan(livesBeforeStomp);
 
     expect(pageErrors).toEqual([]);
   });

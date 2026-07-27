@@ -71,15 +71,17 @@ test.describe('player animation states', () => {
     await page.evaluate(() => window.__GAME_DEBUG__?.input('releaseAimUp'));
 
     // Pit death: death pose during the death pause, then respawn with one less life.
+    const livesAtStart = (await runtime(page))?.lives ?? 0;
     await page.evaluate(() => window.__GAME_DEBUG__?.command('teleportPlayer', { x: 780, y: 800 }));
     await page.waitForFunction(() => {
       const r = window.__GAME_DEBUG__?.getState()?.runtime;
       return r?.dying === true && r?.playerPose === 'death';
     });
-    await page.waitForFunction(() => {
+    // livesAtStart must be passed in: waitForFunction runs in the browser.
+    await page.waitForFunction((n) => {
       const r = window.__GAME_DEBUG__?.getState()?.runtime;
-      return r?.lives === 2 && r?.dying === false;
-    });
+      return r?.lives === n - 1 && r?.dying === false;
+    }, livesAtStart);
     const settled = await runtime(page);
     expect(settled?.playerPose).toBe('idle');
 

@@ -872,6 +872,70 @@ Include enough detail so the next iteration can continue without guessing.
 
 ---
 
+### 2026-07-27 12:25 - TASK-014 revised: 30 lives is now the default
+
+- Status before: DONE with 3 as the default.
+- Goal of this iteration:
+  Change the default starting lives from 3 to 30 on request, and update the task
+  to match.
+- Work completed:
+  - TASK-014 retitled and its requirement/criteria rewritten: 30 is the default,
+    3 remains selectable, corrupt values fall back to the default, and a new
+    constraint was added - tests must not hardcode the default.
+  - `DEFAULT_SETTINGS.startingLives` 3 -> 30. The option list stays [3, 5, 10, 30]
+    so `L` cycles 30 -> 3 -> 5 -> 10, and validation still admits only offered
+    values, so the fallback for corrupt data is now 30.
+  - Rather than swap one magic number for another, the six e2e specs that
+    depended on the old default were made independent of it, which is the reason
+    this change touched so many files:
+    - `level1`, `level2`, `menuControls` now assert against
+      `DEFAULT_SETTINGS.startingLives` imported from src.
+    - `level2`, `polish`, `playerAnim` now capture the run's life count first and
+      assert the *change* (one life lost), which is what those tests actually
+      care about.
+    - `hud.spec` pins 3 lives via a new `tests/e2e/helpers/lives.ts` helper, so it
+      keeps exercising the one-icon-per-life row; the collapsed high-count form
+      stays covered by `startingLives.spec`.
+    - `startingLives.spec` was inverted: the default case now asserts 30 with the
+      collapsed `x30` HUD, and a second test selects the 3-life arcade run and
+      checks it persists and yields a 3-icon row.
+  - Caught while editing: a `livesAtStart` value was referenced inside a
+    `page.waitForFunction` callback, which runs in the browser and cannot see
+    Node variables. Passed it as an argument instead; it would have thrown a
+    ReferenceError at runtime.
+  - The helper file lives at `tests/e2e/helpers/lives.ts`; Playwright only
+    collects `*.spec.ts`, so it is not picked up as a test.
+- Files changed:
+  - TASKS.md, README.md, src/persistence/schema.ts
+  - tests/unit/settings.test.ts
+  - tests/e2e/helpers/lives.ts (new), tests/e2e/startingLives.spec.ts,
+    hud.spec.ts, level1.spec.ts, level2.spec.ts, menuControls.spec.ts,
+    playerAnim.spec.ts, polish.spec.ts
+- Commands run:
+  - `npx vitest run tests/unit/settings.test.ts` (15 passed)
+  - `npm run lint`, `npm run typecheck` (clean)
+  - `npm run test:unit` (221 passed, 41 files)
+  - `npm run build` (pass)
+  - `npx playwright test` (63 passed, chromium + msedge)
+  - `node scripts/lives-check.mjs`
+- Verification result:
+  - All checks pass: lint, typecheck, 221 unit tests, build, 63 e2e tests.
+  - Live probe confirms a fresh profile starts at 30 and every option still
+    applies (5 -> 5, 10 -> 10, 30 -> 30); `lives-hud-3.png` shows the fresh
+    profile rendering as one icon plus `x30`.
+  - Sandbox/prototype room is unaffected: it uses the `MAX_LIVES` constant (3),
+    not the setting, and its spec still passes unchanged.
+- Status after: DONE
+- Remaining work:
+  - Not deployed this iteration (loop rules forbid it); run `npm run deploy` to
+    publish this together with TASK-015.
+- Next recommended task:
+  - none - the list is complete.
+- Blockers (if any):
+  - none
+
+---
+
 ### 2026-07-26 19:20 - ROOT CAUSE CONFIRMED: extension stealing letter keys
 
 - Status before: Z/X/S dead in the user's Edge; cause unconfirmed.

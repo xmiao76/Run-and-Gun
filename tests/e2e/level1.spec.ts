@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test';
 
+import { DEFAULT_SETTINGS } from '../../src/persistence/schema';
+
 interface LevelRuntime {
   scene?: string;
   level?: string;
@@ -30,7 +32,9 @@ test.describe('M3 Level 1 flow', () => {
 
     const loaded = await rt(page);
     expect(loaded.level).toBe('jungle-outpost');
-    expect(loaded.lives).toBe(3);
+    // Derived from the configured default rather than hardcoded, since that
+    // default is a product decision that has changed before.
+    expect(loaded.lives).toBe(DEFAULT_SETTINGS.startingLives);
     expect(loaded.paused).toBe(false);
 
     // Pause freezes the simulation; resume clears it.
