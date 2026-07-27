@@ -31,7 +31,12 @@ the arrow cluster is the D-pad (right hand) and `Z`/`X` are the face buttons
 Aiming up is a dedicated key, so you can fire diagonally: hold Arrow Up plus a
 direction and fire for a 45-degree shot. Holding Down while airborne fires
 downward; on the ground it is crouch-fire. F10 toggles fullscreen. High score
-and settings (volume, mute, reduced flash) persist in local storage.
+and settings (volume, mute, reduced flash, starting lives) persist in local
+storage.
+
+Press `S` on the title screen for settings. Starting lives can be set to 3
+(the arcade default), 5, 10, or 30 with the `L` key — pick 30 to practise or
+explore without a game over.
 
 ## Troubleshooting: some keys do nothing
 

@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_SETTINGS, parseSettings } from '../../src/persistence/schema';
+import {
+  DEFAULT_SETTINGS,
+  STARTING_LIVES_OPTIONS,
+  nextStartingLives,
+  parseSettings
+} from '../../src/persistence/schema';
 import { loadSettings, saveSettings, type StorageLike } from '../../src/persistence/StorageService';
 
 function memStorage(initial: Record<string, string> = {}): StorageLike {
@@ -40,6 +45,45 @@ describe('settings validation', () => {
     expect(parseSettings({ bestScore: -50 }).bestScore).toBe(0);
     expect(parseSettings({ bestScore: 'lots' }).bestScore).toBe(0);
     expect(parseSettings({}).bestScore).toBe(0);
+  });
+});
+
+describe('starting lives setting', () => {
+  it('offers both the default 3 and the 30-life practice option', () => {
+    expect(STARTING_LIVES_OPTIONS).toContain(3);
+    expect(STARTING_LIVES_OPTIONS).toContain(30);
+  });
+
+  it('defaults to 3 for a fresh profile', () => {
+    expect(DEFAULT_SETTINGS.startingLives).toBe(3);
+    expect(parseSettings({}).startingLives).toBe(3);
+    expect(parseSettings(null).startingLives).toBe(3);
+  });
+
+  it('preserves every offered value', () => {
+    for (const lives of STARTING_LIVES_OPTIONS) {
+      expect(parseSettings({ startingLives: lives }).startingLives).toBe(lives);
+    }
+  });
+
+  it('falls back to 3 for corrupt or out-of-range stored values', () => {
+    expect(parseSettings({ startingLives: 0 }).startingLives).toBe(3);
+    expect(parseSettings({ startingLives: -5 }).startingLives).toBe(3);
+    expect(parseSettings({ startingLives: 999 }).startingLives).toBe(3);
+    expect(parseSettings({ startingLives: 7 }).startingLives).toBe(3); // not an offered value
+    expect(parseSettings({ startingLives: 'lots' }).startingLives).toBe(3);
+    expect(parseSettings({ startingLives: NaN }).startingLives).toBe(3);
+    expect(parseSettings({ startingLives: 3.5 }).startingLives).toBe(3);
+  });
+
+  it('cycles through the offered values and wraps around', () => {
+    expect(nextStartingLives(3)).toBe(STARTING_LIVES_OPTIONS[1]);
+    const last = STARTING_LIVES_OPTIONS[STARTING_LIVES_OPTIONS.length - 1];
+    expect(nextStartingLives(last)).toBe(STARTING_LIVES_OPTIONS[0]);
+  });
+
+  it('cycles from an unexpected current value back into the offered set', () => {
+    expect(STARTING_LIVES_OPTIONS).toContain(nextStartingLives(999));
   });
 });
 

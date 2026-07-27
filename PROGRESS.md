@@ -720,6 +720,76 @@ Include enough detail so the next iteration can continue without guessing.
 
 ---
 
+### 2026-07-27 10:30 - TASK-014
+
+- Status before: TODO
+- Goal of this iteration:
+  Let the player choose the starting life count, defaulting to 3 with a 30-life
+  practice option, persisted and honoured by a new run.
+- Work completed:
+  - Schema: added `startingLives` with `STARTING_LIVES_OPTIONS = [3, 5, 10, 30]`
+    and a pure `nextStartingLives` cycler. Validation accepts only offered
+    values, so anything corrupt, fractional, negative, or absurd (999) falls
+    back to 3 - a membership check rather than a range check, which also blocks
+    plausible-looking but unsupported numbers.
+  - Settings screen: a fifth row, `L` to cycle, persisted through the existing
+    validated storage service on every change; row spacing and the key legend
+    were re-laid out to fit.
+  - LevelScene seeds the run and the initial checkpoint snapshot from
+    `settings.startingLives` instead of the `MAX_LIVES` constant.
+  - Ordering bug found and fixed while wiring it: `create()` called `resetRun()`
+    at line 295 but only loaded settings at line 378, so a run would always have
+    started on the default 3 lives regardless of the setting. Settings are now
+    read before `resetRun()`.
+  - HUD: extracted a pure `lifeHudLayout` (`src/ui/hudLives.ts`). Up to
+    MAX_LIFE_ICONS (5) it draws one icon per life; beyond that it collapses to a
+    single icon plus an `xN` label, satisfying the task's "count rather than 30
+    icons" constraint.
+  - Second layout bug caught by screenshot review, not by tests: at the 5-life
+    option the icon row (x=14..90) would have overlapped the weapon icon at
+    x=72. The life row now reserves fixed space for its worst case and the
+    weapon readout is positioned after it.
+- Files changed:
+  - src/persistence/schema.ts, src/ui/hudLives.ts (new)
+  - src/scenes/SettingsScene.ts, src/scenes/LevelScene.ts
+  - tests/unit/settings.test.ts (+6 cases), tests/unit/hudLives.test.ts (new)
+  - tests/e2e/startingLives.spec.ts (new), scripts/lives-check.mjs (new)
+  - README.md (settings/lives note)
+- Assets added or updated:
+  - none (reuses the existing `art/ui-life` helmet icon).
+- Commands run:
+  - `npx vitest run tests/unit/settings.test.ts` (RED 6 failures -> GREEN 14 passed)
+  - `npx vitest run tests/unit/hudLives.test.ts` (4 passed)
+  - `npm run lint`, `npm run typecheck` (clean)
+  - `npm run test:unit` (216 passed, 40 files)
+  - `npm run build` (pass)
+  - `npx playwright test` (60 passed, chromium + msedge)
+  - `node scripts/lives-check.mjs` (settings + HUD captured at 3/5/10/30)
+- Verification result:
+  - All checks pass: lint, typecheck, 216 unit tests, build, 60 e2e tests.
+  - e2e `startingLives.spec.ts` covers the default (3 lives, 3 icons), selecting
+    30 and surviving a full page reload, a new run starting at 30 with the HUD
+    showing `x30` and a single icon, a death decrementing to 29 (proving the run
+    honours the configured count rather than 3), and a corrupt stored value
+    (`startingLives: 999`) falling back to 3.
+  - Screenshots confirm every offered option renders cleanly: 3 and 5 as icon
+    rows, 10 and 30 collapsed to `x10`/`x30`, with no HUD overlap at 5.
+- Visual quality notes:
+  - The life row stays compact at every option and the weapon readout no longer
+    shares its space.
+- Status after: DONE
+- Remaining work:
+  - none for this task. Not deployed this iteration (loop rules forbid it); run
+    `npm run deploy` to publish.
+- Next recommended task:
+  - TASK-015 - Classic arcade feel pass
+- Blockers (if any):
+  - TASK-015 still carries its open question: should difficulty rise overall, or
+    stay approachable with only pacing and feedback improved? It needs answering
+    before that task starts.
+
+---
+
 ### 2026-07-26 19:20 - ROOT CAUSE CONFIRMED: extension stealing letter keys
 
 - Status before: Z/X/S dead in the user's Edge; cause unconfirmed.

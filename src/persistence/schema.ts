@@ -11,6 +11,14 @@ export const SETTINGS_VERSION = 1;
 
 export type ControlScheme = 'keyboard' | 'gamepad' | 'touch';
 
+/**
+ * Selectable starting life counts. 3 is the arcade default; the larger values
+ * exist so a player can practise or sightsee without a game over. Stored values
+ * must be one of these, so a corrupt or unsupported number cannot smuggle in an
+ * absurd life count.
+ */
+export const STARTING_LIVES_OPTIONS: readonly number[] = [3, 5, 10, 30];
+
 export interface Settings {
   version: number;
   musicVolume: number;
@@ -20,6 +28,8 @@ export interface Settings {
   controls: ControlScheme;
   /** Highest score achieved across runs (persisted). */
   bestScore: number;
+  /** Lives a new run begins with; one of STARTING_LIVES_OPTIONS. */
+  startingLives: number;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -29,8 +39,18 @@ export const DEFAULT_SETTINGS: Settings = {
   mute: false,
   reducedFlash: false,
   controls: 'keyboard',
-  bestScore: 0
+  bestScore: 0,
+  startingLives: 3
 };
+
+/** The next offered life count, wrapping around; unknown values restart the cycle. */
+export function nextStartingLives(current: number): number {
+  const index = STARTING_LIVES_OPTIONS.indexOf(current);
+  if (index === -1) {
+    return STARTING_LIVES_OPTIONS[0];
+  }
+  return STARTING_LIVES_OPTIONS[(index + 1) % STARTING_LIVES_OPTIONS.length];
+}
 
 function volume(value: unknown, fallback: number): number {
   const n = typeof value === 'number' && Number.isFinite(value) ? value : NaN;
@@ -54,6 +74,9 @@ export function parseSettings(raw: unknown): Settings {
     mute: typeof r.mute === 'boolean' ? r.mute : DEFAULT_SETTINGS.mute,
     reducedFlash: typeof r.reducedFlash === 'boolean' ? r.reducedFlash : DEFAULT_SETTINGS.reducedFlash,
     controls: isControlScheme(r.controls) ? r.controls : DEFAULT_SETTINGS.controls,
-    bestScore: typeof r.bestScore === 'number' && Number.isFinite(r.bestScore) && r.bestScore >= 0 ? Math.floor(r.bestScore) : 0
+    bestScore: typeof r.bestScore === 'number' && Number.isFinite(r.bestScore) && r.bestScore >= 0 ? Math.floor(r.bestScore) : 0,
+    startingLives: STARTING_LIVES_OPTIONS.includes(r.startingLives as number)
+      ? (r.startingLives as number)
+      : DEFAULT_SETTINGS.startingLives
   };
 }

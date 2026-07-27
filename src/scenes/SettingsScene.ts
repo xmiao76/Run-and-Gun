@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { LOGICAL_WIDTH, SCENE_KEYS } from '../app/config';
 import { reportRuntime, reportScene } from '../debug/debugBridge';
 import { type AudioService } from '../audio/AudioService';
-import { DEFAULT_SETTINGS, type Settings } from '../persistence/schema';
+import { DEFAULT_SETTINGS, nextStartingLives, type Settings } from '../persistence/schema';
 import { saveSettings } from '../persistence/StorageService';
 import { hookShutdown } from './sceneLifecycle';
 
@@ -29,11 +29,18 @@ export class SettingsScene extends Phaser.Scene {
     this.add
       .text(cx, 110, 'SETTINGS', { fontFamily: 'monospace', fontSize: '38px', color: '#e8f1ff', fontStyle: 'bold' })
       .setOrigin(0.5);
-    for (const y of [190, 232, 274, 316]) {
+    for (const y of [180, 218, 256, 294, 332]) {
       this.rows.push(this.add.text(cx, y, '', { fontFamily: 'monospace', fontSize: '18px', color: '#cdd9f0' }).setOrigin(0.5));
     }
     this.add
-      .text(cx, 390, 'LEFT/RIGHT music    UP/DOWN sfx    M mute    F reduced flash    ESC back', {
+      .text(cx, 392, 'LEFT/RIGHT music    UP/DOWN sfx    M mute    F reduced flash', {
+        fontFamily: 'monospace',
+        fontSize: '14px',
+        color: '#5c6c8c'
+      })
+      .setOrigin(0.5);
+    this.add
+      .text(cx, 414, 'L starting lives    ESC back', {
         fontFamily: 'monospace',
         fontSize: '14px',
         color: '#5c6c8c'
@@ -80,6 +87,8 @@ export class SettingsScene extends Phaser.Scene {
         return { ...s, mute: !s.mute };
       case 'KeyF':
         return { ...s, reducedFlash: !s.reducedFlash };
+      case 'KeyL':
+        return { ...s, startingLives: nextStartingLives(s.startingLives) };
       default:
         return null;
     }
@@ -90,6 +99,7 @@ export class SettingsScene extends Phaser.Scene {
     this.rows[1].setText('SFX VOLUME     < ' + Math.round(this.settings.sfxVolume * 10) + ' >');
     this.rows[2].setText('MUTE (M): ' + (this.settings.mute ? 'ON' : 'OFF'));
     this.rows[3].setText('REDUCED FLASH (F): ' + (this.settings.reducedFlash ? 'ON' : 'OFF'));
+    this.rows[4].setText('STARTING LIVES (L): < ' + this.settings.startingLives + ' >');
   }
 
   private publish(): void {
@@ -98,7 +108,8 @@ export class SettingsScene extends Phaser.Scene {
       musicVolume: this.settings.musicVolume,
       sfxVolume: this.settings.sfxVolume,
       mute: this.settings.mute,
-      reducedFlash: this.settings.reducedFlash
+      reducedFlash: this.settings.reducedFlash,
+      startingLives: this.settings.startingLives
     });
   }
 

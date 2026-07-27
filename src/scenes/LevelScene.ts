@@ -3,7 +3,6 @@ import {
   DEATH_FALL_Y,
   GROUND_Y,
   INVULN_DURATION,
-  MAX_LIVES,
   PLAYER_HEIGHT,
   PLAYER_WIDTH
 } from '../balance/player';
@@ -88,6 +87,7 @@ import { bulletTexture } from '../art/weaponArt';
 import { enemyTexture } from '../art/enemyArt';
 import { bossTexture } from '../art/bossArt';
 import { propsForSolid, horizonForLevel, themeForLevel } from '../art/levelTheme';
+import { lifeHudLayout, MAX_LIFE_ICONS } from '../ui/hudLives';
 import { hookShutdown } from './sceneLifecycle';
 import {
   spawnParticles,
@@ -253,6 +253,7 @@ export class LevelScene extends Phaser.Scene {
   private bossTeleRect?: Phaser.GameObjects.Rectangle;
   private bossZoneRect?: Phaser.GameObjects.Rectangle;
   private lifeImages: Phaser.GameObjects.Image[] = [];
+  private lifeCountText?: Phaser.GameObjects.Text;
   private weaponIcon?: Phaser.GameObjects.Image;
   private weaponText?: Phaser.GameObjects.Text;
   private scoreText?: Phaser.GameObjects.Text;
@@ -292,6 +293,9 @@ export class LevelScene extends Phaser.Scene {
     this.particleRects = [];
     this.carrierImages = [];
     this.lifeImages = [];
+    // Settings must be read before resetRun(), which seeds the run's life count
+    // from them; loading them later left a new run on the default 3 lives.
+    this.settings = (this.registry.get('settings') as Settings | undefined) ?? { ...DEFAULT_SETTINGS };
     this.resetRun();
     ensureGameTextures(this);
     this.buildEnvironment();
@@ -307,12 +311,22 @@ export class LevelScene extends Phaser.Scene {
     this.bossZoneRect.setOrigin(0.5, 1);
     this.bossZoneRect.setVisible(false);
 
-    // HUD (depth >= 100 so world objects can never cover it).
-    for (let i = 0; i < MAX_LIVES; i++) {
-      this.lifeImages.push(this.add.image(14 + i * 16, 8, 'art/ui-life').setOrigin(0, 0).setDepth(100));
+    // HUD (depth >= 100 so world objects can never cover it). The life row is
+    // given fixed space for its worst case (MAX_LIFE_ICONS) so the weapon
+    // readout never collides with it at higher life counts.
+    const LIFE_X = 14;
+    const LIFE_STEP = 16;
+    const WEAPON_X = LIFE_X + MAX_LIFE_ICONS * LIFE_STEP + 10;
+    for (let i = 0; i < MAX_LIFE_ICONS; i++) {
+      this.lifeImages.push(this.add.image(LIFE_X + i * LIFE_STEP, 8, 'art/ui-life').setOrigin(0, 0).setDepth(100));
     }
-    this.weaponIcon = this.add.image(72, 12, 'art/bullet-pulse').setOrigin(0, 0).setDepth(100);
-    this.weaponText = this.add.text(90, 16, '', { fontFamily: 'monospace', fontSize: '16px', color: '#e8f1ff' }).setDepth(100);
+    this.lifeCountText = this.add
+      .text(LIFE_X + 18, 9, '', { fontFamily: 'monospace', fontSize: '13px', color: '#e8f1ff' })
+      .setDepth(100);
+    this.weaponIcon = this.add.image(WEAPON_X, 12, 'art/bullet-pulse').setOrigin(0, 0).setDepth(100);
+    this.weaponText = this.add
+      .text(WEAPON_X + 18, 16, '', { fontFamily: 'monospace', fontSize: '16px', color: '#e8f1ff' })
+      .setDepth(100);
     this.scoreText = this.add
       .text(LOGICAL_WIDTH - 12, 16, '', { fontFamily: 'monospace', fontSize: '16px', color: '#e8f1ff' })
       .setOrigin(1, 0)
@@ -375,7 +389,6 @@ export class LevelScene extends Phaser.Scene {
     this.registerDebugCommands();
     hookShutdown(this.events, () => this.shutdown());
     reportScene(SCENE_KEYS.level);
-    this.settings = (this.registry.get('settings') as Settings | undefined) ?? { ...DEFAULT_SETTINGS };
     this.publishRuntime();
     const audio = this.registry.get('audio') as AudioService | undefined;
     audio?.setSettings(this.settings);
@@ -450,8 +463,9 @@ export class LevelScene extends Phaser.Scene {
   }
 
   private resetRun(): void {
+    const startingLives = this.settings.startingLives;
     this.player = createPlatformerState(this.level.spawn.x, this.level.spawn.y);
-    this.health = createHealthState(MAX_LIVES);
+    this.health = createHealthState(startingLives);
     this.weapon = createWeaponState(DEFAULT_WEAPON);
     this.playerBullets = [];
     this.enemyBullets = [];
@@ -474,7 +488,7 @@ export class LevelScene extends Phaser.Scene {
     this.checkpoint = snapshotCheckpoint({
       levelId: this.level.id,
       checkpointId: this.lastCheckpointId,
-      lives: MAX_LIVES,
+      lives: startingLives,
       score: 0,
       weapon: DEFAULT_WEAPON,
       spawnX: this.level.spawn.x,
@@ -1574,10 +1588,12 @@ export class LevelScene extends Phaser.Scene {
       this.bossLabelText.setText(bossDef.name.toUpperCase());
     }
 
-    // HUD: life icons, weapon icon + name, score.
+    // HUD: life icons (collapsing to "icon xN" at high counts), weapon, score.
+    const lifeLayout = lifeHudLayout(this.health.lives);
     this.lifeImages.forEach((icon, i) => {
-      icon.setVisible(i < this.health.lives);
+      icon.setVisible(i < lifeLayout.icons);
     });
+    this.lifeCountText?.setText(lifeLayout.countLabel ?? '');
     this.weaponIcon?.setTexture(bulletTexture(this.weapon.id));
     this.weaponText.setText(getWeapon(this.weapon.id).name.toUpperCase());
     this.scoreText.setText('SCORE ' + this.score);

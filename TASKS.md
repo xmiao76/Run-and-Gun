@@ -244,18 +244,18 @@ Do not start them until the core release tasks above are complete or explicitly 
 
 ### TASK-014 - Selectable starting lives (3 default, 30 practice option)
 
-- Status: TODO
+- Status: DONE
 - Requirement:
   Let the player choose the starting life count from the settings screen, with
   the current 3 as the default and 30 as an additional option, persisted in
   local storage like the other settings.
 - Acceptance criteria:
-  - [ ] Settings screen exposes a starting-lives option with at least the values 3 and 30
-  - [ ] Default remains 3 for a fresh profile
-  - [ ] A new run starts with the selected life count and the HUD reflects it
-  - [ ] The choice persists across a page reload through the existing validated storage service
-  - [ ] Corrupt or out-of-range stored values fall back to 3
-  - [ ] Unit tests cover settings validation/defaulting for the new field
+  - [x] Settings screen exposes a starting-lives option with at least the values 3 and 30
+  - [x] Default remains 3 for a fresh profile
+  - [x] A new run starts with the selected life count and the HUD reflects it
+  - [x] The choice persists across a page reload through the existing validated storage service
+  - [x] Corrupt or out-of-range stored values fall back to 3
+  - [x] Unit tests cover settings validation/defaulting for the new field
 - Non-goals / constraints:
   - Do not change checkpoint, respawn, or game-over logic beyond honouring the configured count.
   - The HUD life row must stay readable at 30 lives (show a count rather than 30 icons).
