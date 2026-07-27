@@ -653,3 +653,67 @@ Include enough detail so the next iteration can continue without guessing.
   - TASK-014 - Selectable starting lives (3 default, 30 practice option)
 - Blockers (if any):
   - TASK-015 still carries the open difficulty-direction question.
+
+---
+
+### 2026-07-26 16:30 - DEPLOYMENT (not a TASKS.md task)
+
+- Status before: release-ready but never deployed.
+- Goal of this iteration:
+  Deploy the built game to Cloudflare Pages at the user's explicit request.
+- Authorization note:
+  `CLAUDE.md` and `.claude/loop.md` both forbid deploying ("Never push, deploy,
+  change cloud resources, or modify DNS"). The user was shown that conflict and
+  explicitly authorized the override for this action only. The repo rules were
+  left unchanged - this was a one-off, not a policy change. No credentials were
+  requested, printed, or stored at any point.
+- Work completed:
+  - Audited prerequisites first: no `wrangler.*` config, wrangler absent from
+    package.json, no `CLOUDFLARE_*` env vars set, but `wrangler whoami` showed
+    an existing OAuth session (xmiao76@gmail.com, single account) carrying
+    `pages (write)`. So nothing secret was needed from the user.
+  - Chose direct upload over Git integration: it deploys the local `dist/`
+    without pushing the repository, keeping the "never push" rule intact.
+  - Rebuilt `dist/` fresh and confirmed the new title controls card was bundled
+    before uploading.
+  - Created Pages project `run-and-gun` with `--production-branch main`
+    explicitly (rather than letting `pages deploy` prompt), because the shell
+    here is non-interactive and a prompt would hang.
+  - Deployed `dist/` (3 files) to production.
+  - Added `npm run deploy` and wrangler as a devDependency so future deploys are
+    one reproducible command; documented the flow and the no-token rule in the
+    README, plus the live URL.
+  - Added `scripts/live-check.mjs`, a post-deploy smoke test that runs against
+    the real URL.
+- Files changed:
+  - README.md (live URL + deployment section), package.json (deploy script,
+    wrangler devDependency), package-lock.json, eslint.config.js (process
+    global for scripts), scripts/live-check.mjs (new)
+- Commands run:
+  - `npx wrangler whoami` (auth/scope audit)
+  - `npm run build`
+  - `npx wrangler pages project create run-and-gun --production-branch main`
+  - `npx wrangler pages deploy dist --project-name run-and-gun --branch main`
+  - `curl` checks on both URLs and the hashed asset
+  - `node scripts/live-check.mjs`
+  - `npm run lint`, `npm run typecheck`, `npm run test:unit`, `npm run build`,
+    `npx playwright test`
+- Verification result:
+  - Live at https://run-and-gun.pages.dev - HTTP 200, and the referenced
+    bundle `assets/index-LAkaBjbK.js` serves 1,488,224 bytes.
+  - `live-check.mjs` PASSED against the live site: plain visitor load renders a
+    960x540 canvas with document title "Operation Iron Echo" and zero page or
+    console errors; then Enter started Level 1, ArrowRight moved the player to
+    x=139.17, Up+X fired at -90 (confirming the new bindings work on the
+    deployed build), and the Siege Walker boss activated. Zero page errors.
+  - Local suite still green after the dependency change: lint, typecheck, 201
+    unit tests, build, 41 e2e tests.
+  - The per-deployment hash URL did not resolve from this shell (HTTP 000);
+    the canonical production URL is the supported entry point and works.
+- Status after: deployed to production.
+- Remaining work:
+  - Redeploy with `npm run deploy` after future enhancement tasks land.
+- Next recommended task:
+  - TASK-014 - Selectable starting lives (3 default, 30 practice option)
+- Blockers (if any):
+  - none

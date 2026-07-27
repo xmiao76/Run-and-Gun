@@ -7,7 +7,9 @@ or copyrighted assets, sprites, maps, music, or ROM content.
 
 ## Play
 
-Serve the contents of `dist/` from any static host and open `index.html`.
+**Live: https://run-and-gun.pages.dev**
+
+Or serve the contents of `dist/` from any static host and open `index.html`.
 The game runs entirely in the browser; there is no backend.
 
 ## Controls
@@ -66,7 +68,22 @@ Project layout:
 ## Deployment
 
 `npm run build` produces a fully static `dist/` (relative asset paths) ready
-for Cloudflare Pages or any static host. Deployment is performed manually.
+for Cloudflare Pages or any static host.
+
+Deployed to Cloudflare Pages as project `run-and-gun` by direct upload (no Git
+integration, so deploys never require pushing the repo):
+
+```bash
+npm run deploy        # build + wrangler pages deploy dist
+```
+
+This needs an authenticated Cloudflare session (`npx wrangler login`) with
+`pages (write)` scope. Never place an API token in the repo or in a command
+argument. After deploying, smoke-test the live site:
+
+```bash
+node scripts/live-check.mjs https://run-and-gun.pages.dev
+```
 
 ## Asset policy
 

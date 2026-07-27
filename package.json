@@ -14,7 +14,8 @@
     "test:unit": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "test:soak": "playwright test tests/e2e/soak.spec.ts"
+    "test:soak": "playwright test tests/e2e/soak.spec.ts",
+    "deploy": "npm run build && wrangler pages deploy dist --project-name run-and-gun --branch main"
   },
   "repository": {
     "type": "git",
@@ -38,6 +39,7 @@
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.65.0",
     "vite": "^8.1.5",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.10",
+    "wrangler": "^4.114.0"
   }
 }
