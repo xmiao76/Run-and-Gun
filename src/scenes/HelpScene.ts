@@ -16,9 +16,11 @@ const LINES: { text: string; y: number; size: number; color: string }[] = [
   { text: 'D-pad / left stick - move + aim    A - jump    X or RB - fire    Start - pause', y: 308, size: 15, color: '#cdd9f0' },
   { text: 'TOUCH', y: 354, size: 20, color: '#8fb3ff' },
   { text: 'On-screen buttons: move, aim-up, jump, fire, pause', y: 384, size: 15, color: '#cdd9f0' },
-  { text: 'MENUS', y: 428, size: 20, color: '#8fb3ff' },
-  { text: 'Enter/Space, tap, or gamepad A/Start - confirm    Esc/gamepad Back - back', y: 456, size: 15, color: '#cdd9f0' },
-  { text: 'ESC / ENTER - BACK', y: 500, size: 16, color: '#5c6c8c' }
+  { text: 'MENUS', y: 424, size: 20, color: '#8fb3ff' },
+  { text: 'Enter/Space, tap, or gamepad A/Start - confirm    Esc/gamepad Back - back', y: 450, size: 15, color: '#cdd9f0' },
+  { text: 'Keys dead? A browser extension may be claiming Z/X/S/D - disable it,', y: 476, size: 13, color: '#e8b06f' },
+  { text: 'or use Space to jump and J to fire. Diagnose with ?keys=1 in the URL.', y: 494, size: 13, color: '#e8b06f' },
+  { text: 'ESC / ENTER - BACK', y: 518, size: 16, color: '#5c6c8c' }
 ];
 
 /** Controls/help screen: lists keyboard, gamepad, and touch controls. */

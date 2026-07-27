@@ -33,6 +33,45 @@ direction and fire for a 45-degree shot. Holding Down while airborne fires
 downward; on the ground it is crouch-fire. F10 toggles fullscreen. High score
 and settings (volume, mute, reduced flash) persist in local storage.
 
+## Troubleshooting: some keys do nothing
+
+**Symptom.** The game runs, but certain keys are dead — commonly `Z`, `X`, `S`,
+or `D` — and it works in one browser while failing in another.
+
+**Most likely cause: a browser extension is claiming those letters.** Extensions
+register their shortcuts globally and can consume a key before the page ever
+sees it. Extensions are installed per browser profile, which is exactly why the
+game can work in Chrome and fail in Edge on the same machine.
+
+A confirmed real case: the **Global Speed** video-speed extension in Edge
+swallowed `S` and `X`. Video-speed controllers typically bind bare letters —
+`S` slower, `D` faster, `Z` rewind, `X` advance — which collides with four of
+this game's bindings (`S` crouch, `D` right, `Z` jump, `X` fire).
+
+**Diagnose it in 15 seconds.** Open the game with the input diagnostic:
+
+```
+https://run-and-gun.pages.dev/?keys=1&debug=1
+```
+
+A panel appears at the top listing every key event the page receives and the
+action it resolved to. Press the dead key and read the result:
+
+| What the panel shows | Meaning | Fix |
+| --- | --- | --- |
+| **Nothing at all** | Something outside the page is swallowing the key — almost always an extension | Disable the extension, exclude this site in its options, or use the alias keys below |
+| Rows with `composing=true` or `key=Process` | An IME (e.g. Microsoft Pinyin) is intercepting typing | Switch the input language to English while playing; the game also falls back to `keyCode`, so this normally still works |
+| Rows resolving to `jump` / `fire`, but nothing happens in game | Input is fine; the game is paused | Check `paused=` / `autoPaused=` on the panel's second line, then click the game or press Esc |
+
+**Workaround without touching extensions.** Every action has an alias on a
+different key, so you can dodge a conflict: `Space` jumps and `J`, `K`, or
+`Enter` fires, alongside the arrow keys for movement.
+
+The game registers its key listeners in the capture phase on `window`, which
+runs before any document-level listener and defeats many such conflicts — but an
+extension whose own listener also captures on `window` and runs first can still
+win, so the diagnostic above remains the way to identify it.
+
 ## Game content
 
 - 2 themed levels: Jungle Outpost (dusk jungle war zone) and Fortress

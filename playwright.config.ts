@@ -21,7 +21,7 @@ export default defineConfig({
       // keep the suite fast; requires Edge installed (`npx playwright install msedge`).
       name: 'msedge',
       use: { browserName: 'chromium', channel: 'msedge' },
-      testMatch: /(smoke|keyboardAim|focusResume|hud)\.spec\.ts/
+      testMatch: /(smoke|keyboardAim|focusResume|extensionConflict|hud)\.spec\.ts/
     }
   ],
   webServer: {

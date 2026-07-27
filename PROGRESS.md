@@ -720,6 +720,59 @@ Include enough detail so the next iteration can continue without guessing.
 
 ---
 
+### 2026-07-26 19:20 - ROOT CAUSE CONFIRMED: extension stealing letter keys
+
+- Status before: Z/X/S dead in the user's Edge; cause unconfirmed.
+- Root cause (confirmed by the user via the `?keys=1` diagnostic):
+  the **Global Speed** video-speed extension in Edge was consuming the keys.
+  Disabling it restored S and X. That family of extensions binds bare letters
+  (S slower, D faster, Z rewind, X advance), colliding with four of this game's
+  bindings: S crouch, D right, Z jump, X fire. Extensions are per browser
+  profile, which is exactly why Chrome worked and Edge did not on one machine.
+  Nothing was wrong with the game's key mapping.
+- Work completed:
+  - Documented the whole diagnosis in the README as a "some keys do nothing"
+    troubleshooting section: symptom, why it differs per browser, the confirmed
+    Global Speed case, the `?keys=1` diagnostic with a table mapping each
+    possible output to its cause and fix, and the alias-key workaround.
+  - Added a short amber hint to the in-game help screen, where a stuck player
+    actually looks, pointing at the alias keys and the diagnostic.
+  - Real hardening, not just docs: moved the game's key listeners to the
+    **capture phase on `window`**, which runs before any document-level
+    listener in either phase. Extensions of this kind hook `document`, so the
+    game now keeps working even with such an extension enabled. Applied to both
+    the gameplay keys and the scene-level Esc/M/F keys.
+  - Added `tests/e2e/extensionConflict.spec.ts`, which installs a simulated
+    extension that claims S/D/Z/X on `document` in both phases and calls
+    `stopImmediatePropagation`, then asserts fire, jump and crouch still work
+    (and that the simulated extension really ran). Included in the msedge
+    project so it is covered in both browsers.
+  - Verified the new test is not vacuous: temporarily reverting the capture flag
+    made both cases fail, and restoring it made them pass again.
+- Honest limitation:
+  capture-on-window defeats document-level interception, but an extension whose
+  own listener also captures on `window` and registers first can still win. The
+  `?keys=1` diagnostic remains the way to identify that, and the alias keys
+  (Space jump, J/K/Enter fire) remain the escape hatch.
+- Files changed:
+  - README.md (troubleshooting section), src/scenes/HelpScene.ts (in-game hint)
+  - src/input/KeyboardInput.ts, src/scenes/LevelScene.ts (capture phase)
+  - tests/e2e/extensionConflict.spec.ts (new), playwright.config.ts (msedge scope)
+- Verification result:
+  - Local: lint, typecheck, 206 unit tests, build, 57 e2e tests
+    (chromium + msedge), up from 53.
+  - Simulated-extension test passes in both browsers; proven to fail without the
+    capture-phase change.
+  - Deployed; `live-check.mjs` PASSED against the live site.
+  - Help screen re-captured and reviewed: the hint fits without overlapping.
+- Status after: root cause confirmed, documented, and defended against.
+- Next recommended task:
+  - TASK-014 - Selectable starting lives (3 default, 30 practice option)
+- Blockers (if any):
+  - none
+
+---
+
 ### 2026-07-26 18:40 - Z/X still dead in the user's Edge: IME hardening + input diagnostic
 
 - Status before: user reported that after reloading, BOTH Z and X do nothing in

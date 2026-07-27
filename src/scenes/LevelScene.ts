@@ -1695,8 +1695,10 @@ export class LevelScene extends Phaser.Scene {
     const up = (e: KeyboardEvent): void => {
       LevelScene.keys.delete(e.code);
     };
-    window.addEventListener('keydown', down);
-    window.addEventListener('keyup', up);
+    // Capture phase, for the same reason as the gameplay keys: Esc/M/F must not
+    // be interceptable by an extension listening at document level.
+    window.addEventListener('keydown', down, true);
+    window.addEventListener('keyup', up, true);
     LevelScene.keyHandlers = { down, up };
   }
 
@@ -1704,8 +1706,8 @@ export class LevelScene extends Phaser.Scene {
     if (!LevelScene.keyHandlers) {
       return;
     }
-    window.removeEventListener('keydown', LevelScene.keyHandlers.down);
-    window.removeEventListener('keyup', LevelScene.keyHandlers.up);
+    window.removeEventListener('keydown', LevelScene.keyHandlers.down, true);
+    window.removeEventListener('keyup', LevelScene.keyHandlers.up, true);
     LevelScene.keyHandlers = null;
     LevelScene.keys.clear();
     LevelScene.pressed.clear();

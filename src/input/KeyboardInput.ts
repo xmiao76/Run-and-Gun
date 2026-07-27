@@ -171,12 +171,15 @@ export function createKeyboardInput(): KeyboardInput {
       return buildInputFromRaw(raw, prev);
     },
     attach(target: Window): void {
-      target.addEventListener('keydown', onKeyDown);
-      target.addEventListener('keyup', onKeyUp);
+      // Capture phase on `window` runs before any document- or element-level
+      // listener in either phase, so browser extensions that claim bare letters
+      // (video-speed controllers bind S/D/Z/X) cannot silently eat the controls.
+      target.addEventListener('keydown', onKeyDown, true);
+      target.addEventListener('keyup', onKeyUp, true);
     },
     detach(target: Window): void {
-      target.removeEventListener('keydown', onKeyDown);
-      target.removeEventListener('keyup', onKeyUp);
+      target.removeEventListener('keydown', onKeyDown, true);
+      target.removeEventListener('keyup', onKeyUp, true);
     },
     clear(): void {
       Object.assign(raw, createRawKeyState());
