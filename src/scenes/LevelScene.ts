@@ -9,16 +9,20 @@ import {
 import { DEFAULT_WEAPON, getWeapon } from '../balance/weapons';
 import { GAME_VERSION, LOGICAL_HEIGHT, LOGICAL_WIDTH, SCENE_KEYS } from '../app/config';
 import { type AudioService } from '../audio/AudioService';
+import { createPilotMemory, decidePilotInput, pitsFromSolids, platformRanges, spikeRanges, type PilotGeometry, type PilotMemory } from '../ai/pilot';
 import {
+  clampStepCount,
   getDebugInput,
   isDebugEnabled,
+  manualClockRequested,
   registerCommand,
   reportRuntime,
   reportScene
 } from '../debug/debugBridge';
+import { type LevelRuntime } from '../debug/runtimeTypes';
 import { createKeyboardInput, type KeyboardInput } from '../input/KeyboardInput';
 import { createGamepadInput, type GamepadInput } from '../input/GamepadInput';
-import { createNeutralInput, mergeInput, type InputState } from '../input/InputState';
+import { createNeutralInput, isNeutralInput, mergeInput, type InputState } from '../input/InputState';
 import { createTouchControls, isTouchDevice, type TouchControls } from '../ui/touch/TouchControls';
 import { loadLevel, type LevelDef } from '../levels/levelLoader';
 import { type Rect } from '../levels/levelSchema';
@@ -208,6 +212,23 @@ export class LevelScene extends Phaser.Scene {
   private ledger: DamageLedger = createDamageLedger();
   private nextId = 1;
   private paused = false;
+  /**
+   * Agent-driven manual clock (`?manualClock`, debug-only). When true, wall
+   * time never advances the simulation - only the `advanceSteps` debug
+   * command does - so programmatic drivers get step-exact determinism and
+   * bridge input edges persist until the driver's next step consumes them.
+   */
+  private manualClock = false;
+  /**
+   * Built-in AI pilot (autoplay demo). While engaged it contributes an
+   * InputState at the same merge layer as the devices; any human gameplay
+   * input disengages it immediately and permanently for the run.
+   */
+  private pilotEngaged = false;
+  private pilotMemory: PilotMemory | null = null;
+  /** Last published snapshot; the pilot's perception for the next step. */
+  private lastRuntime: LevelRuntime | null = null;
+  private aiLabel?: Phaser.GameObjects.Text;
   private completionTimer = -1;
   private maxEnemiesSeen = 0;
   private maxPlayerBulletsSeen = 0;
@@ -272,6 +293,14 @@ export class LevelScene extends Phaser.Scene {
     const idx = (this.registry.get('currentLevelIndex') as number | undefined) ?? 0;
     this.levelIndex = Math.min(Math.max(idx, 0), LEVELS.length - 1);
     this.level = loadLevel(LEVELS[this.levelIndex]);
+    // Phaser reuses the scene instance across scene.start calls, so the flag
+    // is re-read here rather than once at construction.
+    this.manualClock = manualClockRequested();
+    // Autoplay: engage the AI pilot when the session toggle is on. The flag
+    // persists (registry) so the AI keeps playing across level transitions
+    // and restarts until the player switches it off (I in-level).
+    this.pilotEngaged = this.registry.get('autopilot') === true;
+    this.pilotMemory = this.pilotEngaged ? createPilotMemory(this.buildPilotGeometry()) : null;
     // Phaser reuses the scene instance across scene.start calls, so pooled
     // render arrays must be cleared before they are rebuilt; otherwise they
     // would hold stale entries from the previous run and index out of bounds.
@@ -344,6 +373,16 @@ export class LevelScene extends Phaser.Scene {
       })
       .setOrigin(0, 0.5)
       .setDepth(100);
+    // Autoplay indicator, visible only while the AI pilot is in control.
+    this.aiLabel = this.add
+      .text(LOGICAL_WIDTH / 2, LOGICAL_HEIGHT - 16, 'AI PLAYING - press any control key to take over', {
+        fontFamily: 'monospace',
+        fontSize: '13px',
+        color: '#ffd970'
+      })
+      .setOrigin(1, 0.5)
+      .setDepth(100)
+      .setVisible(this.pilotEngaged);
     this.bossLabelText = this.add
       .text(LOGICAL_WIDTH / 2, 4, '', { fontFamily: 'monospace', fontSize: '12px', color: '#ffb3a7' })
       .setOrigin(0.5, 0)
@@ -364,29 +403,33 @@ export class LevelScene extends Phaser.Scene {
     this.keyboard.attach(window);
     LevelScene.attachKeys();
     this.touch = this.shouldShowTouchControls() ? createTouchControls() : null;
-    this.onBlur = (): void => {
-      // H5: losing window focus pauses and neutralizes held inputs. Only mark
-      // it auto-paused when the player had not already paused deliberately.
-      if (!this.paused) {
-        this.autoPaused = true;
-      }
-      this.paused = true;
-      this.keyboard.clear();
-    };
-    window.addEventListener('blur', this.onBlur);
-
-    // Regaining focus (or clicking/tapping the game) lifts an auto-pause. A
-    // deliberate Esc pause is left alone so it still needs an explicit resume.
-    this.onRegainFocus = (): void => {
-      if (this.autoPaused) {
-        this.autoPaused = false;
-        this.paused = false;
-        // Held keys were cleared on blur; re-sync so nothing sticks.
+    // Under the manual clock the scene is driven by an external agent; focus
+    // churn (headless pages, DevTools) must not auto-pause the session.
+    if (!this.manualClock) {
+      this.onBlur = (): void => {
+        // H5: losing window focus pauses and neutralizes held inputs. Only mark
+        // it auto-paused when the player had not already paused deliberately.
+        if (!this.paused) {
+          this.autoPaused = true;
+        }
+        this.paused = true;
         this.keyboard.clear();
-      }
-    };
-    window.addEventListener('focus', this.onRegainFocus);
-    window.addEventListener('pointerdown', this.onRegainFocus);
+      };
+      window.addEventListener('blur', this.onBlur);
+
+      // Regaining focus (or clicking/tapping the game) lifts an auto-pause. A
+      // deliberate Esc pause is left alone so it still needs an explicit resume.
+      this.onRegainFocus = (): void => {
+        if (this.autoPaused) {
+          this.autoPaused = false;
+          this.paused = false;
+          // Held keys were cleared on blur; re-sync so nothing sticks.
+          this.keyboard.clear();
+        }
+      };
+      window.addEventListener('focus', this.onRegainFocus);
+      window.addEventListener('pointerdown', this.onRegainFocus);
+    }
     this.registerDebugCommands();
     hookShutdown(this.events, () => this.shutdown());
     reportScene(SCENE_KEYS.level);
@@ -426,6 +469,11 @@ export class LevelScene extends Phaser.Scene {
       this.autoPaused = false;
     }
 
+    // In-level I: switch the AI pilot on/off (persists in the session).
+    if (LevelScene.consumePress('KeyI')) {
+      this.togglePilot();
+    }
+
     if (this.paused) {
       // Keep the gamepad Start-button edge tracking alive while paused so it
       // can resume the game (stepOnce, which normally polls it, is frozen).
@@ -434,6 +482,17 @@ export class LevelScene extends Phaser.Scene {
       this.publishRuntime();
       this.render();
       this.renderPauseOverlay();
+      return;
+    }
+
+    if (this.manualClock) {
+      // Agent-driven: wall time never steps the simulation; only the debug
+      // `advanceSteps` command does. Rendering continues so the canvas always
+      // reflects the current simulation state between agent steps, and debug
+      // input edges persist until the agent's next step consumes them
+      // (readDebugInput runs only inside stepOnce).
+      this.clock.accumulator = 0;
+      this.render();
       return;
     }
 
@@ -597,13 +656,32 @@ export class LevelScene extends Phaser.Scene {
     });
     registerCommand('advanceSteps', (payload) => {
       // Test affordance for the soak test: fast-forward simulation time
-      // synchronously (bounded), driving the real fixed-step loop.
-      const n = Math.min(Math.max(typeof payload === 'number' ? Math.floor(payload) : 0, 0), 60000);
-      for (let i = 0; i < n; i++) {
+      // synchronously (bounded), driving the real fixed-step loop. Under the
+      // manual clock this is the ONLY way the simulation advances. Stops
+      // early if a step transitions the scene (completion, game over).
+      const n = clampStepCount(payload);
+      let ran = 0;
+      for (let i = 0; i < n && this.scene.isActive(); i++) {
         this.stepOnce();
+        ran += 1;
+      }
+      // Only republish while this scene still owns the frame; otherwise the
+      // fresh scene (results/game over) has already published its snapshot.
+      if (this.scene.isActive()) {
+        this.publishRuntime();
+      }
+      return { ok: true, steps: ran };
+    });
+    registerCommand('setManualClock', (payload) => {
+      // Runtime toggle for agent drivers that did not navigate with
+      // `?manualClock`. A boolean payload sets the flag explicitly; any other
+      // payload enables it.
+      this.manualClock = typeof payload === 'boolean' ? payload : true;
+      if (this.manualClock) {
+        this.clock.accumulator = 0;
       }
       this.publishRuntime();
-      return { ok: true, steps: n };
+      return { ok: true, manualClock: this.manualClock };
     });
     registerCommand('report', () => {
       this.publishRuntime();
@@ -634,11 +712,68 @@ export class LevelScene extends Phaser.Scene {
     this.stepInput = { ...this.stepInput, jumpPressed: false, firePressed: false };
   }
 
+  /**
+   * Run one AI-pilot decision from the last published snapshot. The pilot
+   * perceives the game exactly as external automation does (typed runtime
+   * state, no pixels) and returns a standard InputState.
+   */
+  private decidePilotStep(): InputState {
+    if (!this.pilotMemory || !this.lastRuntime) {
+      return createNeutralInput();
+    }
+    const decision = decidePilotInput(this.lastRuntime, this.pilotMemory);
+    this.pilotMemory = decision.memory;
+    return decision.input;
+  }
+
+  /** Static level knowledge the pilot may use, rebuilt for the current level. */
+  private buildPilotGeometry(): PilotGeometry {
+    return {
+      pits: pitsFromSolids(this.level.solids, GROUND_Y),
+      platforms: platformRanges(this.level.oneWays),
+      spikes: spikeRanges(this.level.hazards, GROUND_Y),
+      bossArenaX0: this.level.boss.x0,
+      levelWidth: this.level.width
+    };
+  }
+
+  /** Hand control back to the human for the rest of this run. */
+  private disengagePilot(): void {
+    this.pilotEngaged = false;
+    this.pilotMemory = null;
+    this.aiLabel?.setVisible(false);
+    this.registry.set('autopilot', false);
+  }
+
+  /** Give control to the AI pilot, rebuilding its view of the current level. */
+  private engagePilot(): void {
+    this.pilotEngaged = true;
+    this.pilotMemory = createPilotMemory(this.buildPilotGeometry());
+    this.aiLabel?.setVisible(true);
+    this.registry.set('autopilot', true);
+  }
+
+  /** In-level I: switch the AI pilot on/off; the choice persists in the session. */
+  private togglePilot(): void {
+    if (this.pilotEngaged) {
+      this.disengagePilot();
+    } else {
+      this.engagePilot();
+    }
+    this.publishRuntime();
+  }
+
   private stepOnce(): void {
     const debug = this.readDebugInput();
     const touchInput = this.touch ? this.touch.read() : createNeutralInput();
     const device = mergeInput(this.keyboard.build(this.stepInput), this.gamepad.build());
-    this.stepInput = mergeInput(device, mergeInput(debug, touchInput));
+    const humanInput = mergeInput(device, touchInput);
+    // Any human gameplay input takes over from the AI pilot immediately.
+    if (this.pilotEngaged && !isNeutralInput(humanInput)) {
+      this.disengagePilot();
+    }
+    const pilotInput = this.pilotEngaged ? this.decidePilotStep() : createNeutralInput();
+    this.stepInput = mergeInput(humanInput, mergeInput(debug, pilotInput));
 
     if (this.health.gameOver) {
       // Guard against repeated transitions when steps are driven externally.
@@ -1268,11 +1403,13 @@ export class LevelScene extends Phaser.Scene {
   }
 
   private publishRuntime(): void {
-    reportRuntime({
+    const round2 = (v: number): number => Math.round(v * 100) / 100;
+    const bossVisible = this.boss.active && isBossAlive(this.boss);
+    const snapshot: LevelRuntime = {
       level: this.level.id,
       levelIndex: this.levelIndex,
-      playerX: Math.round(this.player.x * 100) / 100,
-      playerY: Math.round(this.player.y * 100) / 100,
+      playerX: round2(this.player.x),
+      playerY: round2(this.player.y),
       grounded: this.player.grounded,
       crouching: this.player.crouching,
       playerPose: this.currentPose(),
@@ -1285,13 +1422,35 @@ export class LevelScene extends Phaser.Scene {
       enemies: this.enemies.map((e) => ({ id: e.id, kind: e.kind, state: e.state, x: Math.round(e.x), y: Math.round(e.y) })),
       projectileCount: this.playerBullets.length,
       enemyProjectileCount: this.enemyBullets.length,
+      enemyProjectiles: this.enemyBullets.map((b) => ({
+        x: round2(b.x),
+        y: round2(b.y),
+        vx: round2(b.vx),
+        vy: round2(b.vy),
+        arcGravity: b.arcGravity
+      })),
       checkpoint: this.lastCheckpointId,
       bossActive: this.boss.active,
       bossHealth: this.boss.health,
       bossState: this.boss.state,
       bossPhase: this.boss.phase,
       bossVulnerable: this.boss.vulnerable,
+      bossX: bossVisible ? round2(this.boss.x) : null,
+      bossY: bossVisible ? round2(this.boss.y) : null,
+      bossStateTimer: round2(this.boss.stateTimer),
+      subcomponents: this.subcomponents.map((s) => ({
+        id: s.id,
+        x: Math.round(s.x),
+        y: Math.round(s.y),
+        width: s.width,
+        height: s.height,
+        alive: s.alive
+      })),
       subcomponentsAlive: this.subcomponents.filter((s) => s.alive).length,
+      movingPlatforms: this.movingPlatforms.map((mp) => {
+        const r = movingPlatformRect(mp);
+        return { id: mp.id, x: Math.round(r.x), y: Math.round(r.y), width: r.width };
+      }),
       containersAlive: this.containers.filter((c) => !c.destroyed).length,
       supplyCarriersAlive: this.supplyCarriers.filter((c) => c.alive).length,
       supplyCarrierX: this.supplyCarriers.find((c) => c.alive)?.x ?? null,
@@ -1306,8 +1465,13 @@ export class LevelScene extends Phaser.Scene {
       paused: this.paused,
       gameOver: this.health.gameOver,
       completing: this.completionTimer >= 0,
-      score: this.score
-    });
+      score: this.score,
+      manualClock: this.manualClock,
+      autopilot: this.pilotEngaged
+    };
+    reportRuntime(snapshot);
+    // The AI pilot perceives the game through this very snapshot next step.
+    this.lastRuntime = snapshot;
   }
 
   /**

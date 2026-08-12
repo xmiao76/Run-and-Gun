@@ -1,0 +1,106 @@
+import { expect, test } from '@playwright/test';
+
+/**
+ * Per-level AI autoplay toggle (TASK-019): the I key switches the pilot on/off
+ * on any level, the choice persists across level transitions and restarts, and
+ * with the toggle on the AI plays through both levels hands-free (results
+ * auto-advance), while a human keeps full control when it is off.
+ */
+
+type AiRuntime = {
+  level?: string;
+  autopilot?: boolean;
+  bossActive?: boolean;
+  final?: boolean;
+};
+
+const rt = (page: import('@playwright/test').Page) =>
+  page.evaluate(() => window.__GAME_DEBUG__?.getState()?.runtime as AiRuntime | null | undefined);
+
+test.describe('per-level AI autoplay toggle', () => {
+  test('the I key toggles the AI pilot on and off during a level', async ({ page }) => {
+    await page.goto('/?debug=1&renderer=canvas');
+    await page.waitForFunction(() => window.__GAME_DEBUG__?.getState()?.scene === 'title');
+    await page.keyboard.press('Enter'); // normal start, AI off
+    await page.waitForFunction(() => window.__GAME_DEBUG__?.getState()?.runtime?.level === 'jungle-outpost');
+
+    expect((await rt(page))?.autopilot).toBe(false);
+
+    await page.keyboard.press('i'); // toggle on
+    await page.waitForFunction(() => window.__GAME_DEBUG__?.getState()?.runtime?.autopilot === true);
+
+    await page.keyboard.press('i'); // toggle off
+    await page.waitForFunction(() => window.__GAME_DEBUG__?.getState()?.runtime?.autopilot === false);
+  });
+
+  test('with the toggle on, the AI plays Level 1 and Level 2 hands-free', async ({ page }) => {
+    test.setTimeout(240_000);
+    const pageErrors: string[] = [];
+    page.on('pageerror', (e) => pageErrors.push(String(e)));
+
+    await page.goto('/?debug=1&manualClock=1&renderer=canvas');
+    await page.waitForFunction(() => window.__GAME_DEBUG__?.getState()?.scene === 'title');
+    await page.keyboard.press('i'); // AI on, start Level 1
+    await page.waitForFunction(() => window.__GAME_DEBUG__?.getState()?.runtime?.level === 'jungle-outpost');
+
+    // AI completes Level 1 -> results.
+    for (let i = 0; i < 120; i++) {
+      const scene = await page.evaluate(() => {
+        window.__GAME_DEBUG__?.command('advanceSteps', 600);
+        return window.__GAME_DEBUG__?.getState()?.scene;
+      });
+      if (scene === 'results') {
+        break;
+      }
+    }
+    expect(await page.evaluate(() => window.__GAME_DEBUG__?.getState()?.scene)).toBe('results');
+
+    // Results auto-advances (real time) into Level 2 with the pilot still on.
+    await page.waitForFunction(() => window.__GAME_DEBUG__?.getState()?.runtime?.level === 'fortress-interior', null, {
+      timeout: 10_000
+    });
+    expect((await rt(page))?.autopilot).toBe(true);
+
+    // AI defeats the Reactor Warden -> results marked final (MISSION COMPLETE).
+    let final = false;
+    for (let i = 0; i < 300; i++) {
+      const s = await page.evaluate(() => {
+        window.__GAME_DEBUG__?.command('advanceSteps', 600);
+        return window.__GAME_DEBUG__?.getState();
+      });
+      if (s?.scene === 'results') {
+        final = (s?.runtime as AiRuntime | null)?.final === true;
+        break;
+      }
+    }
+    expect(final).toBe(true);
+    expect(pageErrors).toEqual([]);
+  });
+
+  test('the results screen waits for the player when the AI toggle is off', async ({ page }) => {
+    await page.goto('/?debug=1&manualClock=1&renderer=canvas');
+    await page.waitForFunction(() => window.__GAME_DEBUG__?.getState()?.scene === 'title');
+    await page.keyboard.press('Enter'); // normal start, AI off
+    await page.waitForFunction(() => window.__GAME_DEBUG__?.getState()?.runtime?.level === 'jungle-outpost');
+
+    // Force Level 1 completion through the debug bridge (not the AI). Under the
+    // manual clock, teleports need advanceSteps to drive the sim forward.
+    await page.evaluate(() => {
+      const b = window.__GAME_DEBUG__;
+      b?.command('teleportPlayer', { x: 2600 });
+      b?.command('advanceSteps', 5); // boss activates on the step
+    });
+    await page.waitForFunction(() => window.__GAME_DEBUG__?.getState()?.runtime?.bossActive === true);
+    await page.evaluate(() => {
+      const b = window.__GAME_DEBUG__;
+      b?.command('defeatBoss');
+      b?.command('teleportPlayer', { x: 3190 });
+      b?.command('advanceSteps', 120); // completion timer elapses in stepOnce
+    });
+    await page.waitForFunction(() => window.__GAME_DEBUG__?.getState()?.scene === 'results', null, { timeout: 10_000 });
+
+    // Toggle is off: results must NOT auto-advance past the 2 s window.
+    await page.waitForTimeout(3000);
+    expect(await page.evaluate(() => window.__GAME_DEBUG__?.getState()?.scene)).toBe('results');
+  });
+});

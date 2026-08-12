@@ -37,6 +37,7 @@ export class ResultsScene extends Phaser.Scene {
     reportRuntime({ score, bestScore, final, scene: SCENE_KEYS.results });
 
     const cx = LOGICAL_WIDTH / 2;
+    const autopilot = this.registry.get('autopilot') === true;
     this.add
       .text(cx, 190, final ? 'MISSION COMPLETE' : 'LEVEL COMPLETE', {
         fontFamily: 'monospace',
@@ -62,7 +63,12 @@ export class ResultsScene extends Phaser.Scene {
       .setOrigin(0.5);
     this.tweens.add({ targets: prompt, alpha: 0.3, duration: 700, yoyo: true, repeat: -1 });
 
-    this.detachConfirm = attachMenuConfirm(this, () => {
+    let advanced = false;
+    const advance = (): void => {
+      if (advanced) {
+        return;
+      }
+      advanced = true;
       if (final) {
         this.registry.set('currentLevelIndex', 0);
         this.scene.start(SCENE_KEYS.title);
@@ -70,7 +76,18 @@ export class ResultsScene extends Phaser.Scene {
         this.registry.set('currentLevelIndex', idx + 1);
         this.scene.start(SCENE_KEYS.level);
       }
-    });
+    };
+    this.detachConfirm = attachMenuConfirm(this, advance);
+
+    // When the AI pilot is driving, keep the run going hands-free instead of
+    // waiting on a menu keypress: auto-advance after a short beat. The player
+    // can still press a key to skip ahead or switch the pilot off in-level.
+    if (autopilot) {
+      this.add
+        .text(cx, 390, 'AI PLAYING - advancing...', { fontFamily: 'monospace', fontSize: '14px', color: '#ffd970' })
+        .setOrigin(0.5);
+      this.time.delayedCall(2000, advance);
+    }
     hookShutdown(this.events, () => this.shutdown());
   }
 

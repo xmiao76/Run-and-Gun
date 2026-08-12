@@ -15,6 +15,7 @@
 
 import { GAME_TITLE, GAME_VERSION } from '../app/config';
 import { createNeutralInput, type InputState } from '../input/InputState';
+import type { RuntimeSnapshot } from './runtimeTypes';
 
 export interface GameDebugState {
   gameTitle: string;
@@ -23,7 +24,12 @@ export interface GameDebugState {
   scene: string | null;
   /** Heading text rendered by the title scene, or null if not shown. */
   titleHeading: string | null;
-  /** Opaque, scene-provided snapshot (player, lives, weapon, projectiles...). */
+  /**
+   * Scene-provided snapshot (player, lives, weapon, projectiles...). Kept as
+   * a loose record on the wire for backward compatibility; the typed contract
+   * is `RuntimeSnapshot` in `runtimeTypes.ts`, which `reportRuntime` enforces
+   * at the construction boundary.
+   */
   runtime: Record<string, unknown> | null;
 }
 
@@ -43,6 +49,7 @@ export type DebugCommandName =
   | 'advanceSteps'
   | 'teleportPlayer'
   | 'spawnEnemyAt'
+  | 'setManualClock'
   | 'report';
 
 export interface DebugInputState extends InputState {
@@ -80,6 +87,15 @@ declare global {
 
 export type CommandHandler = (payload: unknown) => unknown;
 
+/** Upper bound for `advanceSteps`: 60000 fixed steps = 1000 s of simulation. */
+export const MAX_ADVANCE_STEPS = 60000;
+
+/** Clamp an `advanceSteps` payload to the bounded step range. */
+export function clampStepCount(payload: unknown): number {
+  const n = typeof payload === 'number' ? Math.floor(payload) : 0;
+  return Math.min(Math.max(n, 0), MAX_ADVANCE_STEPS);
+}
+
 const state: GameDebugState = {
   gameTitle: GAME_TITLE,
   gameVersion: GAME_VERSION,
@@ -99,8 +115,12 @@ export function reportTitleHeading(text: string): void {
   state.titleHeading = text;
 }
 
-/** Replace the scene-provided runtime snapshot with a fresh copy. */
-export function reportRuntime(runtime: Record<string, unknown>): void {
+/**
+ * Replace the scene-provided runtime snapshot with a fresh copy. The
+ * parameter is the typed `RuntimeSnapshot` union, so every scene must
+ * construct a well-formed snapshot (see `runtimeTypes.ts`).
+ */
+export function reportRuntime(runtime: RuntimeSnapshot): void {
   state.runtime = { ...runtime };
 }
 
@@ -122,6 +142,19 @@ export function isDebugEnabled(): boolean {
     return true;
   }
   return new URLSearchParams(window.location.search).has('debug');
+}
+
+/**
+ * True when the page asked for the agent-driven manual clock (`?manualClock`)
+ * while debug is enabled. Scenes read this in `create()`; while active, wall
+ * time never advances the simulation - only the `advanceSteps` command does,
+ * and bridge input edges persist until the agent's next step consumes them.
+ */
+export function manualClockRequested(): boolean {
+  if (!isDebugEnabled()) {
+    return false;
+  }
+  return new URLSearchParams(window.location.search).has('manualClock');
 }
 
 export function resolveRenderer(): number | null {

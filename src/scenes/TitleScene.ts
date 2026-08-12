@@ -28,6 +28,17 @@ export class TitleScene extends Phaser.Scene {
     reportScene(SCENE_KEYS.title);
     reportTitleHeading(TITLE_HEADING);
 
+    // Autoplay: `?autopilot` starts Level 1 with the built-in AI pilot;
+    // `?autopilot=remote` disables the pilot so an external agent (see
+    // docs/AUTOMATION.md) can play through the debug bridge instead.
+    const autopilot = new URLSearchParams(window.location.search).get('autopilot');
+    if (autopilot !== null) {
+      this.registry.set('autopilot', autopilot !== 'remote');
+      this.registry.set('currentLevelIndex', 0);
+      this.scene.start(SCENE_KEYS.level);
+      return;
+    }
+
     const centerX = LOGICAL_WIDTH / 2;
 
     const heading = this.add
@@ -59,7 +70,7 @@ export class TitleScene extends Phaser.Scene {
     this.buildControlsPanel(centerX, 334);
 
     this.add
-      .text(centerX, LOGICAL_HEIGHT - 42, 'H - FULL CONTROLS & HELP      S - SETTINGS      P - PROTOTYPE ROOM      F10 - FULLSCREEN', {
+      .text(centerX, LOGICAL_HEIGHT - 42, 'H - HELP      S - SETTINGS      P - PROTOTYPE ROOM      I - WATCH AI PLAY', {
         fontFamily: 'monospace',
         fontSize: '13px',
         color: '#6b7c9c'
@@ -67,7 +78,7 @@ export class TitleScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     this.add
-      .text(12, LOGICAL_HEIGHT - 16, 'v' + GAME_VERSION + ' - Operation Iron Echo', {
+      .text(12, LOGICAL_HEIGHT - 16, 'v' + GAME_VERSION + ' - Operation Iron Echo - F10 fullscreen', {
         fontFamily: 'monospace',
         fontSize: '14px',
         color: '#5c6c8c'
@@ -100,6 +111,15 @@ export class TitleScene extends Phaser.Scene {
         const audio = this.registry.get('audio') as AudioService | undefined;
         audio?.unlock();
         this.scene.start(SCENE_KEYS.sandbox);
+        return;
+      }
+      if (e.code === 'KeyI') {
+        e.preventDefault();
+        const audio = this.registry.get('audio') as AudioService | undefined;
+        audio?.unlock();
+        this.registry.set('autopilot', true);
+        this.registry.set('currentLevelIndex', 0);
+        this.scene.start(SCENE_KEYS.level);
         return;
       }
     };

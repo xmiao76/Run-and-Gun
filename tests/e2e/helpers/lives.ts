@@ -8,7 +8,14 @@
  * needs, or assert the life *change* rather than an absolute number.
  */
 
+// Type-only import: erased at compile time, so the serialized page.evaluate
+// callbacks below reference only browser globals, never this module.
+import type { LevelRuntime } from '../../../src/debug/runtimeTypes';
+
 type Page = import('@playwright/test').Page;
+
+/** Both playable scenes report a life count; pick it from the shared contract. */
+type LivesRuntime = Pick<LevelRuntime, 'lives'>;
 
 const SETTINGS_KEY = 'operation-iron-echo:settings:v1';
 
@@ -32,7 +39,7 @@ export async function seedStartingLives(page: Page, lives: number): Promise<void
 /** The current life count reported by the running scene. */
 export async function currentLives(page: Page): Promise<number> {
   const lives = await page.evaluate(() => {
-    const r = window.__GAME_DEBUG__?.getState()?.runtime as { lives?: number } | null | undefined;
+    const r = window.__GAME_DEBUG__?.getState()?.runtime as LivesRuntime | null | undefined;
     return r?.lives;
   });
   if (typeof lives !== 'number') {
@@ -44,7 +51,7 @@ export async function currentLives(page: Page): Promise<number> {
 /** Wait until exactly `count` lives remain. */
 export function waitForLives(page: Page, count: number): Promise<unknown> {
   return page.waitForFunction((expected) => {
-    const r = window.__GAME_DEBUG__?.getState()?.runtime as { lives?: number } | null | undefined;
+    const r = window.__GAME_DEBUG__?.getState()?.runtime as LivesRuntime | null | undefined;
     return r?.lives === expected;
   }, count);
 }

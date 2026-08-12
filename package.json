@@ -14,7 +14,9 @@
     "test:unit": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "test:e2e:live": "node scripts/test-live.mjs",
     "test:soak": "playwright test tests/e2e/soak.spec.ts",
+    "agent:server": "node scripts/agent-server.mjs",
     "deploy": "npm run build && wrangler pages deploy dist --project-name run-and-gun --branch main"
   },
   "repository": {

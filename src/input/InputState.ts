@@ -41,6 +41,22 @@ export function createNeutralInput(): InputState {
   };
 }
 
+/** True when no action is active - used to detect "the human is idle". */
+export function isNeutralInput(s: InputState): boolean {
+  return (
+    !s.left &&
+    !s.right &&
+    !s.jumpHeld &&
+    !s.jumpPressed &&
+    !s.fireHeld &&
+    !s.firePressed &&
+    !(s.crouch ?? false) &&
+    !(s.drop ?? false) &&
+    !(s.aimUp ?? false) &&
+    !(s.aimDown ?? false)
+  );
+}
+
 /** Logical OR merge so multiple input sources (e.g. keyboard + debug) combine. */
 export function mergeInput(a: InputState, b: InputState): InputState {
   return {

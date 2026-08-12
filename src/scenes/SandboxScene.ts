@@ -15,8 +15,10 @@ import {
 } from '../balance/player';
 import { DEFAULT_WEAPON, getWeapon, type WeaponId } from '../balance/weapons';
 import {
+  clampStepCount,
   clearRuntime,
   getDebugInput,
+  manualClockRequested,
   registerCommand,
   reportRuntime,
   reportScene
@@ -112,6 +114,8 @@ export class SandboxScene extends Phaser.Scene {
   private nextId = 1;
   private clock: ClockState = createClock();
   private stepInput: InputState = createNeutralInput();
+  /** Agent-driven manual clock (`?manualClock`); see LevelScene for details. */
+  private manualClock = false;
   private keyboard: KeyboardInput = createKeyboardInput();
   private checkpoint: CheckpointData = {
     levelId: 'sandbox',
@@ -142,6 +146,9 @@ export class SandboxScene extends Phaser.Scene {
 
   public create(): void {
     reportScene(SCENE_KEYS.sandbox);
+    // Phaser reuses the scene instance across scene.start calls, so the flag
+    // is re-read here rather than once at construction.
+    this.manualClock = manualClockRequested();
     ensureGameTextures(this);
     this.resetRun();
     this.buildEnvironment();
@@ -167,6 +174,13 @@ export class SandboxScene extends Phaser.Scene {
   }
 
   public override update(_time: number, deltaMs: number): void {
+    if (this.manualClock) {
+      // Agent-driven: only the debug `advanceSteps` command steps the
+      // simulation; rendering continues between agent steps.
+      this.clock.accumulator = 0;
+      this.render();
+      return;
+    }
     const result = tick(this.clock, deltaMs / 1000);
     this.clock.accumulator = result.accumulator;
     for (let i = 0; i < result.steps; i++) {
@@ -436,6 +450,24 @@ export class SandboxScene extends Phaser.Scene {
   private registerDebugCommands(): void {
     registerCommand('damagePlayer', () => this.applyExternalHit());
     registerCommand('spawnEnemyAt', (payload) => this.spawnEnemyAt(payload));
+    registerCommand('advanceSteps', (payload) => {
+      // Same bounded fast-forward as the level scene; under the manual clock
+      // this is the only way the sandbox simulation advances.
+      const n = clampStepCount(payload);
+      for (let i = 0; i < n; i++) {
+        this.stepOnce();
+      }
+      this.publishRuntime();
+      return { ok: true, steps: n };
+    });
+    registerCommand('setManualClock', (payload) => {
+      this.manualClock = typeof payload === 'boolean' ? payload : true;
+      if (this.manualClock) {
+        this.clock.accumulator = 0;
+      }
+      this.publishRuntime();
+      return { ok: true, manualClock: this.manualClock };
+    });
     registerCommand('report', () => {
       this.publishRuntime();
       return { ok: true };
@@ -478,7 +510,8 @@ export class SandboxScene extends Phaser.Scene {
       pickups: this.pickups.filter((p) => !p.collected).map((p) => ({ id: p.id, weapon: p.weapon, x: Math.round(p.x) })),
       checkpoint: this.checkpoint.checkpointId,
       score: this.score,
-      gameOver: this.health.gameOver
+      gameOver: this.health.gameOver,
+      manualClock: this.manualClock
     });
   }
 

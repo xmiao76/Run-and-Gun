@@ -21,7 +21,10 @@ async function rt(page: import('@playwright/test').Page): Promise<SoakRuntime> {
 test.describe('M7 soak test (J4, D4)', () => {
   test.setTimeout(180_000);
 
-  test('ten simulated minutes keep enemy and projectile counts bounded', async ({ page }) => {
+  // @slow-live: 36,000 bridge round-trips plus a Chrome-only heap assertion are
+  // environment-sensitive over the CDN; live runs default to skipping it via
+  // `--grep-invert @slow-live` (see scripts/test-live.mjs). Local runs keep it.
+  test('ten simulated minutes keep enemy and projectile counts bounded @slow-live', async ({ page }) => {
     const pageErrors: string[] = [];
     page.on('pageerror', (e) => pageErrors.push(String(e)));
 

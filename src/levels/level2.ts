@@ -84,11 +84,16 @@ const movingPlatforms = [
 ];
 
 // A door that blocks the corridor until the player stands on its trigger pad.
+// The pad must span through the doorway: the door stays open only while the
+// player overlaps the pad, so a pad that ends before the door can never be
+// held open through it - which made the corridor impassable on foot. Extending
+// it past the door keeps the "stand on the pad" mechanic reversible (it closes
+// behind you) while actually letting the player through.
 const doors = [
   {
     id: 'l2-door1',
     rect: { x: 1800, y: GROUND_Y - 96, width: 16, height: 96 },
-    openTrigger: { x: 1700, y: GROUND_Y - 40, width: 60, height: 40 }
+    openTrigger: { x: 1700, y: GROUND_Y - 40, width: 124, height: 40 }
   }
 ];
 

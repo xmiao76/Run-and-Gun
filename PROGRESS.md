@@ -1171,3 +1171,383 @@ Include enough detail so the next iteration can continue without guessing.
   - TASK-014 - Selectable starting lives (3 default, 30 practice option)
 - Blockers (if any):
   - none
+
+---
+
+### 2026-08-12 02:05 - TASK-016 (agent-drivable debug bridge) + TASK-017 (planned)
+
+- Status before: all enhancement tasks DONE; no agent-facing automation refactor.
+- Goal of this iteration:
+  Let scripted tests and an external agent drive the game deterministically
+  without screenshots. Land TASK-016 (typed runtime contract, race-free manual
+  clock, shared GameDriver helper) and record TASK-017 (live-site suite, HTTP
+  agent server, docs) for the next iteration.
+- Work completed:
+  - Added `src/debug/runtimeTypes.ts`: pure types (no Phaser) for every scene's
+    runtime snapshot - `LevelRuntime`, `SandboxRuntime`, `ResultsRuntime`,
+    `GameOverRuntime`, `SettingsRuntime`, `HelpRuntime` - plus the
+    `RuntimeSnapshot` union and `DebugSnapshot`. The wire format stays flat and
+    byte-identical; the union is enforced at the construction boundary so no
+    existing spec needed any change.
+  - Typed `reportRuntime(runtime: RuntimeSnapshot)` in `debugBridge.ts` and added
+    `MAX_ADVANCE_STEPS` + `clampStepCount(payload)` so every scene clamps
+    `advanceSteps` through one helper.
+  - Added a race-free manual-clock mode. `manualClockRequested()` reads
+    `?manualClock` under the debug gate; a `setManualClock` command toggles it at
+    runtime. While active, `LevelScene.update()` and `SandboxScene.update()` skip
+    the real-time tick/step and only render, so the simulation advances solely via
+    `advanceSteps`; because `readDebugInput()` runs only inside `stepOnce()`,
+    bridge input edges persist until the driver's own step consumes them.
+    Blur/focus auto-pause handlers are not attached under manual clock.
+  - Discovered `HelpScene` also publishes a runtime snapshot (`controlsListed`)
+    that earlier audits missed; added `HelpRuntime` to keep typecheck honest.
+  - Discovered the sandbox scene had NO `advanceSteps` command (level-only);
+    added it there with the same bounded clamp so the sandbox is agent-drivable too.
+  - Added `tests/e2e/helpers/gameDriver.ts`, a typed Playwright driver over the
+    bridge (goto/snapshot/waitForScene/command/input/startLevel/startSandbox/
+    gotoTitle/hold/release/press/resetInput/step/act/teleport/defeatBoss/
+    completeLevel). Its `act()` applies input changes and steps in ONE evaluate so
+    no real-time frame can interleave - the race-free pattern.
+  - New specs: `manualClock.spec.ts` (4 tests: freeze + edge persistence, step-only
+    movement, unchanged real-time path + runtime toggle, sandbox honours it) and
+    `driverSmoke.spec.ts` (drives Level 1 spawn -> move -> fire -> jump -> teleport
+    to boss -> defeat -> complete -> results entirely via the driver).
+  - Recorded TASK-017 in TASKS.md for the next iteration.
+- Files changed:
+  - src/debug/runtimeTypes.ts (new), src/debug/debugBridge.ts
+  - src/scenes/LevelScene.ts, src/scenes/SandboxScene.ts
+  - tests/e2e/helpers/lives.ts, tests/e2e/helpers/gameDriver.ts (new)
+  - tests/e2e/manualClock.spec.ts (new), tests/e2e/driverSmoke.spec.ts (new)
+  - TASKS.md (TASK-016 DONE, TASK-017 added)
+- Assets added or updated:
+  - none (types + tests only).
+- Commands run:
+  - `npm run typecheck` (clean), `npm run lint` (clean)
+  - `npm run test:unit` (221 passed, 41 files)
+  - `npm run build` (pass)
+  - `npx playwright test` (68 passed across chromium + msedge: the prior 63 plus
+    4 manualClock + 1 driverSmoke)
+- Verification result:
+  - All green: lint, typecheck, 221 unit tests, build, 68 e2e tests.
+  - Manual-clock race proven gone: `firePress` + 500 ms real-time wait leaves
+    `projectileCount === 0` and `playerX` unchanged; the following `advanceSteps`
+    fires. Real-time mode without the flag is byte-for-byte unchanged.
+  - Normal visitors (no `?debug`) are unaffected: the flag and command live behind
+    the existing debug gate and add no behavior otherwise.
+- Visual quality notes:
+  - none (no presentation change; rendering still runs every frame under manual
+    clock so the canvas always reflects the stepped state).
+- Status after: TASK-016 DONE; TASK-017 TODO.
+- Remaining work:
+  - TASK-017: `TEST_BASE_URL` env-driven Playwright config + `test-live.mjs`
+    launcher + `test:e2e:live`, `@slow-live` tag on soak, `agent-server.mjs`
+    (node:http driver server with /state /command /input /step /act /goto /health),
+    `docs/AUTOMATION.md` + README link, then run the suite against the live site.
+- Next recommended task:
+  - TASK-017 - Test the deployed site: live-suite targeting, HTTP agent server, docs
+- Blockers (if any):
+  - none
+
+---
+
+### 2026-08-12 02:40 - TASK-017 (test the deployed site: live suite, agent server, docs)
+
+- Status before: TODO
+- Goal of this iteration:
+  Make the TASK-016 automation surface usable against the deployed website:
+  point the formal Playwright suite at any URL, ship a dependency-free HTTP
+  driver server for interactive agent play, and document everything.
+- Work completed:
+  - `playwright.config.ts` now reads `TEST_BASE_URL` and skips the local
+    webServer when a remote base is set. The env read goes through a typed
+    globalThis cast to keep @types/node out of the dependencies.
+  - `scripts/test-live.mjs` + `npm run test:e2e:live`: cross-platform launcher
+    that spawns the Playwright CLI through `node` directly (no shell, no npx
+    .cmd resolution on Windows, no DEP0190 warning) with TEST_BASE_URL set,
+    defaulting to https://run-and-gun.pages.dev and forwarding extra argv.
+  - Soak spec tagged `@slow-live` (36,000 round-trips + Chrome-only heap assert
+    are CDN-environment-sensitive); assertions untouched; documented
+    `--grep-invert @slow-live` as the opt-out. The default live run keeps it.
+  - `scripts/agent-server.mjs` + `npm run agent:server`: node:http server that
+    keeps ONE headless page at TARGET_URL with
+    `?debug=1&renderer=canvas&manualClock=1`, serialized request queue for
+    atomicity, endpoints /health /state /command /input /step /act /goto
+    mirroring the GameDriver surface. No new npm dependencies.
+  - `docs/AUTOMATION.md` (bridge API tables, runtime contract, manual-clock
+    semantics, GameDriver walkthrough, live targeting, agent-server endpoint
+    reference, example curl session, example agent loop, safety) + README
+    Automation section linking it.
+  - Verified the deployed bundle state empirically before testing: production
+    carried TASK-014/015 but not TASK-016 (`manualClock` absent from the live
+    bundle), so the first live run passed 63/68 with the 5 failures limited to
+    the not-yet-deployed manual-clock specs - exactly as predicted.
+- Authorization note (deploy):
+  CLAUDE.md forbids deploying; the user was shown that the final acceptance
+  criterion ("live suite passes against production") required a redeploy and
+  explicitly authorized a one-off `npm run deploy` for this action only (same
+  override precedent as the 2026-07-26 entry). No credentials requested,
+  printed, or stored.
+- Files changed:
+  - playwright.config.ts, package.json (test:e2e:live, agent:server)
+  - scripts/test-live.mjs (new), scripts/agent-server.mjs (new)
+  - tests/e2e/soak.spec.ts (@slow-live tag), eslint.config.js (URL/Buffer
+    globals for scripts), docs/AUTOMATION.md (new), README.md
+  - TASKS.md (TASK-017 completion)
+- Assets added or updated:
+  - none.
+- Commands run:
+  - `npm run lint`, `npm run typecheck` (clean), `npm run test:unit` (221),
+    `npm run build` (pass)
+  - `npx playwright test` (68 passed locally)
+  - `node scripts/test-live.mjs http://localhost:4173` (68 passed via the
+    remote-base path with webServer skipped, proving the mechanism)
+  - `node scripts/test-live.mjs` vs production BEFORE deploy (63 passed; the 5
+    failures exactly the undeployed manual-clock specs)
+  - `npm run deploy` (user-authorized one-off), `node scripts/live-check.mjs`
+    (LIVE CHECK PASSED: headers, plain load, new bindings, boss)
+  - `node scripts/test-live.mjs` vs production AFTER deploy (68 passed)
+  - agent-server curl verification against production: /health, /command
+    startLevel1, /act hold-right n=30 (playerX 60 -> 364.58), /act tap-fire
+    n=2 (projectileCount 1, fireAngle 0), /step 30 (manualClock: true on
+    prod), /input resetInput, /goto (session reset to title), /state
+- Verification result:
+  - All TASK-017 acceptance criteria verified with evidence above. The formal
+    suite now passes 68/68 against the live production site, and an external
+    agent can play the deployed game over plain HTTP with deterministic,
+    screenshot-free control.
+- Visual quality notes:
+  - none (tooling/docs only).
+- Status after: DONE and deployed.
+- Remaining work:
+  - none for this task.
+- Next recommended task:
+  - TASK-018 - Front-page AI autoplay demo (bridge-driven, no screenshots)
+- Blockers (if any):
+  - none
+
+---
+
+### 2026-08-12 12:00 - TASK-018 (front-page AI autoplay demo)
+
+- Status before: TODO (user-added task).
+- Goal of this iteration:
+  A title-screen option that lets a built-in AI pilot play Level 1 itself,
+  perceiving only the typed runtime snapshot and acting only through the
+  standard InputState merge - no screenshots, no pixel reads, no cheats.
+- Work completed:
+  - Extended the typed runtime contract for pilot perception
+    (`src/debug/runtimeTypes.ts` + `LevelScene.publishRuntime`): added
+    `enemyProjectiles[{x,y,vx,vy,arcGravity}]`, `bossX/bossY`,
+    `bossStateTimer`, and `autopilot` to `LevelRuntime`. Wire format stays flat.
+  - New pure module `src/ai/pilot.ts` (no Phaser/DOM imports):
+    `decidePilotInput(snapshot, memory): PilotDecision` returns an InputState
+    per step from the same fields the debug bridge publishes. Also
+    `pitsFromSolids`/`platformRanges`/`createPilotMemory`. 28 unit tests
+    (`tests/unit/pilot.test.ts`).
+  - LevelScene wiring: pilot input merged at the same layer as
+    keyboard/gamepad/touch/debug in `stepOnce()`; any human gameplay input
+    disengages the pilot instantly (takeover). Reads the `autopilot` registry
+    flag in `create()` (consumed so restart is a normal run), builds pilot
+    memory from level geometry, stores `lastRuntime` for perception, and shows
+    an "AI PLAYING - press any control key to take over" HUD label while engaged.
+  - `advanceSteps` now stops early if a step transitions the scene and only
+    republishes while the scene is active (needed for fast-forwarding the AI
+    run deterministically through completion).
+  - Title screen: `I - WATCH AI PLAY` entry (same keyboard-shortcut pattern as
+    H/S/P); `?autopilot` starts Level 1 with the pilot engaged,
+    `?autopilot=remote` starts it disengaged for an external bridge agent.
+  - `tests/e2e/autopilot.spec.ts`: drives the demo from the title screen (real
+    `i` key) under the manual clock, fast-forwards, and asserts the pilot
+    crosses the level, activates + damages + defeats the Siege Walker, and
+    reaches the results scene, with zero page errors; plus a human-takeover
+    test and the `?autopilot=remote` test.
+- The hard part (recorded for future reference):
+  A pure "state in, input out" pilot is easy to write but hard to make
+  *behave*. It took five empirically-driven design revisions, each diagnosed
+  with a fast-forward probe (`scripts/autopilot-probe.mjs`):
+  1. **Jump cut**: the pilot pressed jump for one step, so the variable-jump
+     physics cut velocity to 40% and it fell into the pit. Fix: hold jump
+     until landing (`holdingJump` memory flag; `applyJumpHold`).
+  2. **Dodge loop**: prioritizing dodging over fighting meant perpetual jumps
+     and no kills. Fix: fight while dodging.
+  3. **Facing oscillation**: stop-and-duel at point-blank flipped facing every
+     step so shots sailed the wrong way (confirmed via `window.__GAME__`
+     internals: persistent `facing:-1` + capped bullets + enemy hp stuck).
+  4. **Root cause of the stall**: enemies deal NO contact damage (only
+     projectiles and the boss shockwave hurt - verified in the scene collision
+     code), so dueling to a standstill was pure self-sabotage.
+  5. **Final design - run-and-gun**: the goal is to *complete the level*, not
+     duel every enemy. The pilot now always advances right and fires right
+     (facing/shots always correct), kills what is ahead and outruns the rest,
+     sidesteps only descending fire (drone bombs / grenade lobs), jumps pits
+     at the edge, and hands off to `bossDecision` for the actual boss fight.
+     This took it from "dies at x~700" to "completes Level 1 losing 4 lives".
+- Files changed:
+  - src/ai/pilot.ts (new), src/debug/runtimeTypes.ts
+  - src/input/InputState.ts (+isNeutralInput), src/debug/debugBridge.ts
+    (+setManualClock cmd earlier), src/scenes/LevelScene.ts, src/scenes/SandboxScene.ts,
+    src/scenes/TitleScene.ts
+  - tests/unit/pilot.test.ts (new), tests/e2e/autopilot.spec.ts (new)
+  - scripts/autopilot-probe.mjs (new diagnostic), TASKS.md
+- Assets added or updated:
+  - none.
+- Commands run:
+  - `npx vitest run tests/unit/pilot.test.ts` (28 passed)
+  - `npm run lint`, `npm run typecheck` (clean)
+  - `npm run test:unit` (249 passed, up from 221)
+  - `npm run build` (pass)
+  - `node scripts/autopilot-probe.mjs` (repeatedly, to diagnose behavior)
+  - `npx playwright test tests/e2e/autopilot.spec.ts` (3 passed)
+  - `npx playwright test` (71 passed: 68 prior + 3 autopilot)
+  - autopilot spec x3 consecutive (3 passed each) for reliability
+- Verification result:
+  - All TASK-018 acceptance criteria verified. The pilot completes Level 1
+    start-to-boss, defeating the Siege Walker in its vulnerable windows, losing
+    ~4 lives, with zero page errors; deterministic sim means repeated runs are
+    identical. Human takeover and `?autopilot=remote` verified. The full suite
+    is green: 249 unit, 71 e2e, lint/typecheck/build clean.
+  - Boss fight detail: the pilot holds ~350px left of the boss between attack
+    cycles and pours fire during each vulnerable window; with the rapid carbine
+    (picked up on the path) the Siege Walker dies inside one window, with the
+    pulse rifle it takes two windows (both acceptable).
+- Visual quality notes:
+  - none for gameplay art; the autoplay adds an on-screen "AI PLAYING" HUD label.
+- Status after: DONE. Not deployed (loop rules forbid it); the demo ships with
+  the next `npm run deploy`, after which `npm run test:e2e:live` can verify it
+  on production.
+- Remaining work:
+  - none for this task.
+- Next recommended task:
+  - none open. Add further enhancements to TASKS.md to continue the loop.
+- Blockers (if any):
+  - none
+
+---
+
+### 2026-08-12 12:20 - DEPLOYMENT of TASK-018 (not a TASKS.md task)
+
+- Status before: TASK-018 complete locally, not deployed.
+- Authorization note:
+  CLAUDE.md forbids deploying; the user explicitly instructed "Deploy to the
+  website now", a one-off override for this action only (same precedent as the
+  2026-07-26 and TASK-017 entries). The repo rules are unchanged. No
+  credentials were requested, printed, or stored.
+- Work completed:
+  - `npm run deploy` (build + `wrangler pages deploy dist`) -> production.
+  - Verified propagation: production bundle `index-Cb3eTtis.js` is byte-for-byte
+    the local `dist` build and contains the autoplay code.
+  - `node scripts/live-check.mjs` PASSED (headers, plain load, new bindings, boss).
+  - `node scripts/test-live.mjs` -> 71/71 passed against production (chromium+msedge).
+  - `node scripts/test-live.mjs ... tests/e2e/autopilot.spec.ts` -> 3/3 passed on
+    production (the deployed AI pilot completes Level 1 and defeats the boss).
+- Verification result: the AI autoplay demo is live at
+  https://run-and-gun.pages.dev (press I on the title screen, or `?autopilot=1`).
+- Status after: deployed to production.
+
+---
+
+### 2026-08-12 13:10 - TASK-019 (per-level AI autoplay toggle + Level 2 competency)
+
+- Status before: TODO (user enhancement request: control AI autoplay on every level).
+- Goal of this iteration:
+  Let the player switch the AI pilot on/off on any level (and mid-level), keep
+  the choice across level transitions and restarts, and make the pilot competent
+  enough to complete Level 2 as well as Level 1.
+- Work completed:
+  - **Per-level toggle (the core ask).** The `autopilot` registry flag is now a
+    session-global switch (no longer consumed on engage). `I` toggles the pilot
+    on/off during any level via `consumePress('KeyI')` in `update()`;
+    `engagePilot`/`disengagePilot`/`togglePilot` update the HUD label and the
+    registry. Title `I` still starts Level 1 with it on; `?autopilot=1`/`=remote`
+    unchanged. Because the flag persists, the AI keeps playing across
+    results->next-level and game-over->restart until switched off.
+  - **Hands-free continuity.** `ResultsScene` auto-advances after 2 s when the
+    toggle is on (with an "AI PLAYING - advancing..." hint), so the pilot plays
+    Level 1 -> results -> Level 2 -> MISSION COMPLETE with zero menu keypresses.
+    When the toggle is off, results waits for the player as before.
+  - **Pilot memory per level.** `buildPilotGeometry()` builds the pilot's static
+    knowledge from the current level (pits, one-way platforms, floor spikes,
+    boss arena), so it is level-agnostic.
+  - **Snapshot extensions (runtimeTypes.ts + publishRuntime):** added
+    `subcomponents[]` (id/x/y/w/h/alive) and `movingPlatforms[]` (id/x/y/width)
+    to `LevelRuntime` for Level 2 perception and external agents.
+  - **Level 2 competency, probe-driven** (`scripts/autopilot2-probe.mjs`):
+    - Floor spike hazard: added `spikeRanges` + `spikes` to geometry and a wider
+      `SPIKE_JUMP_WINDOW` (spikes kill on right-edge contact, before the pit's
+      left-edge window). The pilot now jumps the x=2360 spike strip.
+    - Reactor Warden: the boss is immune while subcomponents live, and its nodes
+      protrude on both sides of the bullet-blocking boss body. Added
+      `subcomponentAttack`: the pilot walks to a close standoff on each node's
+      protruding side (through the boss, which neither blocks nor hurts on
+      contact) and fires, aiming diagonally up at above-gun nodes. It cleared
+      both phases' nodes, then damaged the boss to death.
+    - Facing fix: during the vulnerable window the pilot now *advances toward*
+      the boss while firing (facing follows movement), so it can't fire away
+      from the boss after clearing the far node.
+- **Bug found and fixed (NOT pilot accommodation):** the Level 2 corridor door
+  was impassable on foot for everyone. `stepDoor` opens only while the player
+  overlaps the trigger pad, but the pad ended at x=1760, 40 px before the door
+  at x=1800, so it could never be held open through the doorway - the player was
+  permanently blocked at x=1778 (confirmed empirically with
+  `scripts/door-check.mjs`). `fullGame.spec.ts` only ever passed because it
+  teleports past the door, masking the bug for humans too. Fixed by extending
+  the pad through the doorway (`src/levels/level2.ts`, width 60 -> 124), which
+  preserves the documented reversible "stand on the pad" mechanic (the door
+  closes behind you). Re-verified walkable on foot.
+- Files changed:
+  - src/scenes/LevelScene.ts (toggle, geometry builder, snapshot fields)
+  - src/scenes/ResultsScene.ts (auto-advance), src/scenes/TitleScene.ts
+  - src/ai/pilot.ts (spikes, subcomponentAttack, vulnerable-window facing)
+  - src/debug/runtimeTypes.ts, src/levels/level2.ts (door fix)
+  - tests/unit/pilot.test.ts, tests/e2e/aiToggle.spec.ts (new)
+  - scripts/autopilot2-probe.mjs, autopilot-fullrun.mjs, door-check.mjs (new diagnostics)
+  - TASKS.md
+- Assets added or updated:
+  - none.
+- Commands run:
+  - `npx vitest run tests/unit/pilot.test.ts` (28 passed)
+  - `npm run lint`, `npm run typecheck` (clean), `npm run test:unit` (249 passed)
+  - `npm run build` (pass)
+  - `node scripts/door-check.mjs`, `autopilot2-probe.mjs`, `autopilot-fullrun.mjs`
+  - `npx playwright test tests/e2e/aiToggle.spec.ts` (3 passed)
+  - `npx playwright test` (74 passed: 71 prior + 3 aiToggle)
+- Verification result:
+  - All TASK-019 acceptance criteria verified. Full hands-free run: AI on ->
+    Level 1 complete (loses 4 lives) -> results auto-advance -> Level 2 complete
+    (loses 9 lives, defeats Reactor Warden incl. both subcomponent phases) ->
+    MISSION COMPLETE -> title, zero page errors. Toggle on/off mid-level and the
+    toggle-off results wait both verified. Full suite green: 249 unit, 74 e2e.
+- Visual quality notes:
+  - "AI PLAYING" HUD label shows while the pilot is engaged; an "AI PLAYING -
+    advancing..." hint shows on the results screen when the toggle is on.
+- Status after: DONE. Not deployed (loop rules forbid it); ships with the next
+  `npm run deploy`, after which `npm run test:e2e:live` can verify on production.
+- Remaining work:
+  - none for this task.
+- Next recommended task:
+  - none open. Add further enhancements to TASKS.md to continue the loop.
+- Blockers (if any):
+  - none
+
+---
+
+### 2026-08-12 13:25 - DEPLOYMENT of TASK-019 (not a TASKS.md task)
+
+- Status before: TASK-019 complete locally, not deployed.
+- Authorization note:
+  CLAUDE.md forbids deploying; the user replied "continue" directly to the
+  offer "Want me to deploy it now?", a one-off authorization for this action
+  only (same precedent as the TASK-017/018 deploys). Repo rules unchanged. No
+  credentials were requested, printed, or stored.
+- Work completed:
+  - `npm run deploy` (build + `wrangler pages deploy dist`) -> production.
+  - Verified propagation: production bundle `index-Be4AsXlZ.js` is byte-for-byte
+    the local `dist` build and contains the door fix and subcomponent snapshot code.
+  - `node scripts/live-check.mjs` PASSED (headers, plain load, new bindings, boss).
+  - `node scripts/test-live.mjs ... aiToggle.spec.ts autopilot.spec.ts` -> 6/6
+    passed on production, including the hands-free Level 1 + Level 2 completion.
+  - `node scripts/test-live.mjs` -> 74/74 passed against production (chromium+msedge).
+- Verification result: the per-level AI autoplay toggle is live at
+  https://run-and-gun.pages.dev (press I on any level to switch the pilot on/off;
+  with it on, the AI plays both levels hands-free to MISSION COMPLETE).
+- Status after: deployed to production.

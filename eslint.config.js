@@ -23,7 +23,10 @@ export default tseslint.config(
         fetch: 'readonly',
         window: 'readonly',
         document: 'readonly',
-        navigator: 'readonly'
+        navigator: 'readonly',
+        // Node builtins used by the driver/launcher scripts.
+        URL: 'readonly',
+        Buffer: 'readonly'
       }
     }
   }

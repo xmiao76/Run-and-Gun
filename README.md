@@ -110,6 +110,16 @@ Project layout:
 - `tests/` - Vitest unit tests and Playwright e2e specs
 - `scripts/` - one-off visual-inspection capture utilities
 
+## Automation
+
+The game is drivable end to end without screenshots: the `?debug` bridge
+exposes structured state, input injection, and step-exact time control over a
+deterministic simulation. Scripted tests use the typed `GameDriver` helper; the
+same suite runs against the deployed site with `npm run test:e2e:live`; and an
+AI agent can play interactively through `npm run agent:server` (a tiny HTTP
+driver that keeps one browser session open). Full reference:
+[`docs/AUTOMATION.md`](docs/AUTOMATION.md).
+
 ## Deployment
 
 `npm run build` produces a fully static `dist/` (relative asset paths) ready

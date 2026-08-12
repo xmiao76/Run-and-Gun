@@ -296,3 +296,163 @@ Do not start them until the core release tasks above are complete or explicitly 
     `src/balance/enemies.ts` (health, moveSpeed, fireInterval, telegraph
     duration) and `src/balance/bosses.ts`. Raise them there rather than
     reworking scenes.
+
+---
+
+### TASK-016 - Agent-drivable debug bridge: typed contract, manual clock, shared driver
+
+- Status: DONE
+- Requirement:
+  Harden the existing `window.__GAME_DEBUG__` bridge into a control surface an
+  external agent can use to play the game deterministically without
+  screenshots: a typed runtime-snapshot contract shared by game, tests, and
+  agents; a race-free manual-clock mode where wall time never advances the
+  simulation and only `advanceSteps` does (so bridge input edges persist until
+  the agent's own step consumes them); and one shared, typed `GameDriver`
+  Playwright helper replacing the per-spec inline accessors for new specs.
+- Acceptance criteria:
+  - [x] `src/debug/runtimeTypes.ts` exports `LevelRuntime`, `SandboxRuntime`,
+        `ResultsRuntime`, `GameOverRuntime`, `SettingsRuntime`, `HelpRuntime`,
+        the `RuntimeSnapshot` union, and `DebugSnapshot`, with no Phaser imports
+  - [x] `reportRuntime` accepts only the `RuntimeSnapshot` union, enforcing the
+        contract at every scene's construction site; the wire format stays flat
+        (no envelope), so all pre-existing specs pass unchanged
+  - [x] `?manualClock` (debug-only) freezes the real-time clock in the level and
+        sandbox scenes while still rendering; the simulation advances only via
+        `advanceSteps`, and the mode is toggleable at runtime via `setManualClock`
+  - [x] Under manual clock, a `firePress` survives a 500 ms real-time wait with
+        zero projectiles, and the following `advanceSteps` fires (race proven gone)
+  - [x] `manualClock` is reported in the level and sandbox runtime snapshots
+  - [x] Window blur/focus auto-pause handlers are not attached under manual clock
+  - [x] `advanceSteps` is available in the sandbox scene too (bounded by the
+        shared `clampStepCount`, same 60000-step cap as the level scene)
+  - [x] `tests/e2e/helpers/gameDriver.ts` provides the typed driver
+        (goto/snapshot/waitForScene/command/input/startLevel/startSandbox/
+        gotoTitle/hold/release/press/step/act/teleport/defeatBoss/completeLevel/
+        resetInput); `tests/e2e/driverSmoke.spec.ts` drives Level 1 from spawn to
+        boss defeat through it exclusively
+  - [x] All pre-existing specs pass unchanged; unit tests, lint, typecheck, build green
+- Non-goals / constraints:
+  - Do not migrate the pre-existing specs to GameDriver in this task.
+  - Do not change gameplay, balance, physics, or level content.
+  - Normal visitors (no `?debug`) see zero behavior change.
+  - Do not add live-site targeting or the HTTP agent server (that is TASK-017).
+
+---
+
+### TASK-017 - Test the deployed site: live-suite targeting, HTTP agent server, docs
+
+- Status: DONE
+- Requirement:
+  Make the automation surface usable against the deployed website: run the
+  formal Playwright suite against any URL (default the Cloudflare Pages
+  production site), provide a small dependency-free HTTP driver server so an
+  AI agent can keep one browser session open and play the deployed game
+  between turns, and document the whole surface.
+- Acceptance criteria:
+  - [x] `playwright.config.ts` reads `TEST_BASE_URL` (default
+        `http://localhost:4173`) and skips the local `webServer` when a remote
+        base is set
+  - [x] `scripts/test-live.mjs` + `npm run test:e2e:live` launch the suite
+        against `https://run-and-gun.pages.dev` by default, cross-platform on
+        Windows git-bash, forwarding extra Playwright argv
+  - [x] The soak spec is tagged `@slow-live`; live runs document
+        `--grep-invert @slow-live`; no assertion is weakened
+  - [x] `scripts/agent-server.mjs` (`npm run agent:server`) keeps one headless
+        page open at `TARGET_URL` with `?debug=1&renderer=canvas&manualClock=1`
+        and exposes `GET /state`, `GET /health`, `POST /command`, `POST /input`,
+        `POST /step`, `POST /act`, `POST /goto` over `node:http` (no new npm
+        dependencies; Playwright already a devDependency)
+  - [x] An example curl session drives the deployed site: start level, act
+        (hold right + tap jump + step), read state back
+  - [x] `docs/AUTOMATION.md` documents the bridge API, the runtime contract,
+        manual-clock semantics (edges persist until you step; do not mix with
+        real-time play; `pause` unnecessary), both driver surfaces, an example
+        agent loop, and the safety note (bridge ships in prod, inert without
+        `?debug`); README links to it
+  - [x] All local specs still pass; the live suite passes against production
+- Non-goals / constraints:
+  - Do not change gameplay or the bridge command set beyond documenting it.
+  - The agent server must not add npm dependencies.
+  - Do not weaken or skip assertions to make live runs pass; tag environment-
+        sensitive specs instead.
+		
+---
+
+###  TASK-018 - Front-page AI autoplay demo (bridge-driven, no screenshots)
+
+- Status: DONE
+- Requirement:
+a title-screen option that lets an AI pilot play the game itself as a
+. The pilot must control the game through the same programmatic
+rface automated tests use — the typed runtime state snapshot and the
+tState input abstraction — never screenshots or pixel inspection, so
+erceives and acts at simulation speed (60 Hz, near real time) and can
+ competently.
+sign direction (recommended):
+New pure module src/ai/pilot.ts (no Phaser/DOM imports, unit-testable
+ other src/simulation code): decidePilotInput(snapshot, memory): PilotDecision
+      → returns an InputState each step from the same fields the debug bridge
+      already publishes (playerX/Y, grounded, enemies[] with positions,
+      enemy projectiles, boss state/vulnerability, checkpoint, etc. — see
+    src/debug/runtimeTypes.ts).
+        - The pilot's InputState is merged at the existing input merge point in
+      LevelScene.stepOnce() (same layer as keyboard/gamepad/debug input) —
+      the AI plays through the exact path a human does: no teleports, no
+    damageBoss, no cheats. This keeps the demo honest.
+        - Behavior tiers (heuristic, deterministic): run forward; jump pits
+      (level data is known); shoot nearest in-range enemy; dodge telegraphed
+ and in-flight enemy projectiles; fight bosses during vulnerable windows;
+lect weapon pickups on path.
+ Title screen: a new entry (e.g. I - WATCH AI PLAY) starting Level 1
+h the pilot engaged; a small "AI PLAYING — press any control key to
+e over" HUD label; any gameplay input hands control back to the human.
+ Optional external-pilot hook (reuses TASK-017 surface): ?autopilot=remote
+ables the built-in pilot so an outside agent (agent-server / LLM loop)
+ play through the bridge instead — one flag, no extra systems.
+cceptance criteria:
+ [x] Title screen exposes the AI-demo option, navigable by keyboard, touch, and gamepad like other menu entries
+ [x] src/ai/pilot.ts is pure and unit-tested: jump-at-pit, shoot-nearest-enemy, dodge-incoming-projectile, boss-vulnerable-window decisions
+   - [x] The pilot reads only the typed runtime/simulation state (no canvas pixels, no screenshots anywhere in the loop)
+        - [x] The pilot acts through the standard InputState merge — a human pressing keys immediately regains control
+        - [x] The AI completes Level 1 start-to-boss (and damages/defeats the Siege Walker) reliably across repeated automated runs
+        - [x] E2E spec starts the AI demo from the title screen via the debug bridge and asserts autonomous progress (movement, kills, boss reached) with zero page errors
+      - [x] All existing unit (221+) and e2e (68+) tests stay green; lint, typecheck, build clean
+      - Non-goals / constraints:
+        - No external ML services, backends, or network calls — the built-in pilot runs fully in-page (static-site constraint).
+        - Do not change gameplay balance, level layouts, or enemy behavior to accommodate the pilot.
+      - Do not let the demo pilot use debug cheat commands; it must be beatable the honest way.
+
+---
+
+### TASK-019 - Per-level AI autoplay toggle and Level 2 competency
+
+- Status: DONE
+- Requirement:
+  Turn the one-shot Level 1 autoplay demo into a per-level control: the player
+  can switch the AI pilot on or off on any level (and mid-level), the choice
+  persists across level transitions and restarts within the session, and the
+  pilot is competent enough to complete Level 2 as well as Level 1 (moving-
+  platform pit, floor spike hazard, trigger door, and the Reactor Warden whose
+  vulnerability is gated behind destructible subcomponents).
+- Acceptance criteria:
+  - [x] A key (I) toggles the AI pilot on/off during any level, with the "AI PLAYING" HUD label reflecting the state; human input still takes over instantly
+  - [x] The toggle state persists across results->next-level and game-over->restart within the session (registry), so the AI keeps playing on every level until switched off
+  - [x] Title `I` starts Level 1 with the AI on; `?autopilot=1` on, `?autopilot=remote` off (external bridge agent) - unchanged entry points
+  - [x] Pilot memory is rebuilt per level from that level's geometry (pits, platforms, hazards, moving platforms, boss)
+  - [x] Runtime snapshot exposes what Level 2 needs: moving platform positions and subcomponent positions (typed in runtimeTypes.ts)
+  - [x] The pilot crosses Level 2's moving-platform pit, avoids the floor spike hazard, passes the trigger door, and destroys the Reactor Warden's subcomponents then the boss
+  - [x] E2E: toggle on/off mid-level, AI continues into Level 2 on the toggle, and full Level 2 completion with zero page errors; Level 1 completion still green
+  - [x] All unit (249+) and e2e (71+) tests stay green; lint, typecheck, build clean
+- Non-goals / constraints:
+  - Do not change gameplay balance, level layouts, or enemy behavior to accommodate the pilot.
+  - No external ML services, backends, or network calls.
+  - Do not let the pilot use debug cheat commands; it must win the honest way.
+- Bug found and fixed (not pilot accommodation):
+  - The Level 2 corridor door was impassable on foot for EVERYONE (it closed the
+    instant the player stepped off the trigger pad, which ends 40 px before the
+    door). `fullGame.spec` only passed because it teleports past it. Fixed by
+    extending the trigger pad through the doorway (`src/levels/level2.ts`),
+    preserving the documented reversible "stand on the pad" mechanic.
+
+---
