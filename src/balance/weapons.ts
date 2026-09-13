@@ -65,10 +65,29 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
   rapid: {
     id: 'rapid',
     name: 'Rapid Carbine',
+    // TASK-044: the Carbine used to be a strict upgrade on the Pulse Rifle -
+    // same damage, 2.2x the fire rate, a faster bullet, and effectively the
+    // same reach. Picking it up was never a decision, and it retired the
+    // starting weapon on sight. Every other weapon in the roster trades
+    // something, so now this one does too.
+    //
+    // Its identity is close-range sustained fire: well under half the damage
+    // per shot, and a bullet that expires at about four fifths of the Rifle's
+    // reach. It keeps a clear edge on sustained output while the Rifle owns
+    // anything at distance.
+    //
+    // A first attempt cut harder still - 0.5 damage and 0.8s of flight - and
+    // the eval matrix rejected it: Level 1 hands you this weapon before its
+    // boss, and at that power the pilot could no longer finish the level
+    // inside its step budget at all. A cost is a trade, not a halving.
+    //
+    // The reach is deliberately kept above the AI pilot's 350px boss stand-off
+    // (BOSS_HOLD_DISTANCE): a weapon that cannot reach a boss from where the
+    // fight is fought is not a trade-off, it is a broken weapon.
     cooldown: 0.1,
-    damage: 1,
+    damage: 0.6,
     projectileSpeed: 520,
-    projectileLifetime: 1.2,
+    projectileLifetime: 1,
     spreadAngles: [0]
   },
   laser: {
@@ -91,9 +110,16 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
   flame: {
     id: 'flame',
     name: 'Flare Thrower',
-    // 5 dps, between Pulse and Rapid, paid for with a slow arcing shot that is
-    // awkward against distant or airborne targets.
-    cooldown: 0.3,
+    // The roster's highest sustained damage, and the shortest reach to pay for
+    // it - plus an arc that makes anything distant or airborne genuinely
+    // awkward to hit.
+    //
+    // Found while writing the TASK-044 balance invariants: at a 0.3s cooldown
+    // this weapon matched the Lance Laser's damage-per-second AND its damage
+    // per shot, while having less than half its reach and no piercing. The
+    // Laser beat it on every axis at once, so the Flare Thrower had no reason
+    // to exist. Raw output is now the thing it is best at.
+    cooldown: 0.24,
     damage: 1.5,
     projectileSpeed: 360,
     projectileLifetime: 1,

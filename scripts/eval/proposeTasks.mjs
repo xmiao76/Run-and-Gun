@@ -150,6 +150,23 @@ function renderTask(id, group, spec) {
   lines.push('');
   lines.push('- Status: TODO');
   lines.push(`- Source: eval finding \`${findingSignature(group)}\` (${group.severity}, seen in ${group.runs.length} run(s): ${group.runs.slice(0, 3).join(', ')}${group.runs.length > 3 ? ', ...' : ''}; policies: ${group.policies.join(', ')})`);
+  // Say plainly when nothing competent reproduced this. The sort already puts
+  // such findings last, but ordering is invisible once you are reading one
+  // proposal - and a reviewer who cannot tell `doorCamper` from `pilot` at a
+  // glance ends up re-deriving it from the policy list every single run.
+  if (!group.competent) {
+    lines.push('- Evidence strength: **WEAK - no competent policy reproduced this.**');
+    for (const line of wrap(
+      'Only deliberately incompetent or adversarial policies reached it (see ' +
+        'scripts/lib/policies.mjs), and those exist to find crashes and stuck ' +
+        'states rather than to model a player: a policy that stands still in a ' +
+        'hazard is expected to die there repeatedly. Treat this as likely ' +
+        'policy noise unless the pilot, a hiccup run, or you can reproduce it.',
+      74
+    )) {
+      lines.push(`  ${line}`);
+    }
+  }
   lines.push('- Requirement:');
   for (const line of wrap(spec.requirement, 74)) {
     lines.push(`  ${line}`);
@@ -218,6 +235,8 @@ export function proposeTasks(groups, tasksText, options = {}) {
   const blocks = [];
   const skipped = [];
   let considered = 0;
+  /** Proposals no competent policy reproduced; surfaced in the summary. */
+  let weak = 0;
 
   for (const group of ranked) {
     if (group.severity !== 'CRITICAL' && group.severity !== 'HIGH') {
@@ -239,6 +258,9 @@ export function proposeTasks(groups, tasksText, options = {}) {
       continue;
     }
     blocks.push(renderTask(nextId, group, template(group)));
+    if (!group.competent) {
+      weak += 1;
+    }
     nextId += 1;
   }
 
@@ -255,6 +277,7 @@ export function proposeTasks(groups, tasksText, options = {}) {
     'not that it must be fixed, and that call stays with a person.',
     '',
     `${blocks.length} proposed, ${skipped.length} already covered by an existing task` +
+      (weak > 0 ? `, ${weak} of them seen ONLY by deliberately incompetent policies` : '') +
       (omitted > 0 ? `, ${omitted} more not shown (raise --max to see them)` : ''),
     '',
     '---',

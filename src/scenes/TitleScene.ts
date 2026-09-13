@@ -91,17 +91,40 @@ export class TitleScene extends Phaser.Scene {
       originY: 0.5
     });
 
-    const prompt = drawText(this, centerX, 300, 'PRESS ENTER OR SPACE TO START', {
+    const prompt = drawText(this, centerX, 292, 'PRESS ENTER OR SPACE TO START', {
       size: 16,
       color: '#cdd9f0',
       originX: 0.5,
       originY: 0.5
     });
 
+    /**
+     * The AI demo, promoted to a second call to action.
+     *
+     * It used to be the last of four hints on one dim 8px line at the bottom of
+     * the screen, where a new visitor never saw it - which is a shame, because
+     * watching the pilot play is the fastest way to understand what this game
+     * IS without committing to a run. It now sits directly under the start
+     * prompt as its peer: same size, and the gold the game already uses to mean
+     * "the AI is driving" (the in-level AI label and the weapon keys use it).
+     *
+     * Its pulse is deliberately slower than the start prompt's and out of phase,
+     * so the two read as two separate invitations rather than one blinking block.
+     */
+    const aiPrompt = drawText(this, centerX, 318, 'PRESS I TO WATCH THE AI PLAY', {
+      size: 16,
+      color: '#ffd970',
+      originX: 0.5,
+      originY: 0.5
+    });
+
     // Primary controls, shown up front so a new player never has to hunt.
+    // Back at 334: moving it down to make room pushed the panel's own "also:"
+    // footnote into the hint line below it. The AI prompt fits in the gap the
+    // start prompt vacated instead.
     this.buildControlsPanel(centerX, 334);
 
-    drawText(this, centerX, LOGICAL_HEIGHT - 42, 'H - HELP    S - SETTINGS    P - PROTOTYPE ROOM    I - WATCH AI PLAY', {
+    drawText(this, centerX, LOGICAL_HEIGHT - 42, 'H - HELP    S - SETTINGS    P - PROTOTYPE ROOM', {
       size: 8,
       color: '#6b7c9c',
       originX: 0.5,
@@ -117,6 +140,7 @@ export class TitleScene extends Phaser.Scene {
 
     this.tweens.add({ targets: heading, alpha: 0.55, duration: 900, yoyo: true, repeat: -1 });
     this.tweens.add({ targets: prompt, alpha: 0.3, duration: 700, yoyo: true, repeat: -1 });
+    this.tweens.add({ targets: aiPrompt, alpha: 0.45, duration: 1100, yoyo: true, repeat: -1 });
 
     const startGame = (): void => {
       const audio = this.registry.get('audio') as AudioService | undefined;
