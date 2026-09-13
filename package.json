@@ -16,6 +16,7 @@
     "test:e2e": "playwright test",
     "test:e2e:live": "node scripts/test-live.mjs",
     "test:soak": "playwright test tests/e2e/soak.spec.ts",
+    "eval": "node scripts/eval/index.mjs",
     "agent:server": "node scripts/agent-server.mjs",
     "deploy": "npm run build && wrangler pages deploy dist --project-name run-and-gun --branch main"
   },

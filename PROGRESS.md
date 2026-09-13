@@ -1809,3 +1809,862 @@ Include enough detail so the next iteration can continue without guessing.
     independent of the harness chain.
 
 ---
+
+### 2026-09-13 01:50 - TASK-022 (batch matrix, aggregation, `npm run eval`)
+
+- Status before: TODO
+- Goal of this iteration:
+  Run the single-run evaluator across a varied matrix, aggregate it into a
+  report a human and the loop can both read, and prove the thing actually
+  detects a real bug.
+- Work completed:
+  - `scripts/eval/matrix.mjs` - six variation axes, ordered by bugs found per
+    run rather than by cleverness: start state (level x checkpoint x lives, plus
+    starting weapon at `preboss` only, where it is the weapon you actually fight
+    the boss with), seeded hiccups over a pilot run, scripted adversarial
+    policies, seeded fuzz, `advanceSteps` batch size, and the full two-level
+    chain.
+  - `scripts/eval/report.mjs` - grouping, ranking, markdown, and a categorical
+    baseline. Findings are grouped by (kind, level, bucket) and ranked with
+    competent-policy findings first: a wedge the pilot hits is one a real player
+    hits; a wedge `fuzz` hits may not be reachable deliberately.
+  - `scripts/eval/index.mjs` + `npm run eval`, with `--quick`, `--seeds`,
+    `--filter`, `--baseline`, `--update-baseline`, `--headed`.
+  - New seeded policies: `hiccup` (pilot + stray input bursts) and `fuzz`.
+  - `runOnBrowser` so the matrix reuses one browser with a fresh context per run.
+- Measured: 39 runs in **40 seconds**; `--quick` (12 runs) in **13 seconds**.
+  The budgets in the task were 6 and 2 minutes.
+- **The harness found a real defect on its first full matrix (TASK-028 filed).**
+  The pilot completes Level 2 from the level start but NOT from the `mid` or
+  `preboss` checkpoint. From `preboss` it walks to x=2748.83, stops there
+  permanently, never damages a subcomponent (`subcomponentsAlive` stays 2, boss
+  health stays 8 because the Warden is immune while its nodes live) and dies to
+  boss fire every ~216 steps until all 30 lives are gone.
+  Diagnosis, run down rather than guessed at:
+  - Not the weapon. Forcing `scatter` - the weapon the winning run actually
+    fights with - still wedges at 2749; `rapid` reaches one node and still dies
+    out; `pulse` and `scatter` reach none.
+  - Not enemies. The wedged run has ZERO enemies alive during the fight; the
+    winning run has 2-3.
+  - Not geometry. The winning run passes through the SAME x with the SAME
+    subcomponent state at step 840 and destroys a node at 2770, so the nodes are
+    reachable and destructible from exactly there.
+  So it is a fixed point in the pilot's `subcomponentAttack`: it settles on a
+  standoff with no line of fire (bullets cannot cross the boss body, per
+  TASK-019) and fires ineffectively forever. The TASK-019 claim that the pilot
+  completes Level 2 was only ever true for a full-level run - it could not have
+  been tested from a checkpoint, because `startAtCheckpoint` did not exist until
+  TASK-020.
+- **Detection proven end-to-end.** Narrowing the Level 2 trigger pad back to
+  width 60 (the original door bug) and rebuilding: the harness reported
+  `stall @x=1778` - the exact pixel TASK-019 recorded as "permanently blocked at
+  x=1778" - from a cold start with no knowledge of the bug. With `--baseline`
+  the run exited 1 with 17 regressions and `completed=0`. Reverted and rebuilt;
+  `git diff` on the level file is empty.
+- Two detector notes worth keeping:
+  - The stall detector did NOT fire on the TASK-028 wedge, because dying every
+    216 steps keeps changing `lives`, which counts as progress. The death-trap
+    detector caught it instead. The two covering each other is exactly why they
+    are separate passes.
+  - `crouchWalker` reported a stall at x=60: holding crouch pins the player, so
+    a permanent crouch-walk never moves. That was the policy being wrong, not
+    the detector - fixed to crouch intermittently, and `stuck` went to 0.
+- Deviation from the written criteria, with reason:
+  - The report and baseline go to `docs/eval/`, not `test-results/`. Playwright
+    clears `test-results/` on every run and it is gitignored, so a baseline
+    there could not survive between loop iterations. Per-run traces stay there
+    as disposable working data. The criterion was amended to say so.
+  - The exit code gates on REGRESSIONS when a baseline exists, and on critical
+    findings only when one does not. The game carries 26 standing critical
+    findings - chaos policies dying repeatedly where a competent player never
+    goes - so gating on the absolute count would leave the signal permanently
+    red, which is the same as having no gate. The criterion was amended to say
+    so. Verified both ways: clean run exits 0, injected door bug exits 1.
+- Files changed:
+  - scripts/eval/matrix.mjs, report.mjs, index.mjs (new)
+  - scripts/eval/run.mjs (browser reuse, chain, weapon, sampleSteps, weapon in
+    the sample projection)
+  - scripts/eval/checks.mjs (findings tagged with policy)
+  - scripts/lib/policies.mjs (hiccup, fuzz, crouchWalker fix)
+  - package.json (`eval` script), docs/AUTOMATION.md (eval section + the
+    TASK-020 commands the doc had not caught up with)
+  - docs/eval/report.md, docs/eval/baseline.json (new, committed)
+  - TASKS.md (022 completed and two criteria amended; TASK-028 filed)
+- Commands run:
+  - `npm run eval` (39 runs, 40 s), `npm run eval -- --quick` (12 runs, 13 s),
+    `--update-baseline`, `--baseline` (exit 0 clean, exit 1 with the injected bug)
+  - `npm run lint`, `npm run typecheck` (clean)
+  - `npm run test:unit` (287 passed, 45 files)
+  - `npm run build` (pass)
+  - `npx playwright test` (85 passed)
+- Verification result:
+  - Every TASK-022 acceptance criterion verified, two amended as recorded above.
+  - The batch-size axis is clean: chunk 1, 30 and 600 all produce
+    `steps=1438 ended=results` on the same config - identical outcomes at every
+    granularity, which is the harness-correctness proof that the TASK-020
+    transition latch holds.
+  - The chain config completes Level 1 -> results -> Level 2 hands-free through
+    `confirmMenu`, with no wall-clock waiting.
+- Visual quality notes:
+  - none; no `src/` changes in this task.
+- Status after: DONE. Not deployed (loop rules forbid it).
+- Remaining work:
+  - none for this task.
+- Next recommended task:
+  - TASK-023 - MCP server for the game bridge. But TASK-028 (the pilot wedge) and
+    TASK-025/026/027 are user-facing and may deserve to jump the queue.
+- Blockers (if any):
+  - none.
+
+---
+
+### 2026-09-12 19:20 - Reprioritisation, then TASK-025 (dropped first press on takeover)
+
+- Status before: TASK-025 TODO, sitting behind TASK-023/024 in the file.
+- Reprioritisation (user request):
+  `.claude/loop.md` takes the first `TODO` task in `TASKS.md`, so file order is
+  priority. TASK-025 to TASK-028 - four user-facing defects, three of them found
+  by the evaluation harness - were moved ahead of TASK-023 (MCP server) and
+  TASK-024 (loop closure): adding more automation surface while known player
+  bugs sit open is the wrong trade. Ids were NOT renumbered, because
+  `PROGRESS.md` references them; only the blocks moved. Verified no content was
+  lost (`diff <(sort before) <(sort after)` is empty) and a note was added under
+  "Future enhancements" recording that order is priority, not id order.
+- Goal of this iteration: fix the dropped first keypress on AI takeover.
+- The defect:
+  `buildInputFromRaw` derived edges as `jumpPressed = raw.jump && !prev.jumpHeld`,
+  and `LevelScene.stepOnce` passed `this.stepInput` as `prev` - the MERGED input
+  from the previous step, which carries whatever the gamepad, touch controls,
+  debug bridge and AI pilot asked for. So while the pilot held jump or fire, a
+  human's first real press read as a continuation of the pilot's hold and its
+  edge was silently dropped. The player had to release and press again before a
+  takeover registered.
+- The fix:
+  An edge belongs to the DEVICE, so it is now derived from the previous RAW KEY
+  state and nothing else. `buildInputFromRaw(raw, prevRaw: RawKeyState)`, and the
+  adapter owns that state internally - `build()` takes no argument at all, which
+  makes the old misuse impossible to express rather than merely fixed. Both call
+  sites (LevelScene, SandboxScene) updated.
+  `clear()` now also resets the remembered state: focus loss drops held keys
+  without a matching keyup, and without this a key that is still physically down
+  would be stuck "already held" and never edge again.
+- Verification that the regression test actually catches the regression:
+  The new e2e was run against a deliberate restoration of the old behaviour and
+  FAILED with `Expected: < 408, Received: 408` - the player never left the
+  ground. The temporary revert was then restored from a backup and both files
+  confirmed byte-identical to the fixed version by `diff`. A regression test that
+  has not been seen to fail is not evidence of anything.
+- Files changed:
+  - src/input/KeyboardInput.ts (raw-state edges, adapter-owned prev, clear())
+  - src/scenes/LevelScene.ts, src/scenes/SandboxScene.ts (call sites)
+  - tests/unit/keyboard.test.ts (3 new adapter tests with a stub Window, since
+    unit tests run in the node environment; existing tests updated to the
+    raw-state contract)
+  - tests/e2e/aiToggle.spec.ts (takeover test)
+  - TASKS.md (reorder + priority note + 025 completed)
+- Commands run:
+  - `npx vitest run tests/unit/keyboard.test.ts` (RED 3 failures -> GREEN 18 passed)
+  - `npm run lint`, `npm run typecheck` (clean)
+  - `npm run test:unit` (290 passed, up from 287)
+  - `npm run build` (pass)
+  - `npx playwright test` (86 passed, up from 85)
+  - `npm run eval -- --baseline` (exit 0, no regressions, 26 standing criticals
+    all present in the baseline)
+- Verification result:
+  - All four acceptance criteria met. The suite is green and the evaluation
+    harness reports no regression, so the input change did not disturb any run
+    outcome across the 39-config matrix.
+- Visual quality notes:
+  - none; input-layer only, no presentation change.
+- Status after: DONE. Not deployed (loop rules forbid it).
+- Remaining work:
+  - none for this task.
+- Next recommended task:
+  - TASK-026 - a pit or hazard death while invulnerable is free. Note the
+    evaluation harness already reports this one in the wild as `freeDeath`, so
+    the fix has a ready-made check: those findings should disappear from
+    `docs/eval/report.md`.
+- Blockers (if any):
+  - none.
+
+---
+
+### 2026-09-12 20:36 - TASK-026 (a pit or hazard death while invulnerable was free)
+
+- Status before: TODO (found by the evaluation harness as `freeDeath`).
+- Goal of this iteration: decide the intended rule for a lethal death landing
+  inside a mercy-invulnerability window, and make the code enforce it.
+- The rule chosen, and why:
+  A pit or hazard death ALWAYS costs a life. Mercy invincibility exists so that
+  one projectile hit does not immediately become several; falling out of the
+  world is not damage for it to absorb. The respawn runs either way, so letting
+  the window swallow the life loss turned a pit into a free teleport back to the
+  last checkpoint. The everyday way to hit it was not exotic: die, respawn
+  (which opens a fresh window), walk straight off the same ledge again - the
+  second fall was free.
+- Work completed:
+  - New pure `applyLethalDamage(state, invulnDuration)` in
+    `src/simulation/health.ts`: takes a life regardless of the invulnerability
+    window, still a no-op once the run is over so a death cannot be double
+    counted. `applyDamage` now delegates to it after its own invuln check, so
+    the two paths cannot drift.
+  - `LevelScene.finishDeath` and `SandboxScene.handleDeath` both use it. The
+    sandbox had the identical bug in its pit handler and would have been missed
+    by a fix aimed only at the level scene.
+  - 5 unit tests in `tests/unit/health.test.ts` covering the invulnerable death,
+    the fresh respawn window, the last life, the already-over case, and
+    equivalence with ordinary damage when not invulnerable.
+  - E2E in `bridgeContract.spec.ts`: die, respawn, fall again while still
+    invulnerable, assert 30 -> 29 -> 28 and that every published death has
+    `costLife: true`.
+- Verification that the regression test catches the regression:
+  Ran against a deliberate restoration of the old behaviour; it failed with
+  "player never dropped to 28 lives" - the second fall was free, exactly the
+  bug. Restored from backup and confirmed byte-identical by `diff`.
+  Test-construction note worth keeping: the first draft over-stepped after the
+  first death, the 1.5 s mercy window expired, and the second death became an
+  ordinary one that would have passed against the buggy code too. The test now
+  steps in small increments and stops the moment the life is actually lost. A
+  green regression test that never exercises the regression is worse than none.
+- **The harness confirmed the fix in the wild.** `npm run eval -- --baseline`
+  reported 7 findings fixed and no regressions: `freeDeath` gone from six
+  different runs (edgeNudger, bossHugger, rusher, crouchWalker, two fuzz seeds)
+  plus a `deathTrap` at x=768 that only existed because the rusher could loop at
+  the pit forever without paying for it.
+- One detector refinement, driven by the fix:
+  The run then reported a NEW `structural` finding at x=2340. Investigated
+  rather than assumed: exactly ONE sample sat in the single-step window between
+  losing the last life and the scene queueing the game-over transition at the
+  top of the next step, and the following sample already read
+  `ending='gameOver'`. A correct game over, a false positive in my check. The
+  "lives reached zero without the run ending" rule now requires the condition to
+  persist across two consecutive samples, which a genuine stranded run would and
+  a one-step transition cannot. Pinned with a unit test built from the real
+  sample sequence.
+- Files changed:
+  - src/simulation/health.ts (applyLethalDamage; applyDamage delegates)
+  - src/scenes/LevelScene.ts, src/scenes/SandboxScene.ts (lethal death path)
+  - scripts/eval/checks.mjs (structural check needs persistence)
+  - tests/unit/health.test.ts (+5), tests/unit/evalChecks.test.ts (+1, and the
+    existing structural case updated to two samples)
+  - tests/e2e/bridgeContract.spec.ts (+1)
+  - docs/eval/report.md, docs/eval/baseline.json (regenerated)
+  - TASKS.md (026 completed, rule recorded in the criterion)
+- Commands run:
+  - `npx vitest run tests/unit/health.test.ts` (RED 5 failures -> GREEN 9 passed)
+  - `npm run lint`, `npm run typecheck` (clean)
+  - `npm run test:unit` (296 passed, up from 290)
+  - `npm run build` (pass)
+  - `npx playwright test` (87 passed, up from 86)
+  - `npm run eval -- --baseline` (exit 0, no regressions, 7 fixed), then
+    `--update-baseline`
+- Verification result:
+  - All four acceptance criteria met.
+  - Side effect worth noting as correct, not a regression: the soak spec now
+    reports `restarts=6` instead of 5, because pit deaths finally cost lives and
+    its blind right-pusher burns through them slightly faster.
+- Visual quality notes:
+  - none; rules only, no presentation change.
+- Status after: DONE. Not deployed (loop rules forbid it).
+- Remaining work:
+  - none for this task.
+- Next recommended task:
+  - TASK-027 - the "non-lethal" pit markers are lethal on contact. Related area,
+    and it decides whether a Level 1 pit fall should read as `pit` or `hazard`.
+- Blockers (if any):
+  - none.
+
+---
+
+### 2026-09-12 20:52 - TASK-027 (the "non-lethal" pit markers were lethal on contact)
+
+- Status before: TODO (found by the evaluation harness, which reported a Level 1
+  pit fall with `causes: hazard` where `pit` was expected).
+- The decision, and why it was not a coin flip:
+  The game's own data model already drew the line - it was just drawn in only one
+  place. `src/ai/pilot.ts` filtered hazards with `h.y < groundY` to decide which
+  strips it must jump, i.e. a rect whose top sits ABOVE the ground line is a
+  spike strip and anything at or below it is decorative paint on a pit rim. The
+  level data agreed: `level1.ts` labels its two rects "Visual pit markers
+  (non-lethal; lethality comes from the fall threshold)". Only
+  `LevelScene.hazardTouchesPlayer()` was unaware, treating every rect in
+  `hazards` as lethal. So the markers killed on contact a few frames before the
+  fall threshold, and the death came out as `hazard`.
+  The fix makes the code match the documented intent rather than the reverse:
+  the comment in `level1.ts` is now true as written.
+- Work completed:
+  - New pure `isLethalHazard(hazard, groundY)` in `src/levels/levelSchema.ts` -
+    the rule now lives once, next to the data it describes, because three places
+    need to agree on it: the scene's contact test, the pilot's jump geometry,
+    and (in future) the level validator. `hazards` gained a doc comment saying
+    it carries two different things.
+  - `LevelScene.hazardTouchesPlayer()` skips non-lethal rects.
+  - `pilot.spikeRanges` now calls the shared predicate instead of repeating
+    `h.y < groundY`, so the pilot cannot disagree with the game about which
+    strips kill.
+  - `tests/unit/levelHazards.test.ts` (new, 5 tests): the predicate either way of
+    the ground line, plus assertions against the SHIPPED levels - Level 1
+    declares only decorative markers, Level 2 declares exactly one lethal strip
+    at x=2360, and the pilot jumps exactly the strips the scene treats as lethal.
+    That last one is the anti-drift test.
+  - E2E: walk off the first pit edge on foot and assert the cause is `pit`.
+    Starting the player at x=690 keeps the wave-1 trigger (x 520-560) behind, so
+    enemy fire cannot claim the first death and mask the attribution - the first
+    draft failed exactly that way, reporting `enemyFire`.
+- Verification that the regression test catches the regression:
+  Ran against a deliberate removal of the lethality check; it failed with
+  `Expected: "pit", Received: "hazard"`. Restored and confirmed by `diff`.
+- Evidence at the data level: the eval report's death-cause histogram went from
+  `{enemyFire: 338, hazard: 85}` to `{enemyFire: 338, pit: 29, hazard: 30,
+  bossShockwave: 2}`. Every Level 1 pit fall had been mislabelled; now pit falls
+  and Level 2 spike deaths are counted separately, which is what makes the
+  death-cause data worth anything.
+- One gate refinement, forced by this fix:
+  The first post-fix eval reported two "regressions": new `deathTrap` findings
+  for `edgeNudger` at x=288 and x=576. Investigated rather than assumed - that
+  policy dies 30 times spread across seven 96px buckets on the first screen (21
+  enemyFire, 9 pit), and which buckets happen to cross the "3 deaths" threshold
+  moves whenever anything shifts the run's timing. Phantom regressions on a
+  correct fix.
+  The gate now compares finding KINDS per run, not `kind@bucket`; the bucket
+  detail stays in the report, where a human wants it, and in the "fixed" list.
+  Re-proved the gate is still sharp: with the Level 2 door bug reinjected it
+  exits 1 with 16 regressions, `completed=0`, `stuck=8`. Then reverted and
+  rebuilt; `git diff` on the level file is empty.
+- Files changed:
+  - src/levels/levelSchema.ts (isLethalHazard + hazards doc)
+  - src/scenes/LevelScene.ts (contact test), src/ai/pilot.ts (shared predicate)
+  - scripts/eval/report.mjs (kind-level regression comparison)
+  - tests/unit/levelHazards.test.ts (new), tests/e2e/bridgeContract.spec.ts (+1)
+  - docs/eval/report.md, docs/eval/baseline.json (regenerated)
+  - TASKS.md (027 completed)
+- Commands run:
+  - `npx vitest run tests/unit/levelHazards.test.ts` (5 passed)
+  - `npm run lint`, `npm run typecheck` (clean)
+  - `npm run test:unit` (301 passed, up from 296)
+  - `npm run build` (pass)
+  - `npx playwright test` (88 passed, up from 87)
+  - `npm run eval -- --baseline` (exit 0 clean), `--update-baseline`, plus the
+    reinjected-door-bug gate check (exit 1)
+- Verification result:
+  - All four acceptance criteria met. No balance change: a pit fall still costs
+    exactly one life, it just resolves at the fall threshold as documented
+    instead of on contact with the paint a few frames earlier.
+- Visual quality notes:
+  - none. The markers still render exactly as before; only their collision
+    behaviour changed, and only to match what they were always documented to be.
+- Status after: DONE. Not deployed (loop rules forbid it).
+- Remaining work:
+  - none for this task.
+- Next recommended task:
+  - TASK-028 - the pilot cannot clear the Reactor Warden from a mid-level
+    checkpoint. The largest of the open findings and the last before the harness
+    chain (TASK-023/024) resumes.
+- Blockers (if any):
+  - none.
+
+---
+
+### 2026-09-12 21:20 - TASK-028 (pilot could not clear the Reactor Warden from a checkpoint)
+
+- Status before: TODO (found by the evaluation harness: 30 deaths at one x).
+- Outcome: every checkpoint x every weapon now completes. 12 configurations
+  (2 levels x 3 checkpoints, plus Level 2 x 3 weapons) all end in `results`
+  with ZERO findings.
+- This turned out to be three distinct defects stacked on each other. Each was
+  found by measuring, not by reasoning about the code.
+
+  **1. The pilot fired away from the node it was attacking.**
+  The probe showed `angle=-135` (up-LEFT) held constantly while the target node
+  sat at x=2792, to the pilot's RIGHT. `subcomponentAttack` computed an exact
+  standoff spot and walked toward it; that spot was BEHIND the player, and since
+  movement is facing in this game, walking backwards pointed the gun backwards.
+  Every shot flew into empty space, forever.
+  Fixed by replacing the exact-spot seek with a firing band, plus hysteresis
+  (`subRepositioning`): once the pilot backs off it keeps backing off until
+  clearly outside the band, so the re-approach always ends moving TOWARD the
+  node and leaves the gun on target. Without the latch it just oscillated
+  between "back off" and "face the node" - the same fixed point one level up,
+  which is exactly what the first attempt produced.
+
+  **2. It stood at the wrong distance for the shot it was taking.**
+  A node above gun level can only be hit on the 45-degree diagonal, and a
+  45-degree shot rises one pixel per pixel travelled - so the horizontal
+  distance must MATCH the height difference or the shot sails over. Standing
+  closer is not better: the pilot ended up 1 px from a node firing straight up
+  past it (`angle=-90`). The standoff is now derived from the geometry
+  (`desiredGap = verticalOffset`) and measured from the MUZZLE, which spawns at
+  the player's leading edge rather than the centre - an 11 px error that a
+  scatter fan hid and the single-bolt weapons did not.
+  Also added the safety net the task asked for: `SUB_NO_DAMAGE_STEPS` (240)
+  without destroying a node forces a break-out, so no future geometry change can
+  reintroduce a silent stalemate.
+
+  **3. A game bug: every boss used the Siege Walker's hitbox.**
+  With the pilot fixed, pulse and rapid still did `bossH: 8 -> 8` across 113
+  vulnerable samples while standing on top of the boss. Cause:
+  `resolvePlayerBulletsVsBoss` hard-codes `{ width: 64, height: 56 }` for every
+  boss. The Reactor Warden is 72x72, so its collision box was 16 px short - body
+  top y=408, box bottom y=464, and the player's gun is at exactly y=464. A
+  horizontal bolt misses by one pixel. Only the scatter fan, whose pellets rise
+  into the box, could damage it at all.
+  This is user-facing and has nothing to do with the AI: a human carrying the
+  DEFAULT pulse rifle cannot damage the final boss by firing at it. Fixed to
+  read the boss definition. Measured: preboss + pulse went from game over after
+  ~10,000 steps to a clear in 717 steps with zero findings.
+- Scope note (recorded honestly): the task's non-goal said "the same fight is
+  winnable from the level start today, so the fix belongs in the pilot". The
+  evidence overturned that premise. Most of the defect was indeed in the pilot,
+  but the last part was not, and the fix was folded in under the
+  "Bug found and fixed (not pilot accommodation)" heading TASK-019 established
+  for exactly this situation. The non-goal was amended rather than quietly
+  ignored.
+- Also fixed while in there: the vulnerable-window branch stopped advancing once
+  within 24 px of the boss centre, which froze facing wherever the node attack
+  had left it. A pre-existing unit test pinned that behaviour ("stands and fires
+  once at point-blank"); it encoded the bug, so it was rewritten with the
+  measurement that disproves it rather than deleted.
+- Harness robustness: one matrix run failed with a 10 s `waitForFunction`
+  timeout after 23 prior runs, and passed in isolation and on re-run - flake
+  under browser load. Added a single retry per config, because a gate that goes
+  red at random is a gate people stop reading, and a real defect reproduces.
+- Files changed:
+  - src/ai/pilot.ts (firing band + hysteresis + muzzle-relative distance +
+    no-damage break-out + closer hold for node-gated bosses + vulnerable-window
+    advance; `PilotMemory` gained subAttackSteps/lastSubAlive/subBreakout/
+    subRepositioning/sawSubcomponents)
+  - src/scenes/LevelScene.ts (boss hitbox reads the boss definition)
+  - scripts/eval/index.mjs (retry), scripts/warden-wedge-probe.mjs (new)
+  - tests/unit/pilot.test.ts (+8 positioning tests; 1 rewritten)
+  - docs/eval/report.md, docs/eval/baseline.json (regenerated)
+  - TASKS.md (028 completed, non-goal amended, bug recorded)
+- Commands run:
+  - `node scripts/warden-wedge-probe.mjs` (repeatedly, to diagnose each layer)
+  - `node scripts/eval/run.mjs` across 12 checkpoint x weapon configurations
+  - `npm run lint`, `npm run typecheck` (clean)
+  - `npm run test:unit` (309 passed, up from 301)
+  - `npm run build` (pass)
+  - `npx playwright test` (88 passed)
+  - `npm run eval -- --baseline` (exit 0, no regressions), `--update-baseline`
+- Verification result:
+  - All five acceptance criteria met.
+  - Matrix-wide: completed 19 -> **25**, findings 26 -> **18**, critical 26 ->
+    **18**, deaths 399 -> **240**. Ten deathTrap findings fixed, including every
+    one in the Warden arena (x=2496, 2688, 2880).
+  - Level 1 is untouched: `L1-start-30lives-pilot` still completes in exactly
+    1438 steps with zero findings, the same as before the change. The
+    `sawSubcomponents` gate is what keeps the Siege Walker tuning out of this.
+- Visual quality notes:
+  - none; no presentation change.
+- Status after: DONE. Not deployed (loop rules forbid it).
+- Remaining work:
+  - none for this task.
+- Next recommended task:
+  - TASK-023 - MCP server for the game bridge. All four user-facing findings
+    (025-028) are now closed, so the harness chain resumes.
+- Blockers (if any):
+  - none.
+
+---
+
+### 2026-09-12 21:35 - TASK-023 (MCP server for the game bridge)
+
+- Status before: TODO
+- Goal of this iteration:
+  A stdio MCP server so an MCP client can start, observe and drive the game as
+  tools, sharing `scripts/lib/` with the HTTP server so the two cannot drift.
+- Work completed:
+  - `scripts/lib/jsonrpc.mjs` - the pure half: a buffering line decoder and a
+    dispatcher. Separated from the transport precisely so the whole protocol
+    surface is unit-testable against a scripted byte stream with no child
+    process, which is the difference between finding a framing bug in a test and
+    finding it as "the client just will not connect".
+  - `scripts/lib/mcpTools.mjs` - tool schemas and handlers, plus `compactState`.
+    Kept out of the transport so the tool list can be asserted without spawning
+    anything, and out of `bridge.mjs` so the HTTP server does not carry MCP
+    concepts around.
+  - `scripts/mcp-server.mjs` - wiring only.
+  - `.mcp.json` at the repo root registers it for this project.
+  - `scripts/mcp-smoke.mjs` - drives the real child process end to end.
+- The five things that break a hand-rolled MCP server, all handled and pinned in
+  `tests/unit/mcpProtocol.test.ts` (20 tests):
+  1. **stdin does not arrive in message-sized chunks.** The decoder buffers
+     until a newline; tested with a message split across three chunks, a
+     trailing partial, CRLF, and blank lines.
+  2. **A notification must produce NO response.** Replying to one is a protocol
+     violation some clients drop the connection over. Tested for both a known
+     and an unknown notification.
+  3. **Unknown methods answer -32601** rather than crashing.
+  4. **Every `inputSchema` is an object schema WITH a `properties` map**, even
+     the empty one - the most common reason a tool is listed but never callable.
+  5. **stdout carries protocol JSON and nothing else.** `console.log/info/warn`
+     are redirected to stderr at startup, because one stray line from anywhere
+     in the import graph corrupts the stream. The smoke test fails on any
+     non-protocol stdout line.
+  Also: only `tools` is advertised in `initialize`. Advertising `resources` or
+  `prompts` without handlers makes a client call `resources/list` and fail on
+  the missing method.
+- Two deliberate shapes:
+  - **Chromium launches lazily**, on the first tool call rather than at module
+    load. A client that times out on the handshake never gets to call a tool, so
+    `initialize` has to answer immediately.
+  - **`run_eval` is asynchronous**: it returns a job id and the caller polls
+    `eval_status`, because a full matrix takes ~40 s and a tool call should not
+    block that long.
+  - **`game_act`/`game_state` return a compact projection** (position, lives,
+    weapon, counts, boss state, nearest enemy x) rather than the full snapshot
+    with its enemy/projectile/subcomponent arrays - a couple of KB per call that
+    would fill a session's context with data the caller rarely reads.
+    `verbose: true` opts into everything.
+  - `game_step` was dropped from the sketched tool list: it is `game_act` with
+    an empty spec, and every redundant tool costs context in every session that
+    lists them.
+- Verification, from the real process (`node scripts/mcp-smoke.mjs`):
+  - `initialize` -> `{ protocolVersion: '2025-06-18', capabilities: { tools: {} },
+    serverInfo: { name: 'iron-echo', version: '0.1.0' } }`
+  - `notifications/initialized` -> silent
+  - `tools/list` -> 7 tools
+  - `ping` -> `{}`; `resources/list` -> `-32601`
+  - `tools/call game_start` -> playerX 60, lives 30
+  - 6 x `tools/call game_act` -> playerX 386.08, lives 28, score 200 (it killed
+    things on the way)
+  - `tools/call nope` -> a RESULT with `isError: true`, not a JSON-RPC error, so
+    the model sees it and adapts rather than the call failing outright
+  - **unsolicited responses: 0, non-protocol stdout lines: 0**
+- Files changed:
+  - scripts/lib/jsonrpc.mjs, scripts/lib/mcpTools.mjs, scripts/mcp-server.mjs,
+    scripts/mcp-smoke.mjs, .mcp.json (all new)
+  - tests/unit/mcpProtocol.test.ts (new, 20 tests)
+  - docs/AUTOMATION.md (MCP section)
+  - TASKS.md (023 completed)
+- Commands run:
+  - `npx vitest run tests/unit/mcpProtocol.test.ts` (20 passed)
+  - `npm run lint`, `npm run typecheck` (clean)
+  - `npm run test:unit` (329 passed, up from 309)
+  - `npm run build` (pass)
+  - `npx playwright test` (88 passed)
+  - `node scripts/mcp-smoke.mjs` (PASSED)
+  - `npm run eval -- --baseline` (exit 0, no regressions)
+- Verification result:
+  - Every acceptance criterion met. No new npm dependencies: `node:child_process`,
+    `node:fs` and the Playwright already used by the other drivers.
+- Visual quality notes:
+  - none; no gameplay or presentation change.
+- Status after: DONE. Not deployed (loop rules forbid it).
+- Remaining work:
+  - none for this task. Note the server needs a target to drive: start
+    `npm run preview -- --port 4173` or point `TARGET_URL` at the deployed site.
+- Next recommended task:
+  - TASK-024 - close the loop: eval findings become TASKS.md entries. That is the
+    last task in the chain, and the one that makes the loop self-sustaining.
+- Blockers (if any):
+  - none.
+
+---
+
+### 2026-09-12 21:50 - TASK-024 (close the loop: eval findings become TASKS.md entries)
+
+- Status before: TODO. Last task in the chain.
+- Goal of this iteration:
+  Give the development loop a PRODUCER. `.claude/loop.md` only consumes tasks
+  and halts with `IDLE - NO READY WORK` when none remain; this supplies
+  well-formed TODO entries from observed gameplay defects.
+- Work completed:
+  - `scripts/eval/proposeTasks.mjs`. A pure `proposeTasks(groups, tasksText,
+    options)` returning `{ text, proposed, skipped, omitted }`, plus a thin CLI.
+    Per-kind templates (stall, bossStall, deathTrap, freeDeath, respawnUnsafe,
+    outOfBounds, nanField, monotonic, resourceBounds, structural,
+    notCompletable) each produce a bounded requirement quoting the actual
+    evidence, objective acceptance criteria, and non-goals - the same bar
+    `ADD_ENHANCEMENT_PROMPT.md` sets for a hand-written task.
+  - `scripts/eval/report.mjs` gained `writeFindings`, so the eval emits
+    `docs/eval/findings.json` alongside the markdown report. Parsing the report
+    back would have been fragile; the same grouping is written in a shape a
+    script can consume.
+  - `.claude/eval-loop.md` - the producer iteration prompt.
+  - `docs/AUTOMATION.md` gained a "Findings become tasks" section; README now
+    describes `npm run eval` and the MCP server.
+- The design decision that matters:
+  **The producer never edits `TASKS.md` and never touches source.** It writes
+  `docs/eval/proposed-tasks.md` for review. A finding is evidence that something
+  looked wrong, not a decision about what to do - proposing and fixing in one
+  pass is how an unreviewed detector becomes an unreviewed code change. The loop
+  prompt makes the reviewer choose per proposal between "real and worth fixing"
+  (copy it across), "real but intended" (record the decision so it is not
+  re-litigated), and "a detector problem" (narrow the detector and pin the false
+  positive) - that third branch matters, because this session hit it three times
+  and each one would otherwise have become a bogus task.
+- Dedupe: every block carries a `Source: eval finding kind@bucket:Ln` line,
+  which is both the evidence trail and the dedupe key. Verified by round-trip:
+  copying one signature into `TASKS.md` and re-running turned
+  `alreadyCovered=0` into `alreadyCovered=1`, and the proposal disappeared.
+  `TASKS.md` was restored afterwards and `TASK-999` confirmed gone.
+- Ranking and cap: competent-policy findings (`pilot`, `hiccup`) first, then
+  severity, then how many runs saw them; capped at 5 by default because more
+  than a handful at a time is not a backlog anyone reads. The header says how
+  many were held back.
+- Files changed:
+  - scripts/eval/proposeTasks.mjs (new), scripts/eval/report.mjs (writeFindings),
+    scripts/eval/index.mjs (emit findings.json)
+  - .claude/eval-loop.md (new)
+  - tests/unit/proposeTasks.test.ts (new, 9 tests)
+  - docs/AUTOMATION.md, README.md
+  - docs/eval/findings.json, docs/eval/proposed-tasks.md (generated)
+  - TASKS.md (024 completed)
+- Commands run:
+  - `npx vitest run tests/unit/proposeTasks.test.ts` (9 passed)
+  - `npm run lint`, `npm run typecheck` (clean)
+  - `npm run test:unit` (338 passed, up from 329)
+  - `npm run build` (pass)
+  - `npx playwright test` (88 passed)
+  - `npm run eval -- --baseline` (exit 0, no regressions)
+  - `node scripts/eval/proposeTasks.mjs` against the real findings, and the
+    dedupe round-trip described above
+- Verification result:
+  - All five acceptance criteria met. The fixture test feeds one stall and one
+    boss stall and asserts two well-formed blocks with different requirements -
+    a traversal stall and an unwinnable boss are not the same problem and must
+    not get the same task text.
+  - Run against the real evaluation it proposed 5 tasks starting at TASK-029,
+    each quoting its evidence, run ids and policies.
+- Visual quality notes:
+  - none; tooling and docs only.
+- Status after: DONE.
+- **Every task in TASKS.md is now DONE.** The consumer loop would report
+  `IDLE - NO READY WORK`; the producer loop (`.claude/eval-loop.md`) is what
+  refills it. Running it now would propose from the 18 standing findings, all
+  of which are chaos-policy death clusters that a reviewer should look at before
+  any becomes a task.
+- Remaining work:
+  - none for this task. Nothing has been committed or deployed.
+- Next recommended task:
+  - none open. Run `.claude/eval-loop.md` to produce candidates, or add
+    enhancements by hand. If the eval keeps coming back clean, the useful next
+    move is a new variation axis or a new invariant in `scripts/eval/`, not a
+    longer run of the same matrix.
+- Blockers (if any):
+  - none.
+
+---
+
+### 2026-09-12 22:05 - PRODUCER ITERATION (.claude/eval-loop.md), first real run
+
+- Status before: every task in TASKS.md DONE; the consumer loop would report
+  `IDLE - NO READY WORK`. This is the producer iteration that refills it.
+- Ran: `npm run eval -- --baseline` -> exit 0, **no regressions**, 39 runs,
+  25 completed, 18 standing findings (all `deathTrap`).
+- **Triage outcome: no game defects. One detector fix, one new task.**
+
+- **Detector fix (branch 3 of the loop): `detectDeathTrap` was far too loose.**
+  It counted total deaths per 96 px bucket across a whole run. Measured against
+  the real death logs, that is not the respawn-loop signature at all:
+
+  | run | deaths | max in a bucket | consecutive | ended |
+  |---|---|---|---|---|
+  | edgeNudger L1 | 30 | 8 | **1** | gameOver |
+  | hiccup L2 x2 | 8-10 | 3 | **3** | **results** |
+  | doorCamper L2 | 30 | 20 | 9 | gameOver |
+  | bossHugger L2 | 30 | 30 | 30 | gameOver |
+  | jumper L1 | 29 | 25 | 25 | budget |
+
+  The stuttering policy racked up 8 deaths in one bucket while never dying there
+  twice in a row - its deaths ping-pong across seven buckets. And the perturbed
+  pilot tripped the rule with 3 deaths spread over a boss fight it went on to
+  WIN. Neither is a loop, and together they were drowning the real ones.
+  Narrowed to **4 consecutive deaths in the same bucket**, which is the actual
+  "die, respawn, walk back, die again" signature. Both measured false positives
+  are now pinned as unit tests, alongside the true positive (the real Reactor
+  Warden wedge, 4 in a row at x=2583).
+  Effect: **18 findings -> 4**, all four genuine loops. No regressions.
+
+- **Triage of the remaining four - all rejected, with reasons:**
+  Every one comes from a chaos policy that refuses to use a core mechanic, and
+  loops at the first obstacle a jump would clear. None were hit by `pilot` or
+  `hiccup`, which is the signal that matters: **no respawn loop in this game is
+  reachable by a competent player.**
+  - `deathTrap@2304:L2` (bossHugger, 30 in a row at the x=2360 spike) - the most
+    plausible of the four, so it was checked rather than waved away. Clearance
+    from the preboss checkpoint to that spike is 98 px = 0.46 s at a full run.
+    Level 1's mid checkpoint gives 118 px = 0.55 s to its pit. Comparable, so
+    this is a consistent design choice and not an outlier. The policy simply
+    never jumps. Rejected.
+  - `deathTrap@768:L1` (crouchWalker, 9 in a row in the first pit) - crouching
+    pins the player, so it stutters into the pit the level is built around.
+    Rejected.
+  - `deathTrap@3168:L1` (jumper, 25 in a row past completionX with the boss
+    alive) - standing in the boss arena losing the fight. That is the encounter.
+    Rejected.
+  - `deathTrap@1920:L2` (doorCamper, 9 in a row past the door) - standing still
+    in a firefight. Rejected.
+  Recorded here so the next producer iteration does not re-litigate them.
+
+- **New task filed: TASK-029 - coverage invariants.**
+  The useful observation from this iteration is not in the findings, it is in
+  what the findings CANNOT see. Every invariant today watches the player's state
+  - stuck, died, out of bounds, counters moving the wrong way. None assert that
+  combat functions. That is exactly the gap TASK-028's boss-hitbox bug fell
+  through: the Reactor Warden was immune to level fire and nothing in the
+  harness noticed, because the pilot simply "lost", which looks like difficulty.
+  TASK-029 adds a coverage pass over a whole matrix run: every boss must be
+  damaged, every archetype killable, every threatening archetype must land a
+  hit. Its acceptance test is that reintroducing the TASK-028 hitbox makes
+  `npm run eval` fail.
+
+- Files changed:
+  - scripts/eval/checks.mjs (consecutive-death rule + the reasoning)
+  - tests/unit/evalChecks.test.ts (true positive updated, 2 measured false
+    positives pinned)
+  - docs/eval/report.md, docs/eval/findings.json, docs/eval/proposed-tasks.md
+    (regenerated)
+  - TASKS.md (TASK-029 filed)
+- Commands run:
+  - `npm run eval -- --baseline` (before: 18 findings; after: 4; exit 0 both times)
+  - `node scripts/eval/proposeTasks.mjs`
+  - `npx vitest run tests/unit/evalChecks.test.ts` (25 passed)
+  - `npm run lint`, `npm run typecheck` (clean)
+- Verification result:
+  - The producer loop works end to end on real data, and its most valuable
+    output on this run was a detector correction rather than a task - which is
+    the branch that keeps the whole thing trustworthy. A detector that reports
+    14 things nobody can act on is worse than one that reports 4 real ones.
+- Status after: one `TODO` in the queue (TASK-029). No source or gameplay change.
+- Next recommended task:
+  - TASK-029 - coverage invariants.
+- Blockers (if any):
+  - none.
+
+---
+
+### 2026-09-12 22:30 - TASK-029 (coverage invariants: prove combat actually works)
+
+- Status before: TODO (filed by the producer iteration that preceded it).
+- Goal of this iteration:
+  Close the gap that let TASK-028's boss-hitbox bug through. Every existing
+  invariant watches the PLAYER - stuck, dead, out of bounds, counters moving the
+  wrong way. None notice when an ACTOR stops working, because a broken enemy
+  just makes the game easier and a boss that cannot be hurt reads as difficulty.
+- Work completed:
+  - Runtime telemetry (`LevelRuntime`): `bossId`, `bossDamageTaken`,
+    `killsByKind`, `damageByKind`. Enemy bullets gained a `sourceKind` so a hit
+    on the player can be attributed to the archetype that fired it; boss fire is
+    attributed to the boss id, so coverage can tell "the grenadier never hit
+    anyone" from "the boss did all the damage".
+  - `checkCoverage(traces)` in `scripts/eval/checks.mjs` - pure, browser-free,
+    and judged over the WHOLE matrix rather than per run, because one run has no
+    business meeting every archetype. An archetype that never appeared anywhere
+    is untested, not broken, and is reported as neither.
+  - Wired into `scripts/eval/index.mjs` as a synthetic `matrix-coverage` trace,
+    so it flows through the same report, baseline and exit code as everything else.
+- **The first version did not catch the bug it was built for, and the honest
+  test is what showed it.**
+  I reintroduced the TASK-028 hitbox and ran the matrix: coverage reported
+  nothing. The reason is that my question was too weak. I had asked "is this
+  boss damageable at all", and the answer was yes - the scatter fan's pellets
+  rise into the short hitbox and still connect. The actual defect was "immune to
+  most weapons".
+  Sharpened to ask it **per weapon**: every (boss, weapon) pair with at least 20
+  samples of active fight must have landed damage somewhere in the matrix. The
+  20-sample floor matters - a run where the player meets the boss and dies
+  immediately proves nothing about that weapon.
+  With the bug reintroduced it now reports, exactly:
+    `coverageBossWeaponIneffective: boss "reactorWarden" never took damage from
+     the "pulse" weapon across 658 samples of active fight`
+  and the same for `rapid`. That is the difference between "the pilot lost",
+  which looks like difficulty, and a named defect.
+  Reverted and confirmed by `diff`; the clean matrix reports no coverage
+  findings and the gate exits 0.
+- Note on what the gate already caught: even before the per-weapon rule, the
+  bug made `npm run eval` exit 1 - through baseline regressions, because runs
+  that used to complete stopped completing. So the safety net worked; what it
+  did not do was SAY WHAT WAS WRONG. Coverage is the difference between a red
+  light and a diagnosis.
+- Files changed:
+  - src/debug/runtimeTypes.ts (bossId, bossDamageTaken, killsByKind, damageByKind)
+  - src/scenes/LevelScene.ts (sourceKind on enemy bullets, kill/damage/boss-damage
+    tallies, publish, reset)
+  - scripts/eval/checks.mjs (checkCoverage + per-weapon rule), scripts/eval/run.mjs
+    (coverage inputs in the sample projection), scripts/eval/index.mjs (matrix pass)
+  - tests/unit/evalChecks.test.ts (+7 coverage tests), tests/unit/pilot.test.ts
+    (fixture fields)
+  - docs/AUTOMATION.md (coverage invariant and why it exists)
+  - docs/eval/report.md, baseline.json, findings.json (regenerated)
+  - TASKS.md (029 completed)
+- Commands run:
+  - `npx vitest run tests/unit/evalChecks.test.ts` (32 passed)
+  - `npm run lint`, `npm run typecheck` (clean)
+  - `npm run test:unit` (347 passed, up from 340)
+  - `npm run build` (pass)
+  - `npx playwright test` (88 passed)
+  - `npm run eval -- --baseline` clean (exit 0) and with the hitbox bug
+    reintroduced (exit 1, coverage naming both weapons), then `--update-baseline`
+- Verification result:
+  - All eight acceptance criteria met, including the one that mattered:
+    reintroducing the TASK-028 hitbox makes `npm run eval` report the failure.
+  - No gameplay change. The added telemetry is published-only; no rule, balance
+    value or enemy behaviour was touched.
+- Visual quality notes:
+  - none.
+- Status after: DONE. Every task in TASKS.md is DONE again.
+- Remaining work:
+  - none. Nothing committed or deployed.
+- Next recommended task:
+  - none open. Run `.claude/eval-loop.md` to look for more. Worth noting for
+    whoever does: the harness now has three kinds of question - is the player
+    stuck, did the player die badly, and does combat work. A fourth worth
+    considering is whether the game's STATE MACHINE is sound (can every scene be
+    reached and left, does pause/resume survive every state), which nothing
+    currently asks.
+- Blockers (if any):
+  - none.
+
+---
+
+### 2026-09-12 22:25 - DEPLOYMENT (not a TASKS.md task)
+
+- Status before: TASK-020 through TASK-029 complete locally, never deployed.
+  The live site was still running the TASK-019 build from 2026-08-12.
+- Authorization note:
+  `CLAUDE.md` forbids deploying ("Never push, deploy, change cloud resources, or
+  modify DNS"). The user asked directly - "deploy latest code to web site in
+  cloudflare" - which is a one-off override for this action only, the same
+  precedent as the 2026-07-26, TASK-017, TASK-018 and TASK-019 deploys. The repo
+  rules are unchanged. No credentials were requested, printed, or stored:
+  `wrangler whoami` showed an existing OAuth session already carrying
+  `pages (write)`.
+- Work completed:
+  - Verified before shipping: 347 unit tests, 88 e2e, lint, typecheck, build all
+    green, and `npm run eval -- --baseline` clean.
+  - `npx wrangler pages deploy dist --project-name run-and-gun --branch main`.
+  - Deployed the WORKING TREE, not a commit: 36 files were uncommitted at the
+    time, and wrangler warned about it. The live build therefore does not
+    correspond to any recorded revision. Flagged to the user; committing is
+    theirs to decide.
+- Verification result:
+  - `https://run-and-gun.pages.dev` HTTP 200, serving `index-VwXErcEi.js`.
+  - Byte-for-byte match with the local build: 1,503,325 bytes both sides.
+  - `node scripts/live-check.mjs` PASSED - cache headers, plain load with zero
+    console/page errors, title scene, level start, movement, the Z/X bindings,
+    and the Siege Walker activating.
+  - `node scripts/test-live.mjs --grep-invert @slow-live` -> **87/87 passed**
+    against production (chromium + msedge). The soak spec is tagged `@slow-live`
+    and is skipped over the CDN by design, not weakened.
+  - The headline gameplay fix verified ON PRODUCTION rather than assumed: the
+    Reactor Warden now falls to every weapon from the preboss checkpoint -
+    pulse 717 steps, scatter 1333, rapid 564, all `ended=results` with zero
+    findings. Before TASK-028 that configuration was a game over after ~10,000
+    steps, because the boss used the Siege Walker's hitbox and a horizontal bolt
+    missed it by one pixel.
+- What is now live that was not before:
+  - The boss-hitbox fix (a human with the default pulse rifle can damage the
+    final boss), the dropped-keypress fix on AI takeover, pit deaths always
+    costing a life, pit markers no longer lethal on contact, and a pilot that
+    clears both levels from any checkpoint with any weapon.
+  - The debug bridge gained `startAtCheckpoint`, `confirmMenu`/`backMenu`, and
+    crouch/drop inputs. All of it is inert without `?debug`, so a normal visitor
+    sees no change beyond the gameplay fixes.
+- Status after: deployed to production.
+- Remaining work:
+  - The working tree is still uncommitted. Committing would make the live build
+    traceable to a revision; that is the user's call.
+
+---

@@ -32,9 +32,19 @@ export const TRAVERSAL_STALL_STEPS = 600;
  */
 export const BOSS_STALL_STEPS = 3600;
 
-/** Deaths this close together, this many times, is a trap rather than bad luck. */
+/**
+ * A respawn loop is CONSECUTIVE deaths in one place: die, respawn, walk back,
+ * die again, with nothing in between.
+ *
+ * Counting total deaths per bucket across a whole run was far too loose. A
+ * policy that stutters into enemy fire racked up 8 deaths in one bucket while
+ * never dying there twice in a row (they ping-ponged across seven buckets), and
+ * a perturbed pilot that COMPLETED the level still tripped it with 3 deaths
+ * spread over a boss fight. Neither is a loop; both drowned the real ones.
+ * Four in a row is a cycle nobody is escaping on their own.
+ */
 export const DEATH_TRAP_WINDOW_X = 96;
-export const DEATH_TRAP_COUNT = 3;
+export const DEATH_TRAP_COUNT = 4;
 
 /** Matches the caps the soak test asserts. */
 export const RESOURCE_CAPS = {
@@ -184,26 +194,31 @@ export function detectStall(samples, options = {}) {
 export function detectDeathTrap(deaths = [], options = {}) {
   const windowX = options.windowX ?? DEATH_TRAP_WINDOW_X;
   const threshold = options.count ?? DEATH_TRAP_COUNT;
-  const buckets = new Map();
-  for (const d of deaths) {
-    const key = Math.floor((d.x ?? 0) / windowX);
-    const list = buckets.get(key) ?? [];
-    list.push(d);
-    buckets.set(key, list);
-  }
   const findings = [];
-  for (const [key, list] of buckets) {
-    if (list.length >= threshold) {
-      const causes = [...new Set(list.map((d) => d.cause))].join(',');
+
+  // Deaths arrive in order, so consecutive entries are consecutive in time.
+  let runStart = 0;
+  const bucketOf = (d) => Math.floor((d.x ?? 0) / windowX);
+  for (let i = 1; i <= deaths.length; i++) {
+    const sameAsPrevious = i < deaths.length && bucketOf(deaths[i]) === bucketOf(deaths[i - 1]);
+    if (sameAsPrevious) {
+      continue;
+    }
+    const streak = deaths.slice(runStart, i);
+    if (streak.length >= threshold) {
+      const causes = [...new Set(streak.map((d) => d.cause))].join(',');
       findings.push({
         kind: 'deathTrap',
         severity: CRITICAL,
-        stepIndex: list[0].stepIndex ?? 0,
-        x: Math.round(list[0].x ?? 0),
-        bucket: key * windowX,
-        evidence: `${list.length} deaths within ${windowX}px of x=${Math.round(list[0].x ?? 0)} (causes: ${causes})`
+        stepIndex: streak[0].stepIndex ?? 0,
+        x: Math.round(streak[0].x ?? 0),
+        bucket: bucketOf(streak[0]) * windowX,
+        evidence:
+          `${streak.length} deaths in a row within ${windowX}px of x=${Math.round(streak[0].x ?? 0)}` +
+          ` (causes: ${causes}) - respawning straight back into it`
       });
     }
+    runStart = i;
   }
 
   // A death that cost no life is the invulnerable-pit-death case: the player
@@ -285,14 +300,20 @@ export function checkResources(samples, caps = RESOURCE_CAPS) {
 /** Relationships between fields that must always hold together. */
 export function checkStructural(samples) {
   const findings = [];
-  for (const s of samples) {
+  for (let i = 0; i < samples.length; i++) {
+    const s = samples[i];
     if (s.bossX !== null && s.bossX !== undefined && !s.bossActive) {
       findings.push(finding('structural', HIGH, s, 'bossX published while the boss is inactive'));
     }
     if (s.bossVulnerable && !s.bossActive) {
       findings.push(finding('structural', HIGH, s, 'boss reported vulnerable while inactive'));
     }
-    if ((s.lives ?? 1) <= 0 && s.ending === null && !s.dying) {
+    // "Out of lives but the run never ended" has to persist to count. Losing the
+    // last life sets the flag, and the scene queues the game-over transition at
+    // the top of the NEXT step, so exactly one sample can legitimately land in
+    // that window - and one did, the first time a run burned all 30 lives.
+    const stranded = (x) => x !== undefined && (x.lives ?? 1) <= 0 && x.ending === null && !x.dying;
+    if (stranded(s) && stranded(samples[i + 1])) {
       findings.push(finding('structural', HIGH, s, 'lives reached zero without the run ending'));
     }
   }
@@ -353,6 +374,130 @@ export function dedupeFindings(findings) {
     }
   }
   return [...byKey.values()];
+}
+
+/**
+ * Archetypes that are designed NOT to threaten the player directly.
+ *
+ * Enemy body contact is deliberately harmless in this game - only projectiles
+ * and the boss shockwave damage - so an archetype listed here is expected never
+ * to appear in `damageByKind`, and its absence is not a finding. Recording that
+ * explicitly is the point: a silent pass and a documented exemption look the
+ * same until someone breaks one of them.
+ */
+export const HARMLESS_ARCHETYPES = new Set();
+
+/**
+ * Boss-active samples a (boss, weapon) pair needs before it is judged.
+ *
+ * A run where the player meets the boss and dies immediately proves nothing
+ * about that weapon; ten simulated seconds of exposure does.
+ */
+export const BOSS_WEAPON_MIN_SAMPLES = 20;
+
+/**
+ * Coverage: does combat actually work?
+ *
+ * Every other invariant here watches the PLAYER - stuck, dead, out of bounds,
+ * counters moving the wrong way. None of them notice when an actor stops
+ * functioning, because a broken enemy just makes the game easier and a boss
+ * that cannot be hurt reads as difficulty. That gap is exactly how the Reactor
+ * Warden shipped with the Siege Walker's hitbox, immune to level fire, with the
+ * whole suite green (TASK-028).
+ *
+ * Judged over the WHOLE matrix, not per run: one run has no business meeting
+ * every archetype, and an archetype that never appeared anywhere is not a
+ * failure - it is simply untested, and saying so is more honest than inventing
+ * a pass.
+ */
+export function checkCoverage(traces) {
+  const seenArchetypes = new Set();
+  const killed = new Set();
+  const damaged = new Set();
+  const bossesSeen = new Map(); // bossId -> best damage taken across the matrix
+  const bossWeapon = new Map(); // `bossId|weapon` -> { samples, damage }
+
+  for (const trace of traces) {
+    for (const sample of trace.samples ?? []) {
+      for (const kind of sample.enemyKinds ?? []) {
+        seenArchetypes.add(kind);
+      }
+      for (const [kind, n] of Object.entries(sample.killsByKind ?? {})) {
+        if (n > 0) {
+          killed.add(kind);
+          seenArchetypes.add(kind);
+        }
+      }
+      for (const [kind, n] of Object.entries(sample.damageByKind ?? {})) {
+        if (n > 0) {
+          damaged.add(kind);
+        }
+      }
+      if (sample.bossId) {
+        const best = Math.max(bossesSeen.get(sample.bossId) ?? 0, sample.bossDamageTaken ?? 0);
+        bossesSeen.set(sample.bossId, best);
+        if (sample.bossActive && sample.weapon) {
+          const key = `${sample.bossId}|${sample.weapon}`;
+          const stat = bossWeapon.get(key) ?? { samples: 0, damage: 0 };
+          stat.samples += 1;
+          stat.damage = Math.max(stat.damage, sample.bossDamageTaken ?? 0);
+          bossWeapon.set(key, stat);
+        }
+      }
+    }
+  }
+
+  const findings = [];
+  const note = (kind, evidence) => ({ kind, severity: CRITICAL, stepIndex: 0, x: null, evidence });
+
+  for (const [bossId, damage] of bossesSeen) {
+    if (damage <= 0) {
+      findings.push(
+        note(
+          'coverageBossUndamageable',
+          `boss "${bossId}" appeared across the matrix but never took a single point of damage - ` +
+            `either nothing can reach it or its hitbox is wrong`
+        )
+      );
+    }
+  }
+
+  // Per weapon, not just overall. "Damageable by SOMETHING" is too weak a
+  // question: the Reactor Warden shipped hittable only by the scatter fan,
+  // whose pellets rise into a hitbox that was 16 px too short, while the two
+  // single-bolt weapons passed straight under it. Asking it of every weapon is
+  // what turns that from "the pilot lost" into a named defect.
+  for (const [key, stat] of bossWeapon) {
+    if (stat.samples >= BOSS_WEAPON_MIN_SAMPLES && stat.damage <= 0) {
+      const [bossId, weapon] = key.split('|');
+      findings.push(
+        note(
+          'coverageBossWeaponIneffective',
+          `boss "${bossId}" never took damage from the "${weapon}" weapon across ` +
+            `${stat.samples} samples of active fight - that weapon cannot hurt it`
+        )
+      );
+    }
+  }
+
+  for (const kind of seenArchetypes) {
+    if (!killed.has(kind)) {
+      findings.push(
+        note('coverageEnemyUnkillable', `enemy "${kind}" appeared but was never killed anywhere in the matrix`)
+      );
+    }
+    if (!damaged.has(kind) && !HARMLESS_ARCHETYPES.has(kind)) {
+      findings.push(
+        note(
+          'coverageEnemyHarmless',
+          `enemy "${kind}" appeared but never damaged the player anywhere in the matrix - ` +
+            `either its attack is broken or it belongs in HARMLESS_ARCHETYPES`
+        )
+      );
+    }
+  }
+
+  return findings;
 }
 
 /** Run every detector over one trace. */

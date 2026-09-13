@@ -36,6 +36,7 @@ export function projectSample(state) {
     grounded: Boolean(r.grounded),
     lives: r.lives ?? 0,
     score: r.score ?? 0,
+    weapon: r.weapon ?? null,
     checkpoint: r.checkpoint ?? null,
     deaths: Array.isArray(r.deaths) ? r.deaths.length : 0,
     bossActive: Boolean(r.bossActive),
@@ -46,6 +47,12 @@ export function projectSample(state) {
     subcomponentsAlive: r.subcomponentsAlive ?? 0,
     containersAlive: r.containersAlive ?? 0,
     enemyCount: r.enemyCount ?? 0,
+    // Coverage inputs: which archetypes were present, what died, what hurt us.
+    enemyKinds: [...new Set((r.enemies ?? []).map((e) => e.kind))],
+    killsByKind: r.killsByKind ?? {},
+    damageByKind: r.damageByKind ?? {},
+    bossId: r.bossId ?? null,
+    bossDamageTaken: r.bossDamageTaken ?? 0,
     projectileCount: r.projectileCount ?? 0,
     enemyProjectileCount: r.enemyProjectileCount ?? 0,
     maxEnemiesSeen: r.maxEnemiesSeen ?? 0,
@@ -61,7 +68,20 @@ export function projectSample(state) {
 }
 
 export function runId(config) {
-  return `L${config.level}-${config.checkpoint}-${config.lives}lives-${config.policy}`;
+  const parts = [`L${config.level}`, config.checkpoint, `${config.lives}lives`, config.policy];
+  if (config.weapon) {
+    parts.push(config.weapon);
+  }
+  if (config.seed !== undefined) {
+    parts.push(`seed${config.seed}`);
+  }
+  if (config.sampleSteps && config.sampleSteps !== SAMPLE_STEPS) {
+    parts.push(`chunk${config.sampleSteps}`);
+  }
+  if (config.chain) {
+    parts.push(`chain${config.chainLeg ?? ''}`);
+  }
+  return parts.join('-');
 }
 
 /**
@@ -71,23 +91,27 @@ export function runId(config) {
  * caller decides what to do with it.
  */
 export async function driveRun(page, config, errors) {
-  const policy = createPolicy(config.policy);
+  const policy = config.policyInstance ?? createPolicy(config.policy);
   const budget = config.budget ?? RUN_BUDGET_STEPS;
+  const sampleSteps = config.sampleSteps ?? SAMPLE_STEPS;
 
-  if (!policy.autopilot || config.level === 2) {
-    await command(page, config.level === 2 ? 'startLevel2' : 'startLevel1');
-  }
-  await waitForScene(page, 'level');
+  if (config.setup !== 'natural') {
+    if (!policy.autopilot || config.level === 2) {
+      await command(page, config.level === 2 ? 'startLevel2' : 'startLevel1');
+    }
+    await waitForScene(page, 'level');
 
-  // Always go through startAtCheckpoint: it resets the run, places the player,
-  // and - unlike teleportPlayer - leaves every spawn trigger ahead of the
-  // checkpoint armed, so the segment plays the way a real player meets it.
-  const started = await command(page, 'startAtCheckpoint', {
-    id: config.checkpoint,
-    lives: config.lives
-  });
-  if (!started?.ok) {
-    throw new Error(`startAtCheckpoint failed: ${JSON.stringify(started)}`);
+    // Always go through startAtCheckpoint: it resets the run, places the
+    // player, and - unlike teleportPlayer - leaves every spawn trigger ahead of
+    // the checkpoint armed, so the segment plays the way a real player meets it.
+    const started = await command(page, 'startAtCheckpoint', {
+      id: config.checkpoint,
+      lives: config.lives,
+      ...(config.weapon ? { weapon: config.weapon } : {})
+    });
+    if (!started?.ok) {
+      throw new Error(`startAtCheckpoint failed: ${JSON.stringify(started)}`);
+    }
   }
 
   const first = await getState(page);
@@ -99,7 +123,7 @@ export async function driveRun(page, config, errors) {
 
   while (steps < budget) {
     const spec = policy.next(samples[samples.length - 1], { sample, steps }) ?? {};
-    const chunk = Math.min(SAMPLE_STEPS, budget - steps);
+    const chunk = Math.min(sampleSteps, budget - steps);
     const res = await act(page, spec, chunk);
     if (!res) {
       throw new Error('bridge disappeared mid-run');
@@ -142,22 +166,76 @@ export async function driveRun(page, config, errors) {
   };
 }
 
-export async function runOne(config) {
-  const browser = await launch({ headless: config.headless ?? true });
+/**
+ * Run one config on an already-open browser.
+ *
+ * The matrix reuses one browser across every run - launching Chromium costs
+ * roughly a second, opening a context costs tens of milliseconds - but takes a
+ * FRESH CONTEXT per run, because localStorage (settings, best score) and the
+ * Phaser registry (`autopilot`, `currentLevelIndex`, `lastScore`) both survive
+ * a plain re-navigation and would leak state from one run into the next.
+ */
+export async function runOnBrowser(browser, config) {
+  const policy = config.policyInstance ?? createPolicy(config.policy);
   let session;
   try {
-    const policy = createPolicy(config.policy);
     session = await openGame(browser, {
       base: config.base ?? DEFAULT_BASE,
       manualClock: true,
       autopilot: policy.autopilot ? '1' : null,
       settings: { startingLives: config.lives }
     });
-    const trace = await driveRun(session.page, config, session.errors);
-    trace.findings = evaluateRun(trace);
-    return trace;
+    const traces = config.chain
+      ? await driveChain(session.page, { ...config, policyInstance: policy }, session.errors)
+      : [await driveRun(session.page, { ...config, policyInstance: policy }, session.errors)];
+    for (const trace of traces) {
+      trace.findings = evaluateRun(trace);
+    }
+    return traces;
   } finally {
     await closeSession(session);
+  }
+}
+
+/**
+ * Play the whole game as one session: Level 1 -> results -> Level 2 -> ending.
+ *
+ * Each level is kept as its own trace, because `stepIndex` restarts per level
+ * and the detectors assume it only ever grows. The point of the chain is the
+ * cross-level carry-over - the registry keeping the pilot engaged through the
+ * results screen - which is the one thing per-segment runs cannot exercise.
+ */
+export async function driveChain(page, config, errors) {
+  const traces = [];
+  for (let leg = 0; leg < 2; leg++) {
+    const legConfig = {
+      ...config,
+      level: leg + 1,
+      // Leg 1 sets the run up; leg 2 must inherit whatever the game handed it.
+      setup: leg === 0 ? 'checkpoint' : 'natural',
+      chainLeg: leg + 1
+    };
+    const trace = await driveRun(page, legConfig, errors);
+    traces.push(trace);
+    if (trace.ended !== 'results') {
+      break; // died out or hit the budget: the chain stops here
+    }
+    const state = await waitForScene(page, 'results');
+    if (state?.runtime?.final) {
+      break; // MISSION COMPLETE
+    }
+    await command(page, 'confirmMenu');
+    await waitForScene(page, 'level');
+  }
+  return traces;
+}
+
+export async function runOne(config) {
+  const browser = await launch({ headless: config.headless ?? true });
+  try {
+    const traces = await runOnBrowser(browser, config);
+    return traces[0];
+  } finally {
     await browser.close().catch(() => undefined);
   }
 }
@@ -191,6 +269,7 @@ if (isMain) {
     checkpoint: args.checkpoint ?? 'start',
     lives: Number(args.lives ?? 3),
     policy: args.policy ?? 'pilot',
+    weapon: args.weapon ?? null,
     base: args.base ?? DEFAULT_BASE,
     headless: args.headed !== 'true',
     budget: args.budget ? Number(args.budget) : RUN_BUDGET_STEPS

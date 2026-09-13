@@ -19,6 +19,8 @@
  * key", not a true override. A real override needs `?autopilot=remote`.
  */
 
+import { createRng } from './rng.mjs';
+
 /** Every policy asked for a spec this often (steps); 0.5 s of simulation. */
 export const SAMPLE_STEPS = 30;
 
@@ -140,16 +142,111 @@ function bossHuggerPolicy() {
   };
 }
 
-/** Crouch while advancing: keeps the smaller hitbox in play across geometry. */
+/**
+ * Advance in bursts, crouching between them, so the crouch hitbox meets real
+ * geometry. Crouch must be intermittent: holding it pins the player in place,
+ * so a permanent crouch-walk never leaves the spawn point and tests nothing.
+ */
 function crouchWalkerPolicy() {
   return {
     name: 'crouchWalker',
     autopilot: false,
     expectsProgress: true,
     next: (runtime, ctx) =>
-      ctx.sample === 0 ? { hold: ['right', 'crouch'], tap: ['fire'] } : { tap: ['fire'] }
+      ctx.sample % 4 === 0
+        ? { release: ['crouch'], hold: ['right'], tap: ['fire'] }
+        : ctx.sample % 4 === 2
+          ? { hold: ['crouch'], tap: ['fire'] }
+          : { tap: ['fire'] }
   };
 }
+
+const HOLDABLE = ['left', 'right', 'aimUp', 'aimDown', 'crouch', 'drop'];
+const TAPPABLE = ['jump', 'fire'];
+
+/**
+ * The pilot plays, but every so often a burst of stray input lands on top.
+ *
+ * This is the best bug-per-token axis available. The pilot carries the run into
+ * deep, legitimate states (late geometry, boss phases) that no random policy
+ * will ever reach; the hiccups then perturb *around* those states, and the
+ * pilot recovers and carries on. That combination is what reaches "the player
+ * did something dumb in a specific place", which is where door, platform and
+ * trigger bugs actually live.
+ *
+ * Additive only: bridge input is OR-merged with the pilot's, so a hiccup can
+ * add a keypress but never suppress one. That is an honest model of a human
+ * bumping a key, not a true override - overriding needs `?autopilot=remote`.
+ */
+function hiccupPolicy(seed) {
+  const rng = createRng(seed);
+  let remaining = 0;
+  let held = [];
+  return {
+    name: 'hiccup',
+    autopilot: true,
+    expectsProgress: true,
+    seed,
+    next: () => {
+      if (remaining > 0) {
+        remaining -= 1;
+        if (remaining === 0 && held.length > 0) {
+          const release = held;
+          held = [];
+          return { release };
+        }
+        return rng.chance(0.5) ? { tap: [rng.pick(TAPPABLE)] } : {};
+      }
+      if (!rng.chance(0.12)) {
+        return {};
+      }
+      remaining = rng.int(1, 4); // 0.5-2 s of simulation
+      held = [rng.pick(HOLDABLE)];
+      return { hold: held, tap: rng.chance(0.5) ? [rng.pick(TAPPABLE)] : [] };
+    }
+  };
+}
+
+/**
+ * Pure seeded input noise, with no pilot underneath.
+ *
+ * It will never clear a level - it barely leaves the first screen - so it is
+ * marked `expectsProgress: false` and judged only on invariants: page errors,
+ * non-finite values, out-of-bounds positions, resource growth. Real fuzzer
+ * value, narrow reach.
+ */
+function fuzzPolicy(seed) {
+  const rng = createRng(seed);
+  let held = [];
+  return {
+    name: 'fuzz',
+    autopilot: false,
+    expectsProgress: false,
+    seed,
+    next: () => {
+      const release = held;
+      held = [];
+      const spec = { release, hold: [], tap: [] };
+      for (const action of HOLDABLE) {
+        if (rng.chance(0.25)) {
+          held.push(action);
+        }
+      }
+      spec.hold = held;
+      for (const action of TAPPABLE) {
+        if (rng.chance(0.4)) {
+          spec.tap.push(action);
+        }
+      }
+      return spec;
+    }
+  };
+}
+
+const SEEDED_FACTORIES = {
+  hiccup: hiccupPolicy,
+  fuzz: fuzzPolicy
+};
 
 const FACTORIES = {
   pilot: pilotPolicy,
@@ -162,9 +259,13 @@ const FACTORIES = {
   crouchWalker: crouchWalkerPolicy
 };
 
-export const POLICY_NAMES = Object.keys(FACTORIES);
+export const POLICY_NAMES = [...Object.keys(FACTORIES), ...Object.keys(SEEDED_FACTORIES)];
 
-export function createPolicy(name) {
+export function createPolicy(name, options = {}) {
+  const seeded = SEEDED_FACTORIES[name];
+  if (seeded) {
+    return seeded(options.seed ?? 1);
+  }
   const factory = FACTORIES[name];
   if (!factory) {
     throw new Error(`unknown policy: ${name} (known: ${POLICY_NAMES.join(', ')})`);

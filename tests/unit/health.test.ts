@@ -1,11 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import {
   applyDamage,
+  applyLethalDamage,
   createHealthState,
   isInvulnerable,
   restoreWithInvuln,
-  tickInvuln
+  tickInvuln,
+  type HealthState
 } from '../../src/simulation/health';
+
+/** Matches the game's INVULN_DURATION; the exact value is not under test. */
+const INVULN = 1.5;
 
 describe('damage, invulnerability, and life loss', () => {
   it('blocks damage during the invulnerability window', () => {
@@ -51,5 +56,53 @@ describe('damage, invulnerability, and life loss', () => {
     expect(restored.lives).toBe(3);
     expect(restored.invuln).toBe(1.5);
     expect(restored.gameOver).toBe(false);
+  });
+});
+
+/**
+ * TASK-026.
+ *
+ * Mercy invincibility exists so that one projectile hit does not immediately
+ * become several. Falling out of the world or touching a lethal hazard is not
+ * damage for it to absorb: the player has unambiguously left the playfield and
+ * the respawn runs either way, so letting the window swallow the life loss made
+ * a pit a free teleport back to the last checkpoint.
+ */
+describe('lethal damage ignores the invulnerability window', () => {
+  it('costs a life even while invulnerable, unlike ordinary damage', () => {
+    const invulnerable: HealthState = { lives: 3, invuln: 0.8, gameOver: false };
+
+    // Ordinary damage is absorbed...
+    const absorbed = applyDamage(invulnerable, INVULN);
+    expect(absorbed.applied).toBe(false);
+    expect(absorbed.health.lives).toBe(3);
+
+    // ...but falling into a pit is not.
+    const lethal = applyLethalDamage(invulnerable, INVULN);
+    expect(lethal.applied).toBe(true);
+    expect(lethal.health.lives).toBe(2);
+  });
+
+  it('starts a fresh invulnerability window on the respawn', () => {
+    const result = applyLethalDamage({ lives: 3, invuln: 0.8, gameOver: false }, INVULN);
+    expect(result.health.invuln).toBe(INVULN);
+  });
+
+  it('ends the run when the last life goes, with no lingering invulnerability', () => {
+    const result = applyLethalDamage({ lives: 1, invuln: 0.8, gameOver: false }, INVULN);
+    expect(result.applied).toBe(true);
+    expect(result.health).toEqual({ lives: 0, invuln: 0, gameOver: true });
+  });
+
+  it('does nothing once the run is already over', () => {
+    const over: HealthState = { lives: 0, invuln: 0, gameOver: true };
+    const result = applyLethalDamage(over, INVULN);
+    expect(result.applied).toBe(false);
+    expect(result.health).toBe(over);
+  });
+
+  it('behaves identically to ordinary damage when not invulnerable', () => {
+    const healthy: HealthState = { lives: 3, invuln: 0, gameOver: false };
+    expect(applyLethalDamage(healthy, INVULN)).toEqual(applyDamage(healthy, INVULN));
   });
 });

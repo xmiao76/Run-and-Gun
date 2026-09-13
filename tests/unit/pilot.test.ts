@@ -67,6 +67,10 @@ function makeRuntime(overrides: Partial<LevelRuntime> = {}): LevelRuntime {
     maxPlayerX: 200,
     ending: null,
     deaths: [],
+    bossId: 'siegeWalker',
+    bossDamageTaken: 0,
+    killsByKind: {},
+    damageByKind: {},
     ...overrides
   };
 }
@@ -333,10 +337,17 @@ describe('decidePilotInput: boss fight', () => {
     expect(input.right).toBe(true); // 352 px from center > 300 -> close in
   });
 
-  it('stands and fires once at point-blank on the boss', () => {
+  it('keeps closing on the boss at point-blank rather than standing still', () => {
+    // Updated for TASK-028. Standing still here was the bug: facing only
+    // changes while a direction is held, so a pilot that stopped "close
+    // enough" kept whatever facing its last node attack left it with, and
+    // could spend the whole 2 s window firing away from a vulnerable boss for
+    // no damage. Measured: the Reactor Warden took 8 -> 8 across 113
+    // vulnerable samples. The hull neither blocks movement nor hurts on
+    // contact, so pressing on is safe and keeps the gun on target.
     const { input } = decidePilotInput(inArena({ bossVulnerable: true, playerX: 2820 }), makeMemory());
     expect(input.fireHeld).toBe(true);
-    expect(input.right).toBe(false); // already on top of the boss -> no advance
+    expect(input.right).toBe(true); // boss centre is still to the right
     expect(input.left).toBe(false);
   });
 
@@ -379,5 +390,105 @@ describe('decidePilotInput: boss fight', () => {
     const snap = inArena({ bossState: 'idle', playerX: 2600 }); // hold point is 2502
     const { input } = decidePilotInput(snap, makeMemory());
     expect(input.left).toBe(true);
+  });
+});
+
+/**
+ * TASK-028: attacking the Reactor Warden's shield nodes.
+ *
+ * The pilot used to settle into a stable, useless standoff - walking toward a
+ * spot BEHIND itself while firing in its direction of travel, i.e. away from
+ * the node. Movement is facing in this game, so "reposition" and "keep the gun
+ * on the target" pull against each other and any naive seek has a fixed point.
+ *
+ * Geometry of the fixture (Level 2, phase 1): boss body at x 2820, node at
+ * x 2792-2810 whose centre is 39 px above the gun, so a 45-degree shot only
+ * connects from ~39 px away horizontally - measured from the MUZZLE, which sits
+ * at the player's leading edge, not their centre.
+ */
+describe('subcomponent attack positioning', () => {
+  const NODE = { id: 'rw-p1-a', x: 2792, y: 416, width: 18, height: 18, alive: true };
+
+  function warden(overrides: Partial<LevelRuntime> = {}): LevelRuntime {
+    return makeRuntime({
+      playerY: 480,
+      bossActive: true,
+      bossHealth: 8,
+      bossX: 2820,
+      bossVulnerable: false,
+      subcomponents: [NODE],
+      subcomponentsAlive: 1,
+      fireAngle: 0,
+      ...overrides
+    });
+  }
+
+  it('holds position and fires diagonally when the gap matches the shot', () => {
+    // Muzzle at 2740+22 = 2762, node centre 2801: a 39 px gap, matching the
+    // 39 px the node sits above the gun.
+    const decision = decidePilotInput(warden({ playerX: 2740 }), makeMemory());
+    expect(decision.input.left).toBe(false);
+    expect(decision.input.right).toBe(false);
+    expect(decision.input.fireHeld).toBe(true);
+    expect(decision.input.aimUp).toBe(true);
+  });
+
+  it('swings the gun back onto the node when facing the wrong way', () => {
+    // Same position, but the last move left the player facing left (180).
+    const decision = decidePilotInput(warden({ playerX: 2740, fireAngle: 180 }), makeMemory());
+    expect(decision.input.right).toBe(true);
+    expect(decision.input.left).toBe(false);
+  });
+
+  it('backs off when too close for the diagonal to come down on the node', () => {
+    // Muzzle almost on top of the node: a 45-degree shot sails over it.
+    const decision = decidePilotInput(warden({ playerX: 2780 }), makeMemory());
+    expect(decision.input.left).toBe(true);
+    expect(decision.input.right).toBe(false);
+  });
+
+  it('keeps backing off once it starts, instead of stopping on the band edge', () => {
+    // Latched retreat: without it the pilot alternates "back off" and "face the
+    // node" forever, which is the original wedge.
+    const memory = { ...makeMemory(), subRepositioning: true };
+    const decision = decidePilotInput(warden({ playerX: 2749 }), memory);
+    expect(decision.input.left).toBe(true);
+    expect(decision.memory.subRepositioning).toBe(true);
+  });
+
+  it('closes in when too far out for the shot to reach', () => {
+    const decision = decidePilotInput(warden({ playerX: 2600 }), makeMemory());
+    expect(decision.input.right).toBe(true);
+    expect(decision.input.left).toBe(false);
+  });
+
+  it('forces a break-out after firing for too long with nothing destroyed', () => {
+    // A node has 2 health. Seconds of fire with no kill means the shots are not
+    // landing, whatever the geometry says, so the position has to change.
+    const stalled = { ...makeMemory(), subAttackSteps: 241, lastSubAlive: 1 };
+    const decision = decidePilotInput(warden({ playerX: 2740 }), stalled);
+    expect(decision.memory.subBreakout).toBeGreaterThan(0);
+    expect(decision.input.left).toBe(true);
+  });
+
+  it('resets the stall counter as soon as a node actually dies', () => {
+    const progressing = { ...makeMemory(), subAttackSteps: 200, lastSubAlive: 2 };
+    const decision = decidePilotInput(warden({ playerX: 2740, subcomponentsAlive: 1 }), progressing);
+    expect(decision.memory.subAttackSteps).toBe(0);
+    expect(decision.memory.subBreakout).toBe(0);
+  });
+
+  it('leaves a boss with no nodes alone: Level 1 tuning is untouched', () => {
+    const siegeWalker = makeRuntime({
+      playerX: 2600,
+      bossActive: true,
+      bossHealth: 12,
+      bossX: 2880,
+      bossVulnerable: false,
+      subcomponents: [],
+      subcomponentsAlive: 0
+    });
+    const decision = decidePilotInput(siegeWalker, makeMemory());
+    expect(decision.memory.sawSubcomponents).toBe(false);
   });
 });

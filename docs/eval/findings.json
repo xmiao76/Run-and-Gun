@@ -1,0 +1,61 @@
+{
+  "generated": "2026-09-13T05:12:13.009Z",
+  "groups": [
+    {
+      "kind": "deathTrap",
+      "severity": "CRITICAL",
+      "level": 2,
+      "bucket": 1920,
+      "runs": [
+        "L2-mid-30lives-doorCamper"
+      ],
+      "policies": [
+        "doorCamper"
+      ],
+      "evidence": "9 deaths in a row within 96px of x=1936 (causes: enemyFire) - respawning straight back into it",
+      "competent": false
+    },
+    {
+      "kind": "deathTrap",
+      "severity": "CRITICAL",
+      "level": 2,
+      "bucket": 2304,
+      "runs": [
+        "L2-preboss-30lives-bossHugger"
+      ],
+      "policies": [
+        "bossHugger"
+      ],
+      "evidence": "30 deaths in a row within 96px of x=2340 (causes: hazard) - respawning straight back into it",
+      "competent": false
+    },
+    {
+      "kind": "deathTrap",
+      "severity": "CRITICAL",
+      "level": 1,
+      "bucket": 3168,
+      "runs": [
+        "L1-start-30lives-jumper"
+      ],
+      "policies": [
+        "jumper"
+      ],
+      "evidence": "25 deaths in a row within 96px of x=3218 (causes: enemyFire) - respawning straight back into it",
+      "competent": false
+    },
+    {
+      "kind": "deathTrap",
+      "severity": "CRITICAL",
+      "level": 1,
+      "bucket": 768,
+      "runs": [
+        "L1-start-30lives-crouchWalker"
+      ],
+      "policies": [
+        "crouchWalker"
+      ],
+      "evidence": "9 deaths in a row within 96px of x=830 (causes: pit) - respawning straight back into it",
+      "competent": false
+    }
+  ]
+}

@@ -117,8 +117,14 @@ exposes structured state, input injection, and step-exact time control over a
 deterministic simulation. Scripted tests use the typed `GameDriver` helper; the
 same suite runs against the deployed site with `npm run test:e2e:live`; and an
 AI agent can play interactively through `npm run agent:server` (a tiny HTTP
-driver that keeps one browser session open). Full reference:
-[`docs/AUTOMATION.md`](docs/AUTOMATION.md).
+driver that keeps one browser session open) or as MCP tools via
+`scripts/mcp-server.mjs`.
+
+`npm run eval` plays the game against itself across a varied matrix and checks
+gameplay invariants - stalls, respawn loops, out-of-bounds positions, resource
+growth - writing `docs/eval/report.md`. Because the simulation has no randomness
+at all, the variation is constructed by the harness rather than rolled by the
+game. Full reference: [`docs/AUTOMATION.md`](docs/AUTOMATION.md).
 
 ## Deployment
 

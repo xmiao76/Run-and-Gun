@@ -32,7 +32,7 @@ import {
   createSandboxTriggers,
   SANDBOX_MAX_ENEMIES
 } from '../levels/sandboxEncounter';
-import { applyDamage, createHealthState, tickInvuln, type HealthState } from '../simulation/health';
+import { applyDamage, applyLethalDamage, createHealthState, tickInvuln, type HealthState } from '../simulation/health';
 import { createPlayerState, stepPlayer, type PlayerState } from '../simulation/player';
 import {
   createWeaponState,
@@ -206,7 +206,7 @@ export class SandboxScene extends Phaser.Scene {
 
   private stepOnce(): void {
     const debug = this.readDebugInput();
-    this.stepInput = mergeInput(this.keyboard.build(this.stepInput), debug);
+    this.stepInput = mergeInput(this.keyboard.build(), debug);
 
     if (this.health.gameOver) {
       this.clearPressedEdges();
@@ -391,7 +391,9 @@ export class SandboxScene extends Phaser.Scene {
   }
 
   private handleDeath(): void {
-    const damage = applyDamage(this.health, INVULN_DURATION);
+    // Same rule as the level scene: falling out of the world always costs a
+    // life, whatever the invulnerability window says (TASK-026).
+    const damage = applyLethalDamage(this.health, INVULN_DURATION);
     this.health = damage.health;
     if (this.health.gameOver) {
       return;

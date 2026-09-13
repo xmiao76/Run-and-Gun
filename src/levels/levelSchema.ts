@@ -99,6 +99,25 @@ export interface SupplyCarrierDef {
   weapon: WeaponId;
 }
 
+/**
+ * Is this hazard rect lethal to touch?
+ *
+ * `hazards` carries two different things. A rect whose top sits ABOVE the ground
+ * line (smaller y, since y grows downward) is a real floor hazard - a spike
+ * strip - and kills on contact. A rect at or below the ground line is a
+ * decorative pit marker: it paints the hazard stripes on a pit rim, and the
+ * lethality of a pit comes from the fall threshold, not from the paint.
+ *
+ * The rule is here, once, because three places need to agree on it: the scene's
+ * contact test, the AI pilot's "which strips must I jump" geometry, and the
+ * level validator. It used to live only in the pilot, so the scene killed the
+ * player on contact with pit paint and then reported the death as `hazard`
+ * rather than `pit` (TASK-027).
+ */
+export function isLethalHazard(hazard: Rect, groundY: number): boolean {
+  return hazard.y < groundY;
+}
+
 export interface LevelDef {
   id: string;
   name: string;
@@ -107,6 +126,9 @@ export interface LevelDef {
   spawn: { x: number; y: number };
   solids: Rect[];
   oneWays: Rect[];
+  /**
+   * Floor hazards AND decorative pit markers; `isLethalHazard` separates them.
+   */
   hazards: Rect[];
   checkpoints: CheckpointDef[];
   triggers: LevelTriggerDef[];

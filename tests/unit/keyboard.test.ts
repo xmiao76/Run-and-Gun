@@ -2,11 +2,11 @@ import { describe, expect, it } from 'vitest';
 
 import {
   buildInputFromRaw,
+  createKeyboardInput,
   createRawKeyState,
   resolveKeyAction,
   type RawKeyState
 } from '../../src/input/KeyboardInput';
-import { createNeutralInput } from '../../src/input/InputState';
 
 function raw(overrides: Partial<RawKeyState> = {}): RawKeyState {
   return { ...createRawKeyState(), ...overrides };
@@ -83,7 +83,9 @@ describe('resolveKeyAction', () => {
 });
 
 describe('buildInputFromRaw', () => {
-  const prev = createNeutralInput();
+  // The previous state is a RAW KEY state, not a merged InputState: an edge
+  // belongs to the device, not to whatever the scene OR-ed together last step.
+  const prev = createRawKeyState();
 
   it('routes the up key to aim-up only, never to jumping', () => {
     const input = buildInputFromRaw(raw({ up: true }), prev);
@@ -114,10 +116,93 @@ describe('buildInputFromRaw', () => {
     expect(first.firePressed).toBe(true);
 
     // Still held on the next step: no repeat edge.
-    const second = buildInputFromRaw(held, first);
+    const second = buildInputFromRaw(held, held);
     expect(second.jumpPressed).toBe(false);
     expect(second.firePressed).toBe(false);
     expect(second.jumpHeld).toBe(true);
     expect(second.fireHeld).toBe(true);
+  });
+});
+
+/**
+ * TASK-025 regression.
+ *
+ * Edges used to be derived from the previous step's MERGED input, which the
+ * level scene assembles from keyboard + gamepad + touch + debug bridge + AI
+ * pilot. So while the pilot held jump or fire, a human's first real press read
+ * as a continuation of the pilot's hold and its edge was silently dropped - the
+ * player had to release and press again before a takeover registered.
+ *
+ * An edge belongs to the DEVICE, so it is now derived from the previous raw key
+ * state and nothing else. The adapter owns that state, which makes the old
+ * misuse impossible to express.
+ */
+describe('keyboard edges are independent of other input sources (TASK-025)', () => {
+  /** Minimal Window stand-in: unit tests run in the node environment. */
+  function stubWindow() {
+    const listeners: Record<string, Array<(e: unknown) => void>> = {};
+    const target = {
+      addEventListener(type: string, fn: (e: unknown) => void) {
+        (listeners[type] ??= []).push(fn);
+      },
+      removeEventListener(type: string, fn: (e: unknown) => void) {
+        listeners[type] = (listeners[type] ?? []).filter((f) => f !== fn);
+      },
+      send(type: string, code: string) {
+        for (const fn of listeners[type] ?? []) {
+          fn({ code, key: undefined, keyCode: 0, repeat: false, preventDefault() {} });
+        }
+      }
+    };
+    return target;
+  }
+
+  function attached() {
+    const win = stubWindow();
+    const keyboard = createKeyboardInput();
+    keyboard.attach(win as unknown as Window);
+    return { win, keyboard };
+  }
+
+  it('edges once on a fresh press and not again while held', () => {
+    const { win, keyboard } = attached();
+
+    win.send('keydown', 'KeyZ');
+    const first = keyboard.build();
+    expect(first.jumpHeld).toBe(true);
+    expect(first.jumpPressed).toBe(true);
+
+    const second = keyboard.build();
+    expect(second.jumpHeld).toBe(true);
+    expect(second.jumpPressed).toBe(false);
+  });
+
+  it('produces a new edge after a release and a second press', () => {
+    const { win, keyboard } = attached();
+
+    win.send('keydown', 'KeyX');
+    expect(keyboard.build().firePressed).toBe(true);
+    keyboard.build();
+
+    win.send('keyup', 'KeyX');
+    keyboard.build();
+
+    win.send('keydown', 'KeyX');
+    expect(keyboard.build().firePressed).toBe(true);
+  });
+
+  it('lets a key edge again after clear(), so focus loss cannot wedge it', () => {
+    const { win, keyboard } = attached();
+
+    win.send('keydown', 'KeyZ');
+    expect(keyboard.build().jumpPressed).toBe(true);
+    keyboard.build();
+
+    // Window blur: every held key is dropped without a matching keyup.
+    keyboard.clear();
+    expect(keyboard.build().jumpHeld).toBe(false);
+
+    win.send('keydown', 'KeyZ');
+    expect(keyboard.build().jumpPressed).toBe(true);
   });
 });

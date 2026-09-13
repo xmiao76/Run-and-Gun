@@ -5,6 +5,7 @@ import {
   checkBounds,
   checkMonotonic,
   checkResources,
+  checkCoverage,
   checkStructural,
   dedupeFindings,
   detectDeathTrap,
@@ -209,17 +210,46 @@ describe('detectStall true positives', () => {
 });
 
 describe('detectDeathTrap', () => {
-  test('repeated deaths in one place are a trap', () => {
+  test('consecutive deaths in one place are a trap', () => {
+    // The real Reactor Warden wedge: respawn, walk back, die at the same x.
     const deaths = [
       { cause: 'enemyFire', x: 2583, y: 480, stepIndex: 1596, costLife: true },
       { cause: 'enemyFire', x: 2583, y: 480, stepIndex: 1933, costLife: true },
-      { cause: 'enemyFire', x: 2586, y: 480, stepIndex: 2270, costLife: true }
+      { cause: 'enemyFire', x: 2586, y: 480, stepIndex: 2270, costLife: true },
+      { cause: 'enemyFire', x: 2583, y: 480, stepIndex: 2607, costLife: true }
     ];
     const findings = detectDeathTrap(deaths);
     expect(findings).toHaveLength(1);
     expect(findings[0].kind).toBe('deathTrap');
     expect(findings[0].severity).toBe('CRITICAL');
-    expect(findings[0].evidence).toContain('3 deaths');
+    expect(findings[0].evidence).toContain('4 deaths in a row');
+  });
+
+  test('deaths that merely revisit a place are not a trap', () => {
+    // Measured false positive: a stuttering policy racked up 8 deaths in one
+    // bucket across a run while never dying there twice in a row. It is dying
+    // all over the first screen, not stuck in a cycle.
+    const deaths = [
+      { cause: 'enemyFire', x: 282, y: 480, stepIndex: 100, costLife: true },
+      { cause: 'enemyFire', x: 612, y: 480, stepIndex: 200, costLife: true },
+      { cause: 'enemyFire', x: 288, y: 480, stepIndex: 300, costLife: true },
+      { cause: 'enemyFire', x: 615, y: 480, stepIndex: 400, costLife: true },
+      { cause: 'enemyFire', x: 290, y: 480, stepIndex: 500, costLife: true },
+      { cause: 'enemyFire', x: 618, y: 480, stepIndex: 600, costLife: true }
+    ];
+    expect(detectDeathTrap(deaths)).toEqual([]);
+  });
+
+  test('a short streak during a fight the player goes on to win is not a trap', () => {
+    // Measured false positive: a perturbed pilot died three times in the boss
+    // arena and then COMPLETED the level. Three is a hard fight; four in a row
+    // is a cycle.
+    const deaths = [
+      { cause: 'enemyFire', x: 2732, y: 480, stepIndex: 900, costLife: true },
+      { cause: 'enemyFire', x: 2735, y: 480, stepIndex: 1100, costLife: true },
+      { cause: 'enemyFire', x: 2740, y: 480, stepIndex: 1300, costLife: true }
+    ];
+    expect(detectDeathTrap(deaths)).toEqual([]);
   });
 
   test('deaths spread across the level are just a hard game', () => {
@@ -267,6 +297,18 @@ describe('value checks', () => {
     expect(findings[0].evidence).toContain('boss health rose');
   });
 
+  test('the one sample between losing the last life and the game-over swap is not a finding', () => {
+    // The scene queues the transition at the top of the NEXT step, so exactly
+    // one sample legitimately reads lives=0 with no ending yet. Flagging it
+    // turned a correct game over into a false structural violation.
+    const transition = [
+      sample({ lives: 1, dying: true }),
+      sample({ lives: 0, dying: false, ending: null }),
+      sample({ lives: 0, dying: false, ending: 'gameOver' })
+    ];
+    expect(checkStructural(transition)).toEqual([]);
+  });
+
   test('resource caps report only the worst offender', () => {
     const findings = checkResources([sample({ maxEnemiesSeen: 20 }), sample({ maxEnemiesSeen: 40 })]);
     expect(findings).toHaveLength(1);
@@ -276,7 +318,10 @@ describe('value checks', () => {
   test('structural contradictions between fields are caught', () => {
     expect(checkStructural([sample({ bossX: 2800, bossActive: false })])[0].evidence).toContain('bossX');
     expect(checkStructural([sample({ bossVulnerable: true, bossActive: false })])[0].evidence).toContain('vulnerable');
-    expect(checkStructural([sample({ lives: 0 })])[0].evidence).toContain('lives reached zero');
+    // Has to persist: two consecutive samples still out of lives and still not ending.
+    expect(
+      checkStructural([sample({ lives: 0 }), sample({ lives: 0 })])[0].evidence
+    ).toContain('lives reached zero');
     expect(checkStructural([sample({ lives: 0, ending: 'gameOver' })])).toEqual([]);
   });
 });
@@ -292,5 +337,87 @@ describe('dedupeFindings', () => {
     expect(deduped).toHaveLength(2);
     expect(deduped[0].occurrences).toBe(2);
     expect(deduped[1].occurrences).toBe(1);
+  });
+});
+
+
+/**
+ * TASK-029: coverage.
+ *
+ * Every other detector here watches the player. None of them notice when an
+ * ACTOR stops working, because a broken enemy just makes the game easier and a
+ * boss that cannot be hurt reads as difficulty - which is exactly how the
+ * Reactor Warden shipped with the Siege Walker's hitbox and a green suite.
+ */
+describe('checkCoverage', () => {
+  function trace(samples: Array<Record<string, unknown>>) {
+    return { samples };
+  }
+
+  const healthy = trace([
+    {
+      enemyKinds: ['runner', 'sentry'],
+      killsByKind: { runner: 3, sentry: 1 },
+      damageByKind: { runner: 1, sentry: 2 },
+      bossId: 'siegeWalker',
+      bossDamageTaken: 12
+    }
+  ]);
+
+  test('says nothing when every actor is doing its job', () => {
+    expect(checkCoverage([healthy])).toEqual([]);
+  });
+
+  test('flags a boss that appears but never takes a single point of damage', () => {
+    // The TASK-028 signature: the pilot just "loses", which looks like difficulty.
+    const undamageable = trace([
+      { enemyKinds: [], killsByKind: {}, damageByKind: {}, bossId: 'reactorWarden', bossDamageTaken: 0 }
+    ]);
+    const findings = checkCoverage([undamageable]);
+    expect(findings).toHaveLength(1);
+    expect(findings[0].kind).toBe('coverageBossUndamageable');
+    expect(findings[0].evidence).toContain('reactorWarden');
+    expect(findings[0].severity).toBe('CRITICAL');
+  });
+
+  test('flags an archetype that appears but is never killed', () => {
+    const unkillable = trace([
+      { enemyKinds: ['drone'], killsByKind: {}, damageByKind: { drone: 4 }, bossId: 'siegeWalker', bossDamageTaken: 5 }
+    ]);
+    const kinds = checkCoverage([unkillable]).map((f) => f.kind);
+    expect(kinds).toContain('coverageEnemyUnkillable');
+    expect(kinds).not.toContain('coverageEnemyHarmless');
+  });
+
+  test('flags an archetype that appears but never damages the player', () => {
+    const harmless = trace([
+      { enemyKinds: ['grenadier'], killsByKind: { grenadier: 2 }, damageByKind: {}, bossId: 'siegeWalker', bossDamageTaken: 5 }
+    ]);
+    const kinds = checkCoverage([harmless]).map((f) => f.kind);
+    expect(kinds).toContain('coverageEnemyHarmless');
+    expect(kinds).not.toContain('coverageEnemyUnkillable');
+  });
+
+  test('an archetype that never appeared is untested, not broken', () => {
+    // Saying nothing is more honest than inventing a pass for something the
+    // matrix never exercised.
+    expect(checkCoverage([healthy]).map((f) => f.kind)).not.toContain('coverageEnemyUnkillable');
+  });
+
+  test('judges the MATRIX, not each run: one run need not meet every archetype', () => {
+    const runOne = trace([
+      { enemyKinds: ['runner'], killsByKind: { runner: 1 }, damageByKind: {}, bossId: 'siegeWalker', bossDamageTaken: 3 }
+    ]);
+    const runTwo = trace([
+      { enemyKinds: ['runner'], killsByKind: {}, damageByKind: { runner: 1 }, bossId: 'siegeWalker', bossDamageTaken: 0 }
+    ]);
+    // Separately each looks broken; together they show a working runner and a
+    // damageable boss.
+    expect(checkCoverage([runOne]).length).toBeGreaterThan(0);
+    expect(checkCoverage([runOne, runTwo])).toEqual([]);
+  });
+
+  test('an empty matrix produces nothing rather than everything', () => {
+    expect(checkCoverage([])).toEqual([]);
   });
 });

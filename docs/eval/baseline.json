@@ -1,0 +1,379 @@
+{
+  "generated": "2026-09-13T05:11:28.885Z",
+  "outcomes": [
+    {
+      "id": "L1-start-3lives-pilot",
+      "ended": "gameOver",
+      "findingKinds": [],
+      "findingTypes": [],
+      "deathCauses": [
+        "enemyFire"
+      ]
+    },
+    {
+      "id": "L1-start-30lives-pilot",
+      "ended": "results",
+      "findingKinds": [],
+      "findingTypes": [],
+      "deathCauses": [
+        "enemyFire"
+      ]
+    },
+    {
+      "id": "L1-mid-3lives-pilot",
+      "ended": "results",
+      "findingKinds": [],
+      "findingTypes": [],
+      "deathCauses": [
+        "enemyFire"
+      ]
+    },
+    {
+      "id": "L1-mid-30lives-pilot",
+      "ended": "results",
+      "findingKinds": [],
+      "findingTypes": [],
+      "deathCauses": [
+        "enemyFire"
+      ]
+    },
+    {
+      "id": "L1-preboss-3lives-pilot",
+      "ended": "results",
+      "findingKinds": [],
+      "findingTypes": [],
+      "deathCauses": [
+        "enemyFire"
+      ]
+    },
+    {
+      "id": "L1-preboss-30lives-pilot",
+      "ended": "results",
+      "findingKinds": [],
+      "findingTypes": [],
+      "deathCauses": [
+        "enemyFire"
+      ]
+    },
+    {
+      "id": "L2-start-3lives-pilot",
+      "ended": "gameOver",
+      "findingKinds": [],
+      "findingTypes": [],
+      "deathCauses": [
+        "enemyFire"
+      ]
+    },
+    {
+      "id": "L2-start-30lives-pilot",
+      "ended": "results",
+      "findingKinds": [],
+      "findingTypes": [],
+      "deathCauses": [
+        "enemyFire"
+      ]
+    },
+    {
+      "id": "L2-mid-3lives-pilot",
+      "ended": "gameOver",
+      "findingKinds": [],
+      "findingTypes": [],
+      "deathCauses": [
+        "enemyFire"
+      ]
+    },
+    {
+      "id": "L2-mid-30lives-pilot",
+      "ended": "results",
+      "findingKinds": [],
+      "findingTypes": [],
+      "deathCauses": [
+        "enemyFire"
+      ]
+    },
+    {
+      "id": "L2-preboss-3lives-pilot",
+      "ended": "results",
+      "findingKinds": [],
+      "findingTypes": [],
+      "deathCauses": [
+        "enemyFire"
+      ]
+    },
+    {
+      "id": "L2-preboss-30lives-pilot",
+      "ended": "results",
+      "findingKinds": [],
+      "findingTypes": [],
+      "deathCauses": [
+        "enemyFire"
+      ]
+    },
+    {
+      "id": "L1-preboss-30lives-pilot-pulse",
+      "ended": "results",
+      "findingKinds": [],
+      "findingTypes": [],
+      "deathCauses": [
+        "enemyFire"
+      ]
+    },
+    {
+      "id": "L1-preboss-30lives-pilot-scatter",
+      "ended": "results",
+      "findingKinds": [],
+      "findingTypes": [],
+      "deathCauses": [
+        "enemyFire"
+      ]
+    },
+    {
+      "id": "L1-preboss-30lives-pilot-rapid",
+      "ended": "results",
+      "findingKinds": [],
+      "findingTypes": [],
+      "deathCauses": [
+        "enemyFire"
+      ]
+    },
+    {
+      "id": "L2-preboss-30lives-pilot-pulse",
+      "ended": "results",
+      "findingKinds": [],
+      "findingTypes": [],
+      "deathCauses": [
+        "enemyFire"
+      ]
+    },
+    {
+      "id": "L2-preboss-30lives-pilot-scatter",
+      "ended": "results",
+      "findingKinds": [],
+      "findingTypes": [],
+      "deathCauses": [
+        "enemyFire"
+      ]
+    },
+    {
+      "id": "L2-preboss-30lives-pilot-rapid",
+      "ended": "results",
+      "findingKinds": [],
+      "findingTypes": [],
+      "deathCauses": [
+        "enemyFire"
+      ]
+    },
+    {
+      "id": "L2-mid-30lives-hiccup-seed1",
+      "ended": "results",
+      "findingKinds": [],
+      "findingTypes": [],
+      "deathCauses": [
+        "enemyFire"
+      ]
+    },
+    {
+      "id": "L1-preboss-30lives-hiccup-seed2",
+      "ended": "results",
+      "findingKinds": [],
+      "findingTypes": [],
+      "deathCauses": [
+        "enemyFire"
+      ]
+    },
+    {
+      "id": "L2-start-30lives-hiccup-seed3",
+      "ended": "results",
+      "findingKinds": [],
+      "findingTypes": [],
+      "deathCauses": [
+        "enemyFire"
+      ]
+    },
+    {
+      "id": "L1-mid-30lives-hiccup-seed4",
+      "ended": "results",
+      "findingKinds": [],
+      "findingTypes": [],
+      "deathCauses": [
+        "enemyFire"
+      ]
+    },
+    {
+      "id": "L2-mid-30lives-doorCamper",
+      "ended": "gameOver",
+      "findingKinds": [
+        "deathTrap@1920"
+      ],
+      "findingTypes": [
+        "deathTrap"
+      ],
+      "deathCauses": [
+        "enemyFire"
+      ]
+    },
+    {
+      "id": "L1-start-30lives-edgeNudger",
+      "ended": "gameOver",
+      "findingKinds": [],
+      "findingTypes": [],
+      "deathCauses": [
+        "enemyFire",
+        "pit"
+      ]
+    },
+    {
+      "id": "L1-preboss-30lives-bossHugger",
+      "ended": "results",
+      "findingKinds": [],
+      "findingTypes": [],
+      "deathCauses": [
+        "bossShockwave",
+        "enemyFire"
+      ]
+    },
+    {
+      "id": "L2-preboss-30lives-bossHugger",
+      "ended": "gameOver",
+      "findingKinds": [
+        "deathTrap@2304"
+      ],
+      "findingTypes": [
+        "deathTrap"
+      ],
+      "deathCauses": [
+        "hazard"
+      ]
+    },
+    {
+      "id": "L1-start-3lives-rusher",
+      "ended": "gameOver",
+      "findingKinds": [],
+      "findingTypes": [],
+      "deathCauses": [
+        "enemyFire",
+        "pit"
+      ]
+    },
+    {
+      "id": "L2-start-3lives-rusher",
+      "ended": "gameOver",
+      "findingKinds": [],
+      "findingTypes": [],
+      "deathCauses": [
+        "enemyFire",
+        "pit"
+      ]
+    },
+    {
+      "id": "L1-start-30lives-jumper",
+      "ended": "budget",
+      "findingKinds": [
+        "deathTrap@3168"
+      ],
+      "findingTypes": [
+        "deathTrap"
+      ],
+      "deathCauses": [
+        "enemyFire",
+        "pit"
+      ]
+    },
+    {
+      "id": "L1-start-30lives-crouchWalker",
+      "ended": "budget",
+      "findingKinds": [
+        "deathTrap@768"
+      ],
+      "findingTypes": [
+        "deathTrap"
+      ],
+      "deathCauses": [
+        "enemyFire",
+        "pit"
+      ]
+    },
+    {
+      "id": "L1-start-30lives-idler",
+      "ended": "budget",
+      "findingKinds": [],
+      "findingTypes": [],
+      "deathCauses": []
+    },
+    {
+      "id": "L2-start-30lives-fuzz-seed1",
+      "ended": "budget",
+      "findingKinds": [],
+      "findingTypes": [],
+      "deathCauses": [
+        "enemyFire",
+        "pit"
+      ]
+    },
+    {
+      "id": "L1-start-30lives-fuzz-seed2",
+      "ended": "budget",
+      "findingKinds": [],
+      "findingTypes": [],
+      "deathCauses": [
+        "enemyFire",
+        "pit"
+      ]
+    },
+    {
+      "id": "L2-start-30lives-fuzz-seed3",
+      "ended": "budget",
+      "findingKinds": [],
+      "findingTypes": [],
+      "deathCauses": [
+        "enemyFire",
+        "pit"
+      ]
+    },
+    {
+      "id": "L1-start-30lives-pilot-chunk1",
+      "ended": "results",
+      "findingKinds": [],
+      "findingTypes": [],
+      "deathCauses": [
+        "enemyFire"
+      ]
+    },
+    {
+      "id": "L1-start-30lives-pilot",
+      "ended": "results",
+      "findingKinds": [],
+      "findingTypes": [],
+      "deathCauses": [
+        "enemyFire"
+      ]
+    },
+    {
+      "id": "L1-start-30lives-pilot-chunk600",
+      "ended": "results",
+      "findingKinds": [],
+      "findingTypes": [],
+      "deathCauses": [
+        "enemyFire"
+      ]
+    },
+    {
+      "id": "L1-start-30lives-pilot-chain1",
+      "ended": "results",
+      "findingKinds": [],
+      "findingTypes": [],
+      "deathCauses": [
+        "enemyFire"
+      ]
+    },
+    {
+      "id": "L2-start-30lives-pilot-chain2",
+      "ended": "results",
+      "findingKinds": [],
+      "findingTypes": [],
+      "deathCauses": [
+        "enemyFire"
+      ]
+    }
+  ]
+}

@@ -156,6 +156,20 @@ export interface LevelRuntime {
   ending: 'results' | 'gameOver' | null;
   /** Deaths this run, oldest first (capped). */
   deaths: DeathEvent[];
+  /** Which boss this level ends with, so coverage can be judged per boss. */
+  bossId: string;
+  /** Total damage the boss has taken this run. */
+  bossDamageTaken: number;
+  /** Enemies killed this run, keyed by archetype. */
+  killsByKind: Record<string, number>;
+  /**
+   * Hits the player has taken this run, keyed by the archetype that fired.
+   *
+   * Combat coverage: an archetype that appears, never lands a hit and is never
+   * killed is a broken actor, and nothing else in the harness would notice -
+   * the player simply has an easier or harder time, which reads as difficulty.
+   */
+  damageByKind: Record<string, number>;
 }
 
 /** Gameplay snapshot published each step by the sandbox scene. */

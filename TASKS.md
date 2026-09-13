@@ -204,6 +204,13 @@ Only one task should be actively worked on in a single loop iteration.
 Add new enhancement tasks below this section later.
 Do not start them until the core release tasks above are complete or explicitly reprioritized.
 
+**Order in this file is priority, not id order.** The loop takes the first
+`TODO` task it finds, so reprioritising means moving a block, never renumbering
+one - ids are referenced from `PROGRESS.md` and must stay stable. TASK-025 to
+TASK-028 were moved ahead of TASK-023/024 because they are user-facing defects
+found by the evaluation harness, and shipping more automation surface while
+known player-facing bugs sit open is the wrong trade.
+
 ---
 
 ### TASK-012 - Classic PC keyboard layout with fully usable 45-degree firing
@@ -564,32 +571,40 @@ cceptance criteria:
 
 ### TASK-022 - Batch matrix, aggregation, `npm run eval`
 
-- Status: TODO
+- Status: DONE
 - Requirement:
   Run the evaluator across a varied matrix and aggregate the result into a
   report a human and the development loop can both read. The simulation has no
   RNG at all, so variation is injected entirely from the harness.
 - Acceptance criteria:
-  - [ ] Variation axes, in priority order: the start-state matrix
+  - [x] Variation axes, in priority order: the start-state matrix
         (2 levels x 3 checkpoints x {3,30} lives x starting weapon), seeded
         additive input hiccups over a pilot run, scripted adversarial policies
         aimed at named mechanics (door camper, platform rider, pit-edge nudger,
         boss hugger, respawn spammer), seeded input fuzzing, and step-batch-size
         variation (1 / 30 / 600 / 3600, a harness-correctness axis that is exactly
         what would have caught the TASK-020 transition defect)
-  - [ ] One full title -> Level 1 -> results -> Level 2 -> MISSION COMPLETE chain
+  - [x] One full title -> Level 1 -> results -> Level 2 -> MISSION COMPLETE chain
         runs as its own config, since it is the only thing exercising the
         cross-level registry carry-over
-  - [ ] `npm run eval -- --quick` finishes inside 2 minutes; the default matrix
+  - [x] `npm run eval -- --quick` finishes inside 2 minutes; the default matrix
         inside 6 minutes; one browser is reused across runs with a fresh context
         per run (localStorage and the Phaser registry both persist otherwise)
-  - [ ] `test-results/eval/report.md` plus a greppable one-liner in the existing
-        soak convention: `EVAL runs=... completed=... stuck=... violations=...`
-  - [ ] Non-zero exit on any CRITICAL violation
-  - [ ] Detection proven end-to-end: temporarily narrowing the Level 2 trigger pad
+  - [x] The report plus a greppable one-liner in the existing
+        soak convention: `EVAL runs=... completed=... stuck=... critical=...`.
+        The report and baseline live in `docs/eval/` rather than `test-results/`:
+        Playwright clears that directory on every run and it is gitignored, so a
+        baseline written there could not survive between iterations. Per-run
+        traces stay in `test-results/eval/` as disposable working data.
+  - [x] Non-zero exit on any CRITICAL violation when there is no baseline;
+        with `--baseline` the exit code tracks REGRESSIONS instead. The game
+        carries standing critical findings (chaos policies die repeatedly in
+        places a competent player never visits), so gating on the absolute
+        count would leave the signal permanently red - the same as no gate
+  - [x] Detection proven end-to-end: temporarily narrowing the Level 2 trigger pad
         back to width 60 reproduces the door bug and the harness reports a stall at
         the right x (verification only - reverted, never committed)
-  - [ ] Any baseline comparison is opt-in (`--baseline`) and compares only
+  - [x] Any baseline comparison is opt-in (`--baseline`) and compares only
         categorical outcomes (completed / stall bucket / death-cause histogram),
         never exact numbers, which would diff on every gameplay commit
 - Non-goals / constraints:
@@ -599,74 +614,9 @@ cceptance criteria:
 
 ---
 
-### TASK-023 - MCP server for the game bridge
-
-- Status: TODO
-- Requirement:
-  A stdio MCP server so an MCP client (including Claude Code in this repo) can
-  start, observe and drive the game as tools, sharing `scripts/lib/` with the
-  HTTP server so the two cannot drift.
-- Acceptance criteria:
-  - [ ] `scripts/lib/jsonrpc.mjs` holds a pure dispatcher and a line decoder;
-        `scripts/mcp-server.mjs` is wiring only
-  - [ ] Newline-delimited JSON-RPC 2.0 over stdio (not LSP `Content-Length`
-        framing), tolerating `\r\n` and messages split across stdin chunks
-  - [ ] `initialize` returns `protocolVersion`, `capabilities: { tools: {} }` and
-        `serverInfo`; only `tools` is advertised, since advertising `resources` or
-        `prompts` without handlers fails the connection
-  - [ ] Notifications (`notifications/initialized`, `notifications/cancelled`)
-        produce no response at all; `ping` returns `{}`; unknown methods return -32601
-  - [ ] Every tool's `inputSchema` is an object schema with a `properties` map,
-        even when empty
-  - [ ] Nothing but protocol JSON ever reaches stdout
-  - [ ] Chromium is launched lazily on first use, not at module load, so
-        `initialize` answers within a couple of seconds
-  - [ ] `run_eval` is asynchronous (returns a job id immediately, with
-        `eval_status` / `read_findings`), because a full matrix exceeds the
-        default MCP tool timeout
-  - [ ] `act` returns a compact state projection by default with `verbose` to opt
-        into the full snapshot, so a session is not flooded with enemy arrays
-  - [ ] `tests/unit/mcpProtocol.test.ts` drives a scripted byte stream (split
-        chunks, `\r\n`, notification silence, schema shape) with no child process
-  - [ ] `.mcp.json` at the repo root registers the server; `docs/AUTOMATION.md`
-        gains an MCP section
-  - [ ] No new npm dependencies; lint, typecheck, build clean
-- Non-goals / constraints:
-  - Do not change gameplay.
-  - The MCP server does not replace `scripts/agent-server.mjs`; both share the lib.
-
----
-
-### TASK-024 - Close the loop: eval findings become TASKS.md entries
-
-- Status: TODO
-- Requirement:
-  Turn the evaluation report into the producer side of the development loop.
-  `.claude/loop.md` today only consumes tasks and reports `IDLE - NO READY WORK`
-  when none remain; this task supplies well-formed TODO entries from observed
-  gameplay defects, for review rather than automatic implementation.
-- Acceptance criteria:
-  - [ ] `scripts/eval/proposeTasks.mjs` emits a `Proposed tasks` section in the
-        `ADD_ENHANCEMENT_PROMPT.md` shape (next sequential ID, `Status: TODO`,
-        bounded requirement, objective acceptance criteria, non-goals), one per
-        distinct CRITICAL/HIGH finding, deduped against the IDs already in `TASKS.md`
-  - [ ] Given a fixture report containing one stall and one boss stall, the
-        producer emits two well-formed task blocks
-  - [ ] `.claude/eval-loop.md` documents the producer iteration and hands off to
-        `.claude/loop.md`
-  - [ ] Proposals are never auto-implemented and no source file is auto-edited
-  - [ ] `docs/AUTOMATION.md` documents the eval harness, its variation axes and
-        its invariant list; README links it
-- Non-goals / constraints:
-  - Do not weaken the safety rules in `CLAUDE.md` or the one-task-per-iteration
-    discipline.
-  - Do not push, deploy, or modify cloud resources.
-
----
-
 ### TASK-025 - Fix: input takeover from the AI pilot drops the first press
 
-- Status: TODO
+- Status: DONE
 - Requirement:
   `LevelScene.stepOnce` calls `this.keyboard.build(this.stepInput)`, passing the
   previous step's *merged* input as `prev`. `buildInputFromRaw` derives
@@ -675,12 +625,12 @@ cceptance criteria:
   as a continuation and its edge is silently dropped. The human must release and
   press again. Found by inspection during the TASK-020 review; user-facing.
 - Acceptance criteria:
-  - [ ] The keyboard adapter derives its edges from the previous *device* input,
+  - [x] The keyboard adapter derives its edges from the previous *device* input,
         not the merged step input
-  - [ ] A unit test covers the regression directly
-  - [ ] An e2e test proves that with the pilot engaged and holding jump, a single
+  - [x] A unit test covers the regression directly
+  - [x] An e2e test proves that with the pilot engaged and holding jump, a single
         human jump press is honoured on the takeover step
-  - [ ] No change to the merge order or to which sources can take over
+  - [x] No change to the merge order or to which sources can take over
 - Non-goals / constraints:
   - Do not change movement physics, jump feel, or fire rate.
 
@@ -688,7 +638,7 @@ cceptance criteria:
 
 ### TASK-026 - Fix: a pit or hazard death while invulnerable is free
 
-- Status: TODO
+- Status: DONE
 - Requirement:
   `finishDeath` calls `applyDamage`, which returns `applied: false` while the
   invulnerability window from an earlier hit is still open - but the respawn runs
@@ -696,12 +646,14 @@ cceptance criteria:
   costs one life instead of two, and hands the player a free teleport back to the
   checkpoint. Decide the intended rule and make it explicit.
 - Acceptance criteria:
-  - [ ] A pit or hazard death always costs a life, or the documented rule says
-        otherwise and the code enforces it deliberately
-  - [ ] Unit coverage for the invulnerable-death case
-  - [ ] An e2e test takes a hit and then falls into a pit, asserting the resulting
+  - [x] A pit or hazard death always costs a life. Rule chosen and recorded in
+        `applyLethalDamage`: mercy invincibility exists so one projectile hit
+        does not become several; falling out of the world is not damage for it
+        to absorb, and the respawn runs either way
+  - [x] Unit coverage for the invulnerable-death case
+  - [x] An e2e test takes a hit and then falls into a pit, asserting the resulting
         life count
-  - [ ] The death list published in the runtime stays consistent with lives lost
+  - [x] The death list published in the runtime stays consistent with lives lost
 - Non-goals / constraints:
   - Do not change the invulnerability duration or projectile damage rules.
 
@@ -709,7 +661,7 @@ cceptance criteria:
 
 ### TASK-027 - The "non-lethal" pit markers are lethal on contact
 
-- Status: TODO
+- Status: DONE
 - Requirement:
   `src/levels/level1.ts` declares its pit markers with the comment
   "Visual pit markers (non-lethal; lethality comes from the fall threshold)",
@@ -722,17 +674,178 @@ cceptance criteria:
   `deathTrap @x=770 (causes: hazard)` at the first pit, where `pit` was expected.
   Decide which is intended and make the code and the data agree.
 - Acceptance criteria:
-  - [ ] Either the markers are genuinely non-lethal (excluded from the lethal
+  - [x] Either the markers are genuinely non-lethal (excluded from the lethal
         hazard test, so the fall threshold ends the life) or the comment and the
         level data are corrected to say they are lethal
-  - [ ] A Level 1 pit fall is attributed to exactly one cause, and that cause
+  - [x] A Level 1 pit fall is attributed to exactly one cause, and that cause
         matches the documented rule
-  - [ ] Level 2's spike strip keeps its `hazard` attribution
-  - [ ] The existing death-cause e2e coverage still passes, updated if the
+  - [x] Level 2's spike strip keeps its `hazard` attribution
+  - [x] The existing death-cause e2e coverage still passes, updated if the
         intended rule changes
 - Non-goals / constraints:
   - Do not change pit geometry, the fall threshold, or any balance value; a pit
     fall must still cost exactly one life.
   - Do not make Level 2 spikes non-lethal.
+
+---
+
+### TASK-028 - The AI pilot cannot clear the Reactor Warden from a mid-level checkpoint
+
+- Status: DONE
+- Requirement:
+  The pilot completes Level 2 when it plays the level from the beginning, but
+  not when it starts at the `mid` or `preboss` checkpoint. From `preboss` it
+  walks to x=2748.83, stops there permanently, never damages a subcomponent
+  (`subcomponentsAlive` stays at 2 and boss health stays at 8, because the
+  Warden is immune while its nodes live), and dies to boss fire every ~216
+  steps until all 30 lives are gone - 30 deaths at one x.
+  This is a pilot defect, not level geometry. The successful full-level run
+  passes through the *same* x with the *same* subcomponent state at step 840 and
+  destroys a node at 2770, so the nodes are reachable and destructible from that
+  position. Forcing the weapon does not fix it: with `scatter` - the weapon the
+  winning run actually fights with - the preboss run still wedges at 2749;
+  `rapid` gets one node and still dies out; `pulse` and `scatter` get none.
+  The likely mechanism is a fixed point in `subcomponentAttack`: the chosen
+  standoff sits on a side with no line of fire to the node, and bullets cannot
+  cross the boss body (recorded in TASK-019), so the pilot stands and fires
+  ineffectively forever.
+  The TASK-019 claim that the pilot completes Level 2 is true only for a
+  full-level run; it was never tested from a checkpoint, because
+  `startAtCheckpoint` did not exist until TASK-020.
+- Acceptance criteria:
+  - [x] The pilot clears the Reactor Warden starting from `mid` and from
+        `preboss`, at 30 lives, with each of the three weapons
+  - [x] `subcomponentAttack` cannot settle on a standoff whose line of fire is
+        blocked by the boss body: if firing produces no subcomponent damage
+        within a bounded number of steps, the pilot repositions
+  - [x] The full-level Level 1 and Level 2 runs still complete, with no
+        regression in lives lost
+  - [x] `npm run eval -- --baseline` reports no regressions, and the death-trap
+        findings at x=2749 and x=2961 are gone from the report
+  - [x] Unit coverage for the repositioning rule in `tests/unit/pilot.test.ts`
+- Non-goals / constraints:
+  - Do not change boss balance, subcomponent health, level geometry, or weapon
+    damage to make this easier.
+  - Do not let the pilot use debug commands; it must win the honest way.
+  - Do not regress the Siege Walker fight in Level 1.
+- Amendment: the original non-goal said "the same fight is winnable from the
+  level start today, so the fix belongs in the pilot". That premise was wrong.
+  Most of the defect WAS in the pilot and was fixed there, but the last part was
+  a game bug: `resolvePlayerBulletsVsBoss` hard-codes the Siege Walker's 64x56
+  hitbox for every boss, so the 72x72 Reactor Warden was effectively immune to
+  level fire - a human with the default pulse rifle could not damage it either.
+  Fixed alongside, recorded below (the TASK-019 precedent for a bug found while
+  making the pilot competent).
+- Bug found and fixed (not pilot accommodation):
+  - `resolvePlayerBulletsVsBoss` used `{ width: 64, height: 56 }` for every
+    boss. The Reactor Warden is 72x72, so its collision box was 16 px short: its
+    body top is y=408, the box bottom y=464, and the player's gun sits at
+    exactly y=464 - a horizontal bolt missed by one pixel. Only the scatter fan,
+    whose pellets rise, could ever damage it. Now reads the boss definition.
+    Measured: from the preboss checkpoint with the pulse rifle, game over after
+    ~10,000 steps became a clear in 717 steps with zero findings.
+
+---
+
+### TASK-023 - MCP server for the game bridge
+
+- Status: DONE
+- Requirement:
+  A stdio MCP server so an MCP client (including Claude Code in this repo) can
+  start, observe and drive the game as tools, sharing `scripts/lib/` with the
+  HTTP server so the two cannot drift.
+- Acceptance criteria:
+  - [x] `scripts/lib/jsonrpc.mjs` holds a pure dispatcher and a line decoder;
+        `scripts/mcp-server.mjs` is wiring only
+  - [x] Newline-delimited JSON-RPC 2.0 over stdio (not LSP `Content-Length`
+        framing), tolerating `\r\n` and messages split across stdin chunks
+  - [x] `initialize` returns `protocolVersion`, `capabilities: { tools: {} }` and
+        `serverInfo`; only `tools` is advertised, since advertising `resources` or
+        `prompts` without handlers fails the connection
+  - [x] Notifications (`notifications/initialized`, `notifications/cancelled`)
+        produce no response at all; `ping` returns `{}`; unknown methods return -32601
+  - [x] Every tool's `inputSchema` is an object schema with a `properties` map,
+        even when empty
+  - [x] Nothing but protocol JSON ever reaches stdout
+  - [x] Chromium is launched lazily on first use, not at module load, so
+        `initialize` answers within a couple of seconds
+  - [x] `run_eval` is asynchronous (returns a job id immediately, with
+        `eval_status` / `read_findings`), because a full matrix exceeds the
+        default MCP tool timeout
+  - [x] `act` returns a compact state projection by default with `verbose` to opt
+        into the full snapshot, so a session is not flooded with enemy arrays
+  - [x] `tests/unit/mcpProtocol.test.ts` drives a scripted byte stream (split
+        chunks, `\r\n`, notification silence, schema shape) with no child process
+  - [x] `.mcp.json` at the repo root registers the server; `docs/AUTOMATION.md`
+        gains an MCP section
+  - [x] No new npm dependencies; lint, typecheck, build clean
+- Non-goals / constraints:
+  - Do not change gameplay.
+  - The MCP server does not replace `scripts/agent-server.mjs`; both share the lib.
+
+---
+
+### TASK-024 - Close the loop: eval findings become TASKS.md entries
+
+- Status: DONE
+- Requirement:
+  Turn the evaluation report into the producer side of the development loop.
+  `.claude/loop.md` today only consumes tasks and reports `IDLE - NO READY WORK`
+  when none remain; this task supplies well-formed TODO entries from observed
+  gameplay defects, for review rather than automatic implementation.
+- Acceptance criteria:
+  - [x] `scripts/eval/proposeTasks.mjs` emits a `Proposed tasks` section in the
+        `ADD_ENHANCEMENT_PROMPT.md` shape (next sequential ID, `Status: TODO`,
+        bounded requirement, objective acceptance criteria, non-goals), one per
+        distinct CRITICAL/HIGH finding, deduped against the IDs already in `TASKS.md`
+  - [x] Given a fixture report containing one stall and one boss stall, the
+        producer emits two well-formed task blocks
+  - [x] `.claude/eval-loop.md` documents the producer iteration and hands off to
+        `.claude/loop.md`
+  - [x] Proposals are never auto-implemented and no source file is auto-edited
+  - [x] `docs/AUTOMATION.md` documents the eval harness, its variation axes and
+        its invariant list; README links it
+- Non-goals / constraints:
+  - Do not weaken the safety rules in `CLAUDE.md` or the one-task-per-iteration
+    discipline.
+  - Do not push, deploy, or modify cloud resources.
+
+---
+
+### TASK-029 - Coverage invariants: prove combat actually works
+
+- Status: DONE
+- Requirement:
+  Every current invariant watches the PLAYER's state - stuck, died, out of
+  bounds, counters moving the wrong way. None of them assert that the game's
+  combat functions at all, and that gap let a real bug through: the Reactor
+  Warden used the Siege Walker's hard-coded 64x56 hitbox, so it was effectively
+  immune to level fire and a human with the default pulse rifle could not damage
+  the final boss (fixed in TASK-028, found only because the AI pilot could not
+  win and the cause was chased down by hand).
+  Add coverage invariants that fail when a combat actor stops working: across a
+  full matrix run, every boss must be damaged, every enemy archetype must be
+  killable, and every archetype that is supposed to threaten the player must
+  land at least one hit.
+- Acceptance criteria:
+  - [x] `scripts/eval/checks.mjs` gains a pure coverage pass over the aggregate
+        of a matrix run (not per-run: one run need not meet every enemy)
+  - [x] It fails when a boss present in the matrix is never damaged
+  - [x] It fails when an enemy archetype that appears is never killed
+  - [x] It fails when an archetype that is supposed to damage the player never
+        does, with the harmless ones (enemy body contact) recorded as expected
+        rather than silently passing
+  - [x] Reintroducing the TASK-028 hard-coded boss hitbox makes `npm run eval`
+        report the failure (verification only - reverted, never committed)
+  - [x] The runtime publishes whatever the pass needs that it does not already:
+        enemy kills by archetype, and boss damage taken
+  - [x] Unit tests over synthetic aggregates, including the case where an
+        archetype simply never appeared in the matrix (not a failure)
+  - [x] `npm run eval -- --baseline` stays green on the current build
+- Non-goals / constraints:
+  - Do not change gameplay, balance, or enemy behaviour.
+  - Do not fail a run because ONE run missed an archetype; this is a property of
+    the matrix as a whole.
+  - Keep the pass pure and browser-free like the rest of `checks.mjs`.
 
 ---

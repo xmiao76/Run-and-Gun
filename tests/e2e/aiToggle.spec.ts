@@ -104,3 +104,68 @@ test.describe('per-level AI autoplay toggle', () => {
     expect(await page.evaluate(() => window.__GAME_DEBUG__?.getState()?.scene)).toBe('results');
   });
 });
+
+/**
+ * TASK-025: taking over from the pilot must honour the FIRST press.
+ *
+ * Edges were derived from the previous step's merged input, which includes
+ * whatever the pilot asked for. While the pilot held jump, a human's first real
+ * press read as a continuation of that hold and was dropped, so the player had
+ * to release and press again before the game responded.
+ */
+test('a human jump press is honoured on the very step it takes over from the pilot', async ({ page }) => {
+  const pageErrors: string[] = [];
+  page.on('pageerror', (e) => pageErrors.push(String(e)));
+
+  await page.goto('/?debug=1&manualClock=1&renderer=canvas');
+  await expect(page.locator('canvas')).toBeVisible({ timeout: 15_000 });
+  await page.keyboard.press('i');
+  await page.waitForFunction(() => window.__GAME_DEBUG__?.getState()?.runtime?.autopilot === true);
+
+  // Fast-forward until the pilot is airborne on a jump it is holding: that is
+  // the exact state whose held flag used to swallow the human's press.
+  let airborne = false;
+  for (let i = 0; i < 200 && !airborne; i++) {
+    await page.evaluate(() => window.__GAME_DEBUG__?.command('advanceSteps', 4));
+    airborne = await page.evaluate(
+      () => window.__GAME_DEBUG__?.getState()?.runtime?.grounded === false
+    );
+  }
+  expect(airborne).toBe(true);
+
+  // Land, so a jump is legal again, while the pilot is still driving.
+  for (let i = 0; i < 200; i++) {
+    await page.evaluate(() => window.__GAME_DEBUG__?.command('advanceSteps', 4));
+    const state = await page.evaluate(() => {
+      const r = window.__GAME_DEBUG__?.getState()?.runtime as
+        | { grounded?: boolean; autopilot?: boolean; playerY?: number }
+        | undefined;
+      return { grounded: r?.grounded, autopilot: r?.autopilot, y: r?.playerY };
+    });
+    if (state.grounded && state.autopilot) {
+      break;
+    }
+  }
+
+  const before = await page.evaluate(
+    () => (window.__GAME_DEBUG__?.getState()?.runtime as { playerY?: number })?.playerY ?? 0
+  );
+
+  // One real key press, held across a few steps - the takeover.
+  await page.keyboard.down('z');
+  await page.evaluate(() => window.__GAME_DEBUG__?.command('advanceSteps', 10));
+  const after = await page.evaluate(() => {
+    const r = window.__GAME_DEBUG__?.getState()?.runtime as
+      | { playerY?: number; autopilot?: boolean; grounded?: boolean }
+      | undefined;
+    return { y: r?.playerY ?? 0, autopilot: r?.autopilot, grounded: r?.grounded };
+  });
+  await page.keyboard.up('z');
+
+  // The human is now driving, and the jump actually left the ground: y is
+  // measured from the top, so rising means a smaller value.
+  expect(after.autopilot).toBe(false);
+  expect(after.y).toBeLessThan(before);
+  expect(after.grounded).toBe(false);
+  expect(pageErrors).toEqual([]);
+});

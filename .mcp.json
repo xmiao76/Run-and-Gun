@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "iron-echo": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["scripts/mcp-server.mjs"],
+      "env": {
+        "TARGET_URL": "http://localhost:4173"
+      }
+    }
+  }
+}

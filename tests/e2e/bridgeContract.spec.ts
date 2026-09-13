@@ -223,3 +223,86 @@ test.describe('debug bridge contract', () => {
     expect((snapshot.runtime as { bossActive?: boolean }).bossActive).toBe(true);
   });
 });
+
+/**
+ * TASK-026: a pit death is never free.
+ *
+ * `finishDeath` used to go through `applyDamage`, which is blocked while a
+ * mercy-invulnerability window is open - but the respawn ran regardless. The
+ * everyday way to hit it: die, respawn (which opens a fresh window), then walk
+ * straight off the same ledge again. The second fall cost nothing.
+ *
+ * Deterministic by construction: the invulnerability clock does not tick during
+ * the death pause, so the window from the first respawn is still open when the
+ * second death resolves.
+ */
+test('a pit death during the invulnerability window still costs a life', async ({ page }) => {
+  const driver = createDriver(page, { manualClock: true });
+  await driver.goto();
+  await driver.startLevel(1);
+  await driver.command('startAtCheckpoint', { id: 'start', lives: 30 });
+
+  /** Fall into the first pit and stop as soon as the life is actually lost. */
+  async function fallIntoPitAndSettle(expectedLives: number): Promise<{ lives: number; invuln: boolean }> {
+    await driver.teleport(780, 800);
+    for (let i = 0; i < 20; i++) {
+      const snap = await driver.step(10);
+      const rt = snap.runtime as { lives?: number; invuln?: boolean };
+      if ((rt.lives ?? 0) === expectedLives) {
+        return { lives: rt.lives ?? 0, invuln: Boolean(rt.invuln) };
+      }
+    }
+    throw new Error(`player never dropped to ${expectedLives} lives`);
+  }
+
+  // First death. Stopping as soon as it resolves matters: the mercy window is
+  // only 1.5 s, so over-stepping here would let it expire and quietly turn this
+  // into an ordinary second death that proves nothing.
+  const first = await fallIntoPitAndSettle(29);
+  expect(first.invuln).toBe(true);
+
+  // Second death, with that window still open.
+  const second = await fallIntoPitAndSettle(28);
+  expect(second.lives).toBe(28);
+
+  const snapshot = await driver.snapshot();
+  const deaths = (snapshot.runtime as { deaths?: Array<{ costLife: boolean }> }).deaths ?? [];
+  expect(deaths).toHaveLength(2);
+  // The published death log agrees with the lives actually lost.
+  expect(deaths.every((d) => d.costLife)).toBe(true);
+});
+
+/**
+ * TASK-027: walking off a ledge is a `pit` death, not a `hazard` death.
+ *
+ * Level 1's pits are painted with hazard-striped markers inside the void, and
+ * the scene used to treat every rect in `hazards` as lethal on contact. The
+ * player therefore died on the paint a few frames before reaching the fall
+ * threshold, and the cause came out as `hazard`.
+ */
+test('walking into a Level 1 pit is attributed to the pit, not to its paint', async ({ page }) => {
+  const driver = createDriver(page, { manualClock: true });
+  await driver.goto();
+  await driver.startLevel(1);
+  await driver.command('startAtCheckpoint', { id: 'start', lives: 30 });
+
+  // Stand just short of the first pit (gap at x 720-840). Placing the player
+  // here also keeps the wave-1 trigger at x 520-560 behind us, so enemy fire
+  // cannot claim the first death and mask what the fall is attributed to.
+  await driver.teleport(690, 480);
+  await driver.step(4);
+
+  // Walk off the edge on foot - no teleport into the void, so the player falls
+  // through the marker band the way a real player does.
+  await driver.hold('right');
+  let deaths: Array<{ cause: string; x: number }> = [];
+  for (let i = 0; i < 40 && deaths.length === 0; i++) {
+    const snapshot = await driver.step(20);
+    deaths = (snapshot.runtime as { deaths?: Array<{ cause: string; x: number }> }).deaths ?? [];
+  }
+  await driver.release('right');
+
+  expect(deaths.length).toBeGreaterThan(0);
+  expect(deaths[0].cause).toBe('pit');
+  expect(deaths[0].x).toBeGreaterThan(700);
+});

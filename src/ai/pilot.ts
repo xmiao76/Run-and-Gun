@@ -21,6 +21,7 @@ import { PLAYER_HEIGHT, PLAYER_WIDTH } from '../balance/player';
 import { FIXED_DT } from '../simulation/clock';
 import { createNeutralInput, type InputState } from '../input/InputState';
 import type { EnemyProjectileSnapshot, LevelEnemySnapshot, LevelRuntime, SubcomponentSnapshot } from '../debug/runtimeTypes';
+import { isLethalHazard, type Rect } from '../levels/levelSchema';
 
 /** A lethal gap in the ground, as an x range. */
 export interface PilotPit {
@@ -50,6 +51,32 @@ export interface PilotMemory {
   stuckSteps: number;
   /** Keep jumpHeld until landing so jumps are not cut short mid-air. */
   holdingJump: boolean;
+  /** Steps spent attacking subcomponents without destroying one. */
+  subAttackSteps: number;
+  /** Subcomponents alive at the previous step, to detect that progress. */
+  lastSubAlive: number;
+  /** Steps left of a forced break-out from a subcomponent attack that stalled. */
+  subBreakout: number;
+  /**
+   * True while backing away from a node to re-approach it.
+   *
+   * Movement IS facing in this game, so "back off to the right distance" and
+   * "point the gun at the node" are in direct conflict; without hysteresis the
+   * pilot alternates between them and never fires the right way. Latching the
+   * retreat until it is clearly outside the firing band means the next approach
+   * always ends moving TOWARD the node, which leaves the gun on target.
+   */
+  subRepositioning: boolean;
+  /**
+   * True once this fight has shown a subcomponent node.
+   *
+   * The Siege Walker has no phases and therefore never any nodes, so this stays
+   * false for the whole of Level 1 and its tuning is untouched. For a
+   * node-gated boss it says "vulnerability here is earned, and a window opens
+   * the moment the last node dies" - which is when standing 350 px away is a
+   * mistake.
+   */
+  sawSubcomponents: boolean;
 }
 
 export interface PilotDecision {
@@ -94,14 +121,32 @@ const STOMP_JUMP_AT = 0.45;
 const CHARGE_RETREAT_X = 2540;
 /** Idle this far left of the boss center between attack cycles (px). */
 const BOSS_HOLD_DISTANCE = 350;
+/**
+ * Much closer, once a node-gated boss has had its nodes cleared. Its vulnerable
+ * window is 2 s; crossing 350 px takes 1.6 s of it, so waiting at the normal
+ * hold distance means arriving with nothing left and never landing a hit.
+ */
+const NODE_BOSS_HOLD_DISTANCE = 90;
 /** Boss body half-width for center math (Siege Walker width 64). */
 const BOSS_HALF_WIDTH = 32;
-/** Close standoff distance when attacking a boss subcomponent node (px). */
-const SUB_STANDOFF = 60;
-/** Horizontal slack around the subcomponent standoff before stopping (px). */
-const SUB_STANDOFF_DEADZONE = 16;
 /** Aim diagonally up when a node sits this far above gun level (px). */
 const SUB_AIM_UP_ABOVE = 20;
+/**
+ * A node above gun level can only be hit on the 45-degree diagonal, and a
+ * 45-degree shot rises one pixel per pixel travelled - so the horizontal
+ * distance has to MATCH the height difference or the shot sails over. Standing
+ * closer is not better; it is how the pilot ended up firing straight up past a
+ * node it was touching.
+ */
+const SUB_GAP_TOLERANCE = 8;
+/** Never crowd a node closer than this, even for a level shot. */
+const SUB_MIN_CENTER_GAP = 24;
+/** Comfortable distance for a level (non-diagonal) shot. */
+const SUB_FLAT_CENTER_GAP = 40;
+/** Attacking this long without destroying a node means the shot is not landing. */
+const SUB_NO_DAMAGE_STEPS = 240;
+/** Length of the forced break-out that follows, in steps. */
+const SUB_BREAKOUT_STEPS = 45;
 /** Rough enemy half-width for center math. */
 const ENEMY_HALF_WIDTH = 12;
 
@@ -135,12 +180,25 @@ export function platformRanges(oneWays: ReadonlyArray<{ x: number; width: number
  * be jumped. Pit-void markers live below the ground line and are handled by
  * the pit logic instead, so they are filtered out here.
  */
-export function spikeRanges(hazards: ReadonlyArray<{ x: number; y: number; width: number }>, groundY: number): PilotPit[] {
-  return hazards.filter((h) => h.y < groundY).map((h) => ({ x0: h.x, x1: h.x + h.width }));
+export function spikeRanges(hazards: ReadonlyArray<Rect>, groundY: number): PilotPit[] {
+  // Shares the lethality rule with the scene's contact test, so the pilot can
+  // never disagree with the game about which strips actually kill.
+  return hazards.filter((h) => isLethalHazard(h, groundY)).map((h) => ({ x0: h.x, x1: h.x + h.width }));
 }
 
 export function createPilotMemory(geometry: PilotGeometry): PilotMemory {
-  return { geometry, jumpCooldown: 0, lastX: 0, stuckSteps: 0, holdingJump: false };
+  return {
+    geometry,
+    jumpCooldown: 0,
+    lastX: 0,
+    stuckSteps: 0,
+    holdingJump: false,
+    subAttackSteps: 0,
+    lastSubAlive: Number.POSITIVE_INFINITY,
+    subBreakout: 0,
+    subRepositioning: false,
+    sawSubcomponents: false
+  };
 }
 
 function overPlatform(platforms: readonly PilotPit[], x: number): boolean {
@@ -378,21 +436,27 @@ function baseDecision(snapshot: LevelRuntime, memory: PilotMemory): PilotDecisio
 function bossDecision(snapshot: LevelRuntime, bossCenterX: number, input: InputState, memory: PilotMemory): PilotDecision {
   const playerCenterX = snapshot.playerX + PLAYER_WIDTH / 2;
   const dx = bossCenterX - playerCenterX;
+  const nodeGated = memory.sawSubcomponents || snapshot.subcomponents.length > 0;
+  const next: PilotMemory = memory.sawSubcomponents === nodeGated ? memory : { ...memory, sawSubcomponents: nodeGated };
 
   // Subcomponents gate vulnerability (e.g. Reactor Warden): destroy them first.
   if (!snapshot.bossVulnerable && snapshot.subcomponentsAlive > 0) {
-    return subcomponentAttack(snapshot, input, memory);
+    return subcomponentAttack(snapshot, input, next);
   }
 
   // Vulnerable window: advance toward the boss while firing, so facing (and
   // therefore the shots) always points at it even after clearing far nodes.
   if (snapshot.bossVulnerable) {
-    if (Math.abs(dx) > 24) {
-      input.right = dx > 0;
-      input.left = dx < 0;
-    }
+    // Keep closing the whole window, with no deadzone. Stopping "close enough"
+    // left facing frozen wherever the last node attack pointed it, and a shot
+    // fired away from the boss from just outside its hull hits nothing - the
+    // window would pass with the pilot standing next to a vulnerable boss doing
+    // no damage at all. The hull neither blocks movement nor hurts on contact,
+    // so walking into it is safe and keeps the gun on target.
+    input.right = dx > 0;
+    input.left = dx < 0;
     input.fireHeld = true;
-    return { input, memory };
+    return { input, memory: next };
   }
 
   // Stomp: be airborne when the shockwave lands.
@@ -405,23 +469,23 @@ function bossDecision(snapshot: LevelRuntime, bossCenterX: number, input: InputS
       input.jumpPressed = true;
       input.jumpHeld = true;
     }
-    return { input, memory };
+    return { input, memory: next };
   }
 
   // Charge: retreat left of its reach so the firing position survives.
   if (snapshot.bossPattern === 'charge' && snapshot.bossState === 'attack' && snapshot.playerX > CHARGE_RETREAT_X) {
     input.left = true;
-    return { input, memory };
+    return { input, memory: next };
   }
 
   // Otherwise hold a safe distance left of the boss and wait out the cycle.
-  const holdX = bossCenterX - BOSS_HOLD_DISTANCE;
+  const holdX = bossCenterX - (nodeGated && snapshot.subcomponentsAlive === 0 ? NODE_BOSS_HOLD_DISTANCE : BOSS_HOLD_DISTANCE);
   if (snapshot.playerX > holdX + 30) {
     input.left = true;
   } else if (snapshot.playerX < holdX - 30) {
     input.right = true;
   }
-  return { input, memory };
+  return { input, memory: next };
 }
 
 /**
@@ -450,23 +514,87 @@ function subcomponentAttack(snapshot: LevelRuntime, input: InputState, memory: P
     return { input, memory };
   }
 
+  // Track whether the attack is actually working. A node has 2 health, so a
+  // few seconds of firing with nothing destroyed means the shots are not
+  // reaching it and the position has to change - without this the pilot can
+  // settle into a stable, useless standoff and burn a whole run there.
+  const destroyedOne = snapshot.subcomponentsAlive < memory.lastSubAlive;
+  let next: PilotMemory = {
+    ...memory,
+    lastSubAlive: snapshot.subcomponentsAlive,
+    subAttackSteps: destroyedOne ? 0 : memory.subAttackSteps + 1,
+    subBreakout: Math.max(0, memory.subBreakout - 1)
+  };
+  if (next.subAttackSteps > SUB_NO_DAMAGE_STEPS && next.subBreakout === 0) {
+    next = { ...next, subAttackSteps: 0, subBreakout: SUB_BREAKOUT_STEPS };
+  }
+
   const nodeCX = target.x + target.width / 2;
   const nodeCY = target.y + target.height / 2;
-  // Stand close on the side the node protrudes toward; bullets cannot cross
-  // the boss body, but the body neither blocks nor hurts on contact.
-  const standX = nodeCX < bossCenterX ? target.x - SUB_STANDOFF : target.x + target.width + SUB_STANDOFF;
-  const dx = standX - snapshot.playerX;
-  if (Math.abs(dx) > SUB_STANDOFF_DEADZONE) {
-    input.right = dx > 0;
-    input.left = dx < 0;
-  } else {
-    // In position: face the node (this is also the diagonal aim direction).
-    input.right = nodeCX > playerCenterX;
-    input.left = nodeCX < playerCenterX;
+  const nodeIsRight = nodeCX > playerCenterX;
+
+  // Attack from the side the node protrudes toward: the boss body blocks
+  // bullets, though it neither blocks movement nor hurts on contact.
+  const attackFromLeft = nodeCX < bossCenterX;
+  const onFiringSide = attackFromLeft ? playerCenterX < nodeCX : playerCenterX > nodeCX;
+
+  // Where to stand: for a diagonal shot, as far out as the node is high.
+  const verticalOffset = gunY - nodeCY;
+  const wantAimUp = verticalOffset > SUB_AIM_UP_ABOVE;
+  const desiredGap = wantAimUp
+    ? Math.max(SUB_MIN_CENTER_GAP, verticalOffset)
+    : SUB_FLAT_CENTER_GAP;
+  // Measure from the MUZZLE, not the player's centre: bullets spawn at the
+  // leading edge (`player.x + PLAYER_WIDTH` when facing right), so using the
+  // centre put every shot 11 px short of the diagonal. A scatter fan hid that;
+  // the single-bolt weapons missed the node entirely.
+  const muzzleX = nodeIsRight ? snapshot.playerX + PLAYER_WIDTH : snapshot.playerX;
+  const centerGap = Math.abs(nodeCX - muzzleX);
+
+  // Latch the retreat until well outside the band, so the re-approach ends
+  // moving toward the node (see PilotMemory.subRepositioning).
+  let repositioning = next.subRepositioning;
+  if (centerGap < desiredGap - SUB_GAP_TOLERANCE) {
+    repositioning = true;
+  } else if (centerGap > desiredGap + SUB_GAP_TOLERANCE * 2) {
+    repositioning = false;
   }
-  if (nodeCY < gunY - SUB_AIM_UP_ABOVE) {
+  next = { ...next, subRepositioning: repositioning };
+
+  if (next.subBreakout > 0) {
+    // Break the stalemate: step off the current spot so the next approach
+    // comes in fresh (and swings the gun back onto the node).
+    input.left = attackFromLeft;
+    input.right = !attackFromLeft;
+  } else if (!onFiringSide) {
+    // Standing across the node from its open side: the boss body is in the
+    // way. Walk back out around it.
+    input.left = attackFromLeft;
+    input.right = !attackFromLeft;
+  } else if (centerGap > desiredGap + SUB_GAP_TOLERANCE) {
+    // Close in. Moving toward the node is also what points the gun at it,
+    // because facing follows the movement input.
+    input.right = nodeIsRight;
+    input.left = !nodeIsRight;
+  } else if (repositioning) {
+    // Too close for the diagonal to come down on the node: back off, and keep
+    // backing off until clear of the band rather than stopping on its edge.
+    input.right = !nodeIsRight;
+    input.left = nodeIsRight;
+  } else if (Math.abs(snapshot.fireAngle) >= 90 === nodeIsRight) {
+    // In position but aimed the wrong way, which happens when the last move
+    // was a back-off. Facing persists while no direction is held, so one step
+    // toward the node swings it round.
+    input.right = nodeIsRight;
+    input.left = !nodeIsRight;
+  }
+  // Otherwise hold still: facing is already on the node, and the gap matches
+  // the shot the pilot is about to take.
+
+  if (wantAimUp) {
     input.aimUp = true;
   }
   input.fireHeld = true;
-  return { input, memory };
+  return { input, memory: next };
 }
+

@@ -27,7 +27,7 @@ import { createGamepadInput, type GamepadInput } from '../input/GamepadInput';
 import { createNeutralInput, isNeutralInput, mergeInput, type InputState } from '../input/InputState';
 import { createTouchControls, isTouchDevice, type TouchControls } from '../ui/touch/TouchControls';
 import { loadLevel, type LevelDef } from '../levels/levelLoader';
-import { type Rect } from '../levels/levelSchema';
+import { isLethalHazard, type Rect } from '../levels/levelSchema';
 import { LEVELS } from '../levels/levels';
 import { getBossDef } from '../balance/bosses';
 import {
@@ -54,7 +54,7 @@ import {
   type EnemyState
 } from '../simulation/enemies';
 import { aimAngle, rotateVelocity } from '../simulation/aim';
-import { applyDamage, createHealthState, tickInvuln, type HealthState } from '../simulation/health';
+import { applyDamage, applyLethalDamage, createHealthState, tickInvuln, type HealthState } from '../simulation/health';
 import { collectPickups, createPickup, type Pickup } from '../simulation/pickups';
 import {
   createPlatformerState,
@@ -163,6 +163,8 @@ interface EnemyBullet {
   ttl: number;
   damage: number;
   arcGravity: number;
+  /** Archetype that fired it, so a hit can be attributed for coverage. */
+  sourceKind: string;
   /** Collision ownership: always the enemy-projectile category (D3). */
   category: number;
 }
@@ -253,6 +255,9 @@ export class LevelScene extends Phaser.Scene {
   private stepIndex = 0;
   private maxPlayerX = 0;
   private deaths: DeathEvent[] = [];
+  private bossDamageTaken = 0;
+  private killsByKind: Record<string, number> = {};
+  private damageByKind: Record<string, number> = {};
   /** Cause of the death currently playing out, carried into `finishDeath`. */
   private pendingDeathCause: DeathCause | null = null;
   private completionTimer = -1;
@@ -600,6 +605,9 @@ export class LevelScene extends Phaser.Scene {
     this.stepIndex = 0;
     this.maxPlayerX = this.player.x;
     this.deaths = [];
+    this.bossDamageTaken = 0;
+    this.killsByKind = {};
+    this.damageByKind = {};
     this.pendingDeathCause = null;
     this.ending = null;
   }
@@ -857,7 +865,7 @@ export class LevelScene extends Phaser.Scene {
     this.stepIndex += 1;
     const debug = this.readDebugInput();
     const touchInput = this.touch ? this.touch.read() : createNeutralInput();
-    const device = mergeInput(this.keyboard.build(this.stepInput), this.gamepad.build());
+    const device = mergeInput(this.keyboard.build(), this.gamepad.build());
     const humanInput = mergeInput(device, touchInput);
     // Any human gameplay input takes over from the AI pilot immediately.
     if (this.pilotEngaged && !isNeutralInput(humanInput)) {
@@ -1091,6 +1099,10 @@ export class LevelScene extends Phaser.Scene {
         }
         const ang = Math.atan2(dy, dx) + i * 0.25;
         this.enemyBullets.push({
+          // Boss fire is attributed to the boss, not to an archetype, so
+          // coverage can tell "the grenadier never hit anyone" from "the boss
+          // did all the damage".
+          sourceKind: this.level.boss.id,
           id: this.makeId('bb'),
           x: result.action.x,
           y: result.action.y,
@@ -1146,6 +1158,7 @@ export class LevelScene extends Phaser.Scene {
       }
       return result.enemy;
     });
+    const kindById = new Map(this.enemies.map((e) => [e.id, e.kind]));
     for (const intent of intents) {
       if (this.enemyBullets.length >= MAX_PROJECTILES) {
         break;
@@ -1159,6 +1172,7 @@ export class LevelScene extends Phaser.Scene {
         ttl: 2.6,
         damage: intent.damage,
         arcGravity: intent.arcGravity,
+        sourceKind: kindById.get(intent.enemyId) ?? 'unknown',
         category: CollisionCategory.enemyProjectile
       });
     }
@@ -1193,6 +1207,7 @@ export class LevelScene extends Phaser.Scene {
         this.spawnFx([{ kind: 'spark', x: bullet.x, y: bullet.y }]);
         this.enemies[i] = damageEnemy(enemy, bullet.damage);
         if (!isAlive(this.enemies[i])) {
+          this.killsByKind[enemy.kind] = (this.killsByKind[enemy.kind] ?? 0) + 1;
           this.score += enemyScore(enemy.kind);
           this.spawnFx([{ kind: 'burst', x: enemy.x + enemyWidth(enemy) / 2, y: enemy.y + enemyHeight(enemy) / 2 }]);
           this.sfx('hit');
@@ -1329,7 +1344,7 @@ export class LevelScene extends Phaser.Scene {
     if ((CollisionCategory.bossComponent & PLAYER_PROJECTILE_HITS) === 0) {
       return;
     }
-    const def = { width: 64, height: 56 };
+    const def = getBossDef(this.level.boss.id);
     const surviving: PlayerBullet[] = [];
     for (const bullet of this.playerBullets) {
       if (bullet.category !== CollisionCategory.playerProjectile) {
@@ -1340,6 +1355,7 @@ export class LevelScene extends Phaser.Scene {
         const result = damageBoss(this.boss, bullet.damage);
         this.boss = result.boss;
         if (result.applied) {
+          this.bossDamageTaken += bullet.damage;
           this.spawnFx([{ kind: 'spark', x: bullet.x, y: bullet.y }]);
           this.sfx('hit');
           this.shake('bossHit');
@@ -1366,6 +1382,7 @@ export class LevelScene extends Phaser.Scene {
       }
       const overlaps = this.bulletHitsRect(bullet.x, bullet.y, 8, 8, this.player.x, top, PLAYER_WIDTH, h);
       if (overlaps && recordHit(this.ledger, bullet.id, 'player')) {
+        this.damageByKind[bullet.sourceKind] = (this.damageByKind[bullet.sourceKind] ?? 0) + 1;
         this.playerHit('enemyFire');
       } else {
         surviving.push(bullet);
@@ -1413,6 +1430,12 @@ export class LevelScene extends Phaser.Scene {
     const h = currentHeight(this.player);
     const top = this.player.y - h;
     for (const hz of this.level.hazards) {
+      // Decorative pit markers live in the `hazards` array too, and they are
+      // paint rather than spikes: a pit kills through the fall threshold, so
+      // touching the stripes on its rim must not (TASK-027).
+      if (!isLethalHazard(hz, GROUND_Y)) {
+        continue;
+      }
       if (this.bulletHitsRect(this.player.x, top, PLAYER_WIDTH, h, hz.x, hz.y, hz.width, hz.height)) {
         return true;
       }
@@ -1438,11 +1461,13 @@ export class LevelScene extends Phaser.Scene {
 
   /** Applies the life loss at the end of the death pause, then respawns at the checkpoint or ends the run. */
   private finishDeath(): void {
-    const damage = applyDamage(this.health, INVULN_DURATION);
+    // Lethal, not ordinary damage: a pit or hazard death costs a life even if
+    // the mercy window from an earlier hit is still open. Using `applyDamage`
+    // here meant the respawn ran but the life did not go, so taking a hit and
+    // then falling was a free ride back to the checkpoint (TASK-026).
+    const damage = applyLethalDamage(this.health, INVULN_DURATION);
     this.health = damage.health;
-    // `applied` is false when an invulnerability window from an earlier hit was
-    // still open. The respawn still runs, so the death is logged either way and
-    // `costLife` records which it was (see TASK-026).
+    // `applied` is false only once the run is already over.
     this.recordDeath(this.pendingDeathCause ?? 'pit', damage.applied);
     this.pendingDeathCause = null;
     if (this.health.gameOver) {
@@ -1587,7 +1612,11 @@ export class LevelScene extends Phaser.Scene {
       stepIndex: this.stepIndex,
       maxPlayerX: round2(this.maxPlayerX),
       ending: this.ending,
-      deaths: this.deaths.map((d) => ({ ...d }))
+      deaths: this.deaths.map((d) => ({ ...d })),
+      bossId: this.level.boss.id,
+      bossDamageTaken: round2(this.bossDamageTaken),
+      killsByKind: { ...this.killsByKind },
+      damageByKind: { ...this.damageByKind }
     };
     reportRuntime(snapshot);
     // The AI pilot perceives the game through this very snapshot next step.

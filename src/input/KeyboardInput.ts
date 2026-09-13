@@ -119,17 +119,23 @@ export function resolveKeyAction(code: string, key?: string, keyCode?: number): 
 }
 
 /**
- * Projects held-key state into one step of normalized input. `prev` supplies
- * the previous step's held flags so jump/fire edges fire exactly once.
+ * Projects held-key state into one step of normalized input.
+ *
+ * `prevRaw` is the previous step's RAW KEY state, not a merged `InputState`.
+ * That distinction is the whole point: an edge belongs to the device, and the
+ * scene's merged input also carries whatever the gamepad, touch controls,
+ * debug bridge and AI pilot asked for. Deriving edges from the merge meant that
+ * while the pilot held jump, a human's first real press looked like a
+ * continuation of it and was silently swallowed (TASK-025).
  */
-export function buildInputFromRaw(raw: RawKeyState, prev: InputState): InputState {
+export function buildInputFromRaw(raw: RawKeyState, prevRaw: RawKeyState): InputState {
   return {
     left: raw.left,
     right: raw.right,
     jumpHeld: raw.jump,
-    jumpPressed: raw.jump && !prev.jumpHeld,
+    jumpPressed: raw.jump && !prevRaw.jump,
     fireHeld: raw.fire,
-    firePressed: raw.fire && !prev.fireHeld,
+    firePressed: raw.fire && !prevRaw.fire,
     crouch: raw.down,
     drop: raw.down,
     aimUp: raw.up,
@@ -138,8 +144,11 @@ export function buildInputFromRaw(raw: RawKeyState, prev: InputState): InputStat
 }
 
 export interface KeyboardInput {
-  /** Build the input for one step, given the previous step's edge flags. */
-  build(prev: InputState): InputState;
+  /**
+   * Build the input for one step. The adapter tracks its own previous key
+   * state, so no caller can hand it someone else's held flags.
+   */
+  build(): InputState;
   attach(target: Window): void;
   detach(target: Window): void;
   /** Neutralizes all held keys (e.g. on window focus loss). */
@@ -148,6 +157,7 @@ export interface KeyboardInput {
 
 export function createKeyboardInput(): KeyboardInput {
   const raw = createRawKeyState();
+  let prevRaw = createRawKeyState();
 
   const applyEvent = (event: KeyboardEvent, down: boolean): void => {
     // Resolve by physical key even while an IME reports composition: this game
@@ -167,8 +177,10 @@ export function createKeyboardInput(): KeyboardInput {
   const onKeyUp = (event: KeyboardEvent): void => applyEvent(event, false);
 
   return {
-    build(prev: InputState): InputState {
-      return buildInputFromRaw(raw, prev);
+    build(): InputState {
+      const input = buildInputFromRaw(raw, prevRaw);
+      prevRaw = { ...raw };
+      return input;
     },
     attach(target: Window): void {
       // Capture phase on `window` runs before any document- or element-level
@@ -182,7 +194,11 @@ export function createKeyboardInput(): KeyboardInput {
       target.removeEventListener('keyup', onKeyUp, true);
     },
     clear(): void {
+      // Focus loss drops every held key without a matching keyup. Clearing the
+      // remembered state too means a key that is still physically down edges
+      // again on the next press instead of being stuck "already held".
       Object.assign(raw, createRawKeyState());
+      prevRaw = createRawKeyState();
     }
   };
 }
