@@ -3909,3 +3909,50 @@ Include enough detail so the next iteration can continue without guessing.
   - none.
 
 ---
+
+### 2026-09-13 09:40 - TASK-045 (the proposer never flagged weak evidence)
+
+- Status before: no tasks open. This came from friction observed in the loop
+  itself rather than from a finding.
+- The friction: I ran the producer twice this session and both times it
+  proposed the same five findings, all of them from `doorCamper`, `bossHugger`
+  and `jumper` - policies that deliberately stand still in hazards or refuse to
+  move. Both times I rejected all five on exactly that reasoning, and both
+  times nothing in the output recorded it, so the next run proposed them again
+  unchanged. The producer already computes a `competent` flag and SORTS by it;
+  it just never said so. Ordering is invisible once you are reading one
+  proposal.
+- Work completed:
+  - A proposal no competent policy reproduced now carries an explicit
+    "Evidence strength: WEAK" line that explains WHY - that these policies
+    exist to find crashes and stuck states rather than to model a player, so a
+    policy that stands still in a hazard is expected to die there repeatedly -
+    and says what would change the verdict (the pilot, a hiccup run, or the
+    reviewer reproducing it).
+  - The summary counts them: "5 proposed, 0 already covered, 5 of them seen
+    ONLY by deliberately incompetent policies". That is the whole judgement I
+    had been making by hand, now stated by the tool.
+  - Two tests, deliberately in both directions: a stress-only finding must
+    carry the caveat, and a pilot finding must NOT. A label that appears on
+    everything would mean nothing.
+- What this deliberately does NOT do: suppress or auto-reject weak proposals.
+  The producer's own design says a finding is evidence, not a decision, and the
+  decision stays with a person. This only makes the decision fast.
+- Files changed:
+  - scripts/eval/proposeTasks.mjs, tests/unit/proposeTasks.test.ts (+2)
+  - TASKS.md, docs/eval/proposed-tasks.md (regenerated)
+- Commands run:
+  - `npm run lint`, `npm run typecheck` (clean)
+  - `npm run test:unit` (473 passed, up from 471)
+  - `node scripts/eval/proposeTasks.mjs` (output verified by eye)
+  - `npm run eval -- --baseline` (exit 0)
+- Verification result:
+  - Every acceptance criterion met.
+- Status after: DONE. All tasks DONE.
+- Next recommended task:
+  - None. The board is clear and the producer has nothing a competent policy
+    has hit.
+- Blockers (if any):
+  - none.
+
+---

@@ -99,6 +99,26 @@ describe('proposeTasks', () => {
     expect(result.text).toContain('unwinnable state');
   });
 
+  it('marks a proposal no competent policy reproduced, and counts them', () => {
+    // The friction this fixes: the producer already SORTS competent findings
+    // first, but ordering is invisible once you are reading one proposal. A
+    // reviewer who cannot tell `doorCamper` from `pilot` at a glance ends up
+    // re-deriving "these are all stress policies" from the policy list on
+    // every single run.
+    const chaos: Group = { ...STALL, bucket: 64, competent: false, policies: ['doorCamper'], runs: ['L2-doorCamper'] };
+    const result = proposeTasks([chaos], TASKS, { max: 5 });
+    expect(result.text).toContain('Evidence strength');
+    expect(result.text).toContain('no competent policy reproduced this');
+    expect(result.text).toContain('seen ONLY by deliberately incompetent policies');
+  });
+
+  it('says nothing about evidence strength when a competent policy did hit it', () => {
+    // The label must mean something: a pilot finding carries no caveat.
+    const result = proposeTasks([STALL], TASKS, { max: 5 });
+    expect(result.text).not.toContain('Evidence strength');
+    expect(result.text).not.toContain('seen ONLY by deliberately incompetent');
+  });
+
   it('caps how many it proposes and says how many it held back', () => {
     const many = Array.from({ length: 8 }, (_, i) => ({ ...STALL, bucket: i * 100 }));
     const result = proposeTasks(many, TASKS, { max: 3 });

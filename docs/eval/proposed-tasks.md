@@ -8,13 +8,19 @@ delete the rest. Each carries the evidence that produced it so it can be
 judged rather than taken on trust - a finding says something looked wrong,
 not that it must be fixed, and that call stays with a person.
 
-5 proposed, 0 already covered by an existing task, 1 more not shown (raise --max to see them)
+5 proposed, 0 already covered by an existing task, 5 of them seen ONLY by deliberately incompetent policies, 1 more not shown (raise --max to see them)
 
 ---
-### TASK-043 - Repeated deaths clustered at x=1920 in level 2
+### TASK-045 - Repeated deaths clustered at x=1920 in level 2
 
 - Status: TODO
 - Source: eval finding `deathTrap@1920:L2` (CRITICAL, seen in 1 run(s): L2-mid-30lives-doorCamper; policies: doorCamper)
+- Evidence strength: **WEAK - no competent policy reproduced this.**
+  Only deliberately incompetent or adversarial policies reached it (see
+  scripts/lib/policies.mjs), and those exist to find crashes and stuck
+  states rather than to model a player: a policy that stands still in a
+  hazard is expected to die there repeatedly. Treat this as likely policy
+  noise unless the pilot, a hiccup run, or you can reproduce it.
 - Requirement:
   Self-play died over and over in one small stretch of level: 9 deaths in a
   row within 96px of x=1936 (causes: enemyFire) - respawning straight back
@@ -32,10 +38,16 @@ not that it must be fixed, and that call stays with a person.
 
 ---
 
-### TASK-044 - Repeated deaths clustered at x=2016 in level 2
+### TASK-046 - Repeated deaths clustered at x=2016 in level 2
 
 - Status: TODO
 - Source: eval finding `deathTrap@2016:L2` (CRITICAL, seen in 1 run(s): L2-mid-30lives-doorCamper; policies: doorCamper)
+- Evidence strength: **WEAK - no competent policy reproduced this.**
+  Only deliberately incompetent or adversarial policies reached it (see
+  scripts/lib/policies.mjs), and those exist to find crashes and stuck
+  states rather than to model a player: a policy that stands still in a
+  hazard is expected to die there repeatedly. Treat this as likely policy
+  noise unless the pilot, a hiccup run, or you can reproduce it.
 - Requirement:
   Self-play died over and over in one small stretch of level: 4 deaths in a
   row within 96px of x=2058 (causes: enemyFire) - respawning straight back
@@ -53,10 +65,16 @@ not that it must be fixed, and that call stays with a person.
 
 ---
 
-### TASK-045 - Repeated deaths clustered at x=2784 in level 1
+### TASK-047 - Repeated deaths clustered at x=2784 in level 1
 
 - Status: TODO
 - Source: eval finding `deathTrap@2784:L1` (CRITICAL, seen in 1 run(s): L1-preboss-30lives-bossHugger; policies: bossHugger)
+- Evidence strength: **WEAK - no competent policy reproduced this.**
+  Only deliberately incompetent or adversarial policies reached it (see
+  scripts/lib/policies.mjs), and those exist to find crashes and stuck
+  states rather than to model a player: a policy that stands still in a
+  hazard is expected to die there repeatedly. Treat this as likely policy
+  noise unless the pilot, a hiccup run, or you can reproduce it.
 - Requirement:
   Self-play died over and over in one small stretch of level: 6 deaths in a
   row within 96px of x=2824 (causes: bossShockwave,enemyFire) - respawning
@@ -74,10 +92,16 @@ not that it must be fixed, and that call stays with a person.
 
 ---
 
-### TASK-046 - Repeated deaths clustered at x=2304 in level 2
+### TASK-048 - Repeated deaths clustered at x=2304 in level 2
 
 - Status: TODO
 - Source: eval finding `deathTrap@2304:L2` (CRITICAL, seen in 1 run(s): L2-preboss-30lives-bossHugger; policies: bossHugger)
+- Evidence strength: **WEAK - no competent policy reproduced this.**
+  Only deliberately incompetent or adversarial policies reached it (see
+  scripts/lib/policies.mjs), and those exist to find crashes and stuck
+  states rather than to model a player: a policy that stands still in a
+  hazard is expected to die there repeatedly. Treat this as likely policy
+  noise unless the pilot, a hiccup run, or you can reproduce it.
 - Requirement:
   Self-play died over and over in one small stretch of level: 30 deaths in a
   row within 96px of x=2340 (causes: hazard) - respawning straight back into
@@ -95,10 +119,16 @@ not that it must be fixed, and that call stays with a person.
 
 ---
 
-### TASK-047 - Repeated deaths clustered at x=3168 in level 1
+### TASK-049 - Repeated deaths clustered at x=3168 in level 1
 
 - Status: TODO
 - Source: eval finding `deathTrap@3168:L1` (CRITICAL, seen in 1 run(s): L1-start-30lives-jumper; policies: jumper)
+- Evidence strength: **WEAK - no competent policy reproduced this.**
+  Only deliberately incompetent or adversarial policies reached it (see
+  scripts/lib/policies.mjs), and those exist to find crashes and stuck
+  states rather than to model a player: a policy that stands still in a
+  hazard is expected to die there repeatedly. Treat this as likely policy
+  noise unless the pilot, a hiccup run, or you can reproduce it.
 - Requirement:
   Self-play died over and over in one small stretch of level: 26 deaths in a
   row within 96px of x=3218 (causes: enemyFire) - respawning straight back

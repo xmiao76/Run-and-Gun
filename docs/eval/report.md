@@ -1,6 +1,6 @@
 # Self-play evaluation report
 
-Generated 2026-09-13T16:28:35.290Z
+Generated 2026-09-13T18:14:40.721Z
 
 - Runs: **54** (completed 38, game over 11, hit budget 5)
 - Findings: **6** (6 critical), grouped into 6

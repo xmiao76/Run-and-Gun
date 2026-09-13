@@ -1302,3 +1302,31 @@ cceptance criteria:
   - Do not remove a weapon or add ammo limits.
 
 ---
+
+### TASK-045 - The task proposer never says when only a stress policy hit a finding
+
+- Status: DONE
+- Requirement:
+  `proposeTasks.mjs` already computes a `competent` flag per finding and sorts by it,
+  so proposals a real player would hit come first. But it never states the flag in its
+  output. Ordering is invisible once you are reading a single proposal, so a reviewer
+  who cannot tell `doorCamper` from `pilot` at a glance has to re-derive "these are
+  all stress policies" from the policy list on every run.
+- Evidence:
+  Observed twice in one session: the producer proposed the same five findings both
+  times, all of them from `doorCamper`, `bossHugger` and `jumper`, and all five were
+  rejected by hand on exactly that reasoning. Nothing in the file recorded the
+  judgement, so the next run proposed them again unchanged.
+- Acceptance criteria:
+  - [x] A proposal no competent policy reproduced says so, in the proposal itself
+  - [x] It explains why that is weak evidence rather than just labelling it
+  - [x] The summary line counts them, so the strength of a batch reads at a glance
+  - [x] A finding a competent policy DID hit carries no such caveat, or the label
+        means nothing
+  - [x] Unit coverage for both directions
+  - [x] Full verification green
+- Non-goals / constraints:
+  - Do not suppress or auto-reject weak proposals. The decision stays with a person;
+    this only gives them what they need to make it quickly.
+
+---
