@@ -8,12 +8,42 @@
  */
 
 import { DEFAULT_SETTINGS, type Settings } from '../persistence/schema';
+import { stageTrack, TRACKS, trackLoopMs, type DrumHit, type TrackId } from './music';
 
-export type SfxName = 'jump' | 'shoot' | 'hit' | 'pickup' | 'explosion' | 'complete' | 'telegraph' | 'door' | 'respawn';
+export { stageTrack, type TrackId };
+
+export type SfxName =
+  | 'jump'
+  | 'shoot'
+  | 'shootScatter'
+  | 'shootRapid'
+  | 'shootLaser'
+  | 'shootFlame'
+  | 'hit'
+  | 'enemyDeath'
+  | 'playerDeath'
+  | 'bossHit'
+  | 'pickup'
+  | 'explosion'
+  | 'complete'
+  | 'telegraph'
+  | 'door'
+  | 'respawn';
 
 const SFX: Record<SfxName, { freq: number; duration: number; type: OscillatorType }> = {
   jump: { freq: 420, duration: 0.12, type: 'square' },
   shoot: { freq: 720, duration: 0.06, type: 'square' },
+  // One voice per weapon, so a shot is identifiable with your eyes shut: the
+  // laser a high thin sawtooth lance, the flare a low soft triangle whoomph.
+  shootScatter: { freq: 520, duration: 0.09, type: 'square' },
+  shootRapid: { freq: 880, duration: 0.04, type: 'square' },
+  shootLaser: { freq: 1180, duration: 0.09, type: 'sawtooth' },
+  shootFlame: { freq: 300, duration: 0.14, type: 'triangle' },
+  // TASK-037: three impacts that had no sound at all. `hit` stays as the
+  // generic light impact; these are the heavy ones it was standing in for.
+  enemyDeath: { freq: 200, duration: 0.18, type: 'sawtooth' },
+  bossHit: { freq: 140, duration: 0.1, type: 'square' },
+  playerDeath: { freq: 120, duration: 0.5, type: 'sawtooth' },
   hit: { freq: 160, duration: 0.14, type: 'sawtooth' },
   pickup: { freq: 880, duration: 0.12, type: 'triangle' },
   explosion: { freq: 90, duration: 0.3, type: 'sawtooth' },
@@ -23,22 +53,12 @@ const SFX: Record<SfxName, { freq: number; duration: number; type: OscillatorTyp
   respawn: { freq: 330, duration: 0.25, type: 'triangle' }
 };
 
-/**
- * Original background-music pattern (bass with a light arpeggio accent),
- * composed for this project - not transcribed from any existing work.
- */
-const MUSIC_PATTERN: { bass: number; arp: number | null }[] = [
-  { bass: 110.0, arp: 220.0 },
-  { bass: 110.0, arp: null },
-  { bass: 164.81, arp: 329.63 },
-  { bass: 110.0, arp: null },
-  { bass: 98.0, arp: 220.0 },
-  { bass: 110.0, arp: null },
-  { bass: 82.41, arp: 196.0 },
-  { bass: 98.0, arp: null }
-];
-const MUSIC_STEP = 0.25;
-const MUSIC_LOOP_MS = MUSIC_PATTERN.length * MUSIC_STEP * 1000;
+/** Percussion voices: duration and filter shape per hit (see `scheduleDrum`). */
+const DRUMS: Readonly<Record<DrumHit, { duration: number; volume: number; highpass: boolean }>> = {
+  kick: { duration: 0.13, volume: 0.55, highpass: false },
+  snare: { duration: 0.11, volume: 0.32, highpass: true },
+  hat: { duration: 0.035, volume: 0.16, highpass: true }
+};
 
 interface MinimalContext {
   currentTime: number;
@@ -47,6 +67,35 @@ interface MinimalContext {
   resume(): Promise<void> | void;
   createGain(): MinimalGain;
   createOscillator(): MinimalOscillator;
+  /**
+   * Noise percussion support, all OPTIONAL.
+   *
+   * A context without these still plays every tone; it just has no drums. That
+   * keeps the service working against a minimal or stubbed context - which the
+   * unit tests provide - and honours the standing rule that audio degrades
+   * rather than throws.
+   */
+  sampleRate?: number;
+  createBuffer?(channels: number, length: number, sampleRate: number): MinimalBuffer;
+  createBufferSource?(): MinimalBufferSource;
+  createBiquadFilter?(): MinimalFilter;
+}
+
+interface MinimalBuffer {
+  getChannelData(channel: number): Float32Array;
+}
+
+interface MinimalBufferSource {
+  buffer: MinimalBuffer | null;
+  connect(dest: unknown): void;
+  start(t: number): void;
+  stop(t: number): void;
+}
+
+interface MinimalFilter {
+  type: string;
+  frequency: { setValueAtTime(v: number, t: number): void };
+  connect(dest: unknown): void;
 }
 
 interface MinimalGain {
@@ -67,7 +116,13 @@ export interface AudioService {
   unlock(): void;
   setSettings(settings: Settings): void;
   playSfx(name: SfxName): void;
-  setMusic(on: boolean): void;
+  /**
+   * Play a track, or `null` for silence.
+   *
+   * Switching to the track already playing is a no-op, so a scene may call
+   * this every step without restarting the loop and stuttering.
+   */
+  setMusic(track: TrackId | null): void;
   stop(): void;
 }
 
@@ -75,8 +130,11 @@ export function createAudioService(contextFactory: () => MinimalContext | null =
   let ctx: MinimalContext | null = null;
   let master: MinimalGain | null = null;
   let musicTimer: ReturnType<typeof setInterval> | null = null;
-  let musicNodes: MinimalOscillator[] = [];
+  let musicNodes: { stop(t: number): void }[] = [];
   let settings: Settings = { ...DEFAULT_SETTINGS };
+  let currentTrack: TrackId | null = null;
+  /** One shared noise buffer, built lazily; percussion is skipped without it. */
+  let noiseBuffer: MinimalBuffer | null = null;
 
   function ensure(): boolean {
     if (ctx) {
@@ -114,27 +172,105 @@ export function createAudioService(contextFactory: () => MinimalContext | null =
     musicNodes.push(osc);
   }
 
-  function scheduleLoop(): void {
-    if (!ctx) {
+  /**
+   * One second of white noise, reused by every drum hit.
+   *
+   * Built once and cached: allocating a buffer per hit would churn the heap,
+   * and the soak test watches for exactly that.
+   */
+  function ensureNoise(): MinimalBuffer | null {
+    if (noiseBuffer) {
+      return noiseBuffer;
+    }
+    if (!ctx || !ctx.createBuffer) {
+      return null;
+    }
+    try {
+      const rate = ctx.sampleRate ?? 44100;
+      const buffer = ctx.createBuffer(1, rate, rate);
+      const data = buffer.getChannelData(0);
+      // Deterministic noise from a small LCG rather than Math.random, so the
+      // percussion is identical run to run - the same reason nothing else in
+      // this project uses RNG.
+      let seed = 22222;
+      for (let i = 0; i < data.length; i++) {
+        seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+        data[i] = (seed / 0x3fffffff) - 1;
+      }
+      noiseBuffer = buffer;
+      return buffer;
+    } catch {
+      return null;
+    }
+  }
+
+  /** A percussion hit: filtered noise, or nothing if the context cannot make it. */
+  function scheduleDrum(hit: DrumHit, time: number, volume: number): void {
+    if (!ctx || !master || !ctx.createBufferSource) {
       return;
     }
+    const buffer = ensureNoise();
+    if (!buffer) {
+      return;
+    }
+    const spec = DRUMS[hit];
+    try {
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(volume * spec.volume, time);
+      gain.gain.linearRampToValueAtTime(0, time + spec.duration);
+      // A high-pass turns the same noise into a snare or hat; without a filter
+      // node every hit is a kick, which is still better than silence.
+      if (spec.highpass && ctx.createBiquadFilter) {
+        const filter = ctx.createBiquadFilter();
+        filter.type = 'highpass';
+        filter.frequency.setValueAtTime(hit === 'hat' ? 7000 : 1400, time);
+        source.connect(filter);
+        filter.connect(gain);
+      } else {
+        source.connect(gain);
+      }
+      gain.connect(master);
+      source.start(time);
+      source.stop(time + spec.duration + 0.02);
+      musicNodes.push(source);
+      // A kick also gets a short low tone, which is what gives it its weight.
+      if (hit === 'kick') {
+        scheduleNote(60, time, spec.duration, 'sine', volume * 0.5);
+      }
+    } catch {
+      /* percussion is optional; never let it break the music */
+    }
+  }
+
+  function scheduleLoop(): void {
+    if (!ctx || currentTrack === null) {
+      return;
+    }
+    const track = TRACKS[currentTrack];
     const t0 = ctx.currentTime + 0.05;
-    MUSIC_PATTERN.forEach((step, i) => {
-      const t = t0 + i * MUSIC_STEP;
-      scheduleNote(step.bass, t, MUSIC_STEP * 0.9, 'triangle', settings.musicVolume * 0.1);
-      if (step.arp !== null) {
-        scheduleNote(step.arp, t + 0.06, MUSIC_STEP * 0.5, 'square', settings.musicVolume * 0.045);
+    track.steps.forEach((s, i) => {
+      const t = t0 + i * track.stepSeconds;
+      if (s.bass !== null) {
+        scheduleNote(s.bass, t, track.stepSeconds * 0.9, 'triangle', settings.musicVolume * 0.1);
+      }
+      if (s.lead !== null) {
+        scheduleNote(s.lead, t + 0.02, track.stepSeconds * 0.55, 'square', settings.musicVolume * 0.04);
+      }
+      if (s.drum !== null) {
+        scheduleDrum(s.drum, t, settings.musicVolume * 0.5);
       }
     });
   }
 
   function startMusic(): void {
-    if (!ensure() || !ctx || !master || musicTimer !== null) {
+    if (!ensure() || !ctx || !master || musicTimer !== null || currentTrack === null) {
       return;
     }
     try {
       scheduleLoop();
-      musicTimer = setInterval(scheduleLoop, MUSIC_LOOP_MS);
+      musicTimer = setInterval(scheduleLoop, trackLoopMs(TRACKS[currentTrack]));
     } catch {
       musicTimer = null;
     }
@@ -193,15 +329,22 @@ export function createAudioService(contextFactory: () => MinimalContext | null =
         /* ignore */
       }
     },
-    setMusic(on: boolean): void {
-      if (on) {
+    setMusic(track: TrackId | null): void {
+      // Idempotent: a scene can call this every step and the loop keeps its
+      // phase. Only an actual change stops the old track and starts the new
+      // one, which is what keeps transitions free of overlap and clicks.
+      if (track === currentTrack) {
+        return;
+      }
+      stopMusic();
+      currentTrack = track;
+      if (track !== null) {
         startMusic();
-      } else {
-        stopMusic();
       }
     },
     stop(): void {
       stopMusic();
+      currentTrack = null;
     }
   };
 }

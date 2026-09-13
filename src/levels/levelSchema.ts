@@ -3,7 +3,7 @@ import { type BossId } from '../balance/bosses';
 import { type WeaponId } from '../balance/weapons';
 
 /**
- * Data-driven level format (ARCHITECTURE.md section 6).
+ * Data-driven level format (PROJECT.md, Levels).
  *
  * Levels are plain data so they can be validated, tested, and authored without
  * scene code. Coordinates are in logical pixels with y-down.
@@ -82,6 +82,25 @@ export interface ContainerDef {
 }
 
 /**
+ * A bridge span that gives way once the player puts weight on it.
+ *
+ * Authored as terrain rather than as an obstacle: it is solid ground until it
+ * is triggered, so a level can route the critical path across one and make
+ * crossing it a decision.
+ */
+export interface BridgeDef {
+  id: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  /** Seconds of weight on the span before it commits to failing. */
+  triggerDelay: number;
+  /** Seconds from committing to dropping - the window to get across. */
+  collapseDelay: number;
+}
+
+/**
  * A neutral flying supply skiff: crosses the sky on a patrol lane and drops a
  * weapon pickup when destroyed by player fire. A neutral destructible object
  * (like containers), not an enemy archetype.
@@ -136,6 +155,7 @@ export interface LevelDef {
   movingPlatforms: MovingPlatformDef[];
   doors: DoorDef[];
   containers: ContainerDef[];
+  bridges?: BridgeDef[];
   /** Optional supply skiff patrols (loader-tolerant when absent). */
   supplyCarriers?: SupplyCarrierDef[];
   boss: BossArenaDef;

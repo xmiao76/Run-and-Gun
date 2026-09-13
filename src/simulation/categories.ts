@@ -1,7 +1,7 @@
 /**
  * Centralized collision categories.
  *
- * A single source of truth for every collidable layer (ARCHITECTURE.md section
+ * A single source of truth for every collidable layer (PROJECT.md, quality
  * 5). Values are distinct bit masks so future broadphase filters can combine
  * them; gameplay logic refers to entities by these names, never by ad-hoc
  * strings or numbers.

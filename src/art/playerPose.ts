@@ -13,6 +13,8 @@ export type PlayerPoseKey =
   | 'idle'
   | 'run-a'
   | 'run-b'
+  | 'run-c'
+  | 'run-d'
   | 'jump'
   | 'crouch'
   | 'aim-up'
@@ -30,7 +32,10 @@ export interface PlayerPoseState {
   /** Horizontal velocity; |speedX| > 1 counts as moving. */
   speedX: number;
   aimUp: boolean;
-  /** Alternating 0/1 run-cycle index from the scene's animation clock. */
+  /**
+   * Run-cycle index from the scene's simulation clock. Four frames:
+   * 0 = stride A, 1 = passing C, 2 = stride B, 3 = passing D.
+   */
   runFrame: number;
 }
 
@@ -51,7 +56,7 @@ export function selectPlayerPose(s: PlayerPoseState): PlayerPoseKey {
     return Math.abs(s.speedX) > 1 ? 'aim-diag' : 'aim-up';
   }
   if (Math.abs(s.speedX) > 1) {
-    return s.runFrame % 2 === 0 ? 'run-a' : 'run-b';
+    return (['run-a', 'run-c', 'run-b', 'run-d'] as const)[s.runFrame % 4];
   }
   return 'idle';
 }

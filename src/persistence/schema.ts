@@ -3,8 +3,7 @@
  *
  * Saved data carries a version and is validated before use; anything missing,
  * wrong-typed, or out of range falls back to defaults so corrupt localStorage
- * can never prevent the game from starting (GAME_REQUIREMENTS.md section 9,
- * ACCEPTANCE_CRITERIA I2/I3).
+ * can never prevent the game from starting (PROJECT.md, Persistence).
  */
 
 export const SETTINGS_VERSION = 1;
@@ -25,6 +24,8 @@ export interface Settings {
   sfxVolume: number;
   mute: boolean;
   reducedFlash: boolean;
+  /** Opt-in CRT scanline overlay (TASK-034). */
+  scanlines: boolean;
   controls: ControlScheme;
   /** Highest score achieved across runs (persisted). */
   bestScore: number;
@@ -38,6 +39,7 @@ export const DEFAULT_SETTINGS: Settings = {
   sfxVolume: 0.8,
   mute: false,
   reducedFlash: false,
+  scanlines: false,
   controls: 'keyboard',
   bestScore: 0,
   startingLives: 30
@@ -73,6 +75,7 @@ export function parseSettings(raw: unknown): Settings {
     sfxVolume: volume(r.sfxVolume, DEFAULT_SETTINGS.sfxVolume),
     mute: typeof r.mute === 'boolean' ? r.mute : DEFAULT_SETTINGS.mute,
     reducedFlash: typeof r.reducedFlash === 'boolean' ? r.reducedFlash : DEFAULT_SETTINGS.reducedFlash,
+    scanlines: typeof r.scanlines === 'boolean' ? r.scanlines : DEFAULT_SETTINGS.scanlines,
     controls: isControlScheme(r.controls) ? r.controls : DEFAULT_SETTINGS.controls,
     bestScore: typeof r.bestScore === 'number' && Number.isFinite(r.bestScore) && r.bestScore >= 0 ? Math.floor(r.bestScore) : 0,
     startingLives: STARTING_LIVES_OPTIONS.includes(r.startingLives as number)

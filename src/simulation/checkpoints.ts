@@ -5,7 +5,7 @@
  * weapon, spawn position). Snapshots are immutable value objects; restore
  * returns a fresh copy so callers cannot mutate the stored checkpoint. The
  * level scene also tracks the *last reached* checkpoint by overlapping the
- * player with checkpoint markers (GAME_REQUIREMENTS.md section 9).
+ * player with checkpoint markers (PROJECT.md, Player abilities).
  */
 
 import { type WeaponId } from '../balance/weapons';

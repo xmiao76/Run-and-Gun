@@ -34,8 +34,10 @@ test.describe('enemy visual identities', () => {
       return (r?.enemyCount ?? 0) >= 2;
     });
     let textures = await visibleEnemyTextures(page);
-    expect(textures).toContain('art/enemy-runner');
-    expect(textures).toContain('art/enemy-drone');
+    // TASK-035: each kind cycles A/B idle frames and a fire frame, so any of
+    // its three frames counts as that kind being rendered.
+    expect(textures.some((t) => t.startsWith('art/enemy-runner'))).toBe(true);
+    expect(textures.some((t) => t.startsWith('art/enemy-drone'))).toBe(true);
 
     // Wave 2: sentry + grenadier. Hop forward in stages so the camera (and its
     // spawn-culling window, which lags one step) keeps up with the teleports.
@@ -50,11 +52,13 @@ test.describe('enemy visual identities', () => {
       return (r?.enemyCount ?? 0) >= 4;
     });
     textures = await visibleEnemyTextures(page);
-    expect(textures).toContain('art/enemy-sentry');
-    expect(textures).toContain('art/enemy-grenadier');
+    expect(textures.some((t) => t.startsWith('art/enemy-sentry'))).toBe(true);
+    expect(textures.some((t) => t.startsWith('art/enemy-grenadier'))).toBe(true);
 
-    // Distinctness across the whole wave.
-    expect(new Set(textures).size).toBe(4);
+    // Distinctness across the whole wave: four KINDS, counting each archetype
+    // once regardless of which animation frame it happens to be showing.
+    const kinds = new Set(textures.map((t) => t.replace(/-b$|-fire$/, '')));
+    expect(kinds.size).toBe(4);
 
     // Enemy fire arrives as sprite orbs, not rectangles.
     await page.waitForFunction(() => {

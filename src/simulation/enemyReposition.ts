@@ -10,12 +10,14 @@
 export function repositionDir(tooClose: boolean, tooFar: boolean, enemyX: number, playerX: number): number {
   const playerIsLeft = playerX < enemyX;
   if (tooClose) {
-    // Back away: left player -> left (-1); right player -> right (+1).
-    return playerIsLeft ? -1 : 1;
+    // Back AWAY from the player: if they are to our left we retreat right
+    // (+1); if they are to our right we retreat left (-1).
+    return playerIsLeft ? 1 : -1;
   }
   if (tooFar) {
-    // Close in (move toward the player): right player -> right (+1); left -> left (-1).
-    return playerIsLeft ? 1 : -1;
+    // Close IN on the player: if they are to our left we advance left (-1);
+    // if they are to our right we advance right (+1).
+    return playerIsLeft ? -1 : 1;
   }
   return 0;
 }

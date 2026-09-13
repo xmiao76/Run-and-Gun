@@ -5,7 +5,7 @@ export type { LevelDef } from './levelSchema';
 
 /**
  * Validates a level definition and throws an actionable error when it is
- * malformed, so bad data fails fast during development (ARCHITECTURE.md
+ * malformed, so bad data fails fast during development (PROJECT.md,
  * section 6).
  */
 
@@ -92,6 +92,25 @@ export function validateLevel(level: LevelDef): LevelValidationIssue[] {
       issues.push({ path: `level.containers[${i}].health`, message: 'container health must be positive' });
     }
   });
+  (level.bridges ?? []).forEach((b, i) => {
+    if (!b.id) {
+      issues.push({ path: `level.bridges[${i}].id`, message: 'bridge id is required' });
+    }
+    if (!rectValid({ x: b.x, y: b.y, width: b.width, height: b.height })) {
+      issues.push({ path: `level.bridges[${i}]`, message: 'bridge must have positive finite size' });
+    }
+    if (!inBounds({ x: b.x, y: b.y, width: b.width, height: b.height }, level)) {
+      issues.push({ path: `level.bridges[${i}]`, message: 'bridge must lie inside the level bounds' });
+    }
+    if (!(b.triggerDelay >= 0) || !Number.isFinite(b.triggerDelay)) {
+      issues.push({ path: `level.bridges[${i}].triggerDelay`, message: 'bridge triggerDelay must be a finite number >= 0' });
+    }
+    // A zero collapse window would drop the player the instant they stepped
+    // on, which is a trap rather than a set piece.
+    if (!(b.collapseDelay > 0) || !Number.isFinite(b.collapseDelay)) {
+      issues.push({ path: `level.bridges[${i}].collapseDelay`, message: 'bridge collapseDelay must be a positive finite number' });
+    }
+  });
   (level.supplyCarriers ?? []).forEach((c, i) => {
     if (!c.id) {
       issues.push({ path: `level.supplyCarriers[${i}].id`, message: 'supply carrier id is required' });
@@ -108,6 +127,17 @@ export function validateLevel(level: LevelDef): LevelValidationIssue[] {
   });
   if (!(level.completionX > 0) || level.completionX > level.width) {
     issues.push({ path: 'level.completionX', message: 'completionX must be within (0, width]' });
+  }
+  // Reachability, not just bounds. The platformer clamps the player to
+  // `width - PLAYER_WIDTH`, so a completionX beyond that is never crossed and
+  // the level simply cannot be finished - which the bounds check above happily
+  // allows. Level 3 was authored with exactly that off-by-22 and only the
+  // full-game e2e caught it (TASK-039).
+  if (level.completionX > level.width - PLAYER_WIDTH) {
+    issues.push({
+      path: 'level.completionX',
+      message: `completionX ${level.completionX} is unreachable: the player clamps at width - PLAYER_WIDTH (${level.width - PLAYER_WIDTH})`
+    });
   }
   if (!level.boss || !level.boss.id) {
     issues.push({ path: 'level.boss', message: 'a boss arena is required' });

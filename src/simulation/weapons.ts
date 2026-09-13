@@ -24,6 +24,14 @@ export interface Projectile {
   damage: number;
   /** Identifier of the weapon that created it (for ownership / collisions). */
   weapon: WeaponId;
+  /**
+   * Targets this projectile may still damage before it is consumed. Starts at
+   * the weapon's `pierce` (default 1) and is decremented by the collision
+   * resolver on each hit.
+   */
+  pierce: number;
+  /** Downward acceleration in flight (px/s^2); 0 for a straight shot. */
+  gravity: number;
 }
 
 export interface FireResult {
@@ -75,13 +83,22 @@ export function stepWeapon(state: WeaponState, dt: number, fire: FireInput): Fir
       vy: Math.sin(radians) * def.projectileSpeed,
       ttl: def.projectileLifetime,
       damage: def.damage,
-      weapon: state.id
+      weapon: state.id,
+      pierce: def.pierce ?? 1,
+      gravity: def.gravity ?? 0
     };
   });
   return { weapon: { ...state, cooldown: def.cooldown }, projectiles, fired: true };
 }
 
-/** Advance projectile positions and age; returns only the still-live ones. */
+/**
+ * Advance projectile positions and age; returns only the still-live ones.
+ *
+ * A projectile with `gravity` accelerates downward as it travels, which is what
+ * makes the Flare Thrower's shot arc. Position uses the pre-acceleration
+ * velocity (semi-implicit ordering is applied to the velocity for the NEXT
+ * step), matching how enemy arcing shots already integrate.
+ */
 export function stepProjectiles<T extends Projectile>(projectiles: readonly T[], dt: number): T[] {
   const next: T[] = [];
   for (const p of projectiles) {
@@ -89,7 +106,13 @@ export function stepProjectiles<T extends Projectile>(projectiles: readonly T[],
     if (ttl <= 0) {
       continue;
     }
-    next.push({ ...p, x: p.x + p.vx * dt, y: p.y + p.vy * dt, ttl });
+    next.push({
+      ...p,
+      x: p.x + p.vx * dt,
+      y: p.y + p.vy * dt,
+      vy: p.vy + p.gravity * dt,
+      ttl
+    });
   }
   return next;
 }

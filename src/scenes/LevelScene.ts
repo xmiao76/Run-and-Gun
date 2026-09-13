@@ -8,7 +8,7 @@ import {
 } from '../balance/player';
 import { DEFAULT_WEAPON, getWeapon, type WeaponId } from '../balance/weapons';
 import { GAME_VERSION, LOGICAL_HEIGHT, LOGICAL_WIDTH, SCENE_KEYS } from '../app/config';
-import { type AudioService } from '../audio/AudioService';
+import { stageTrack, type AudioService, type SfxName } from '../audio/AudioService';
 import { createPilotMemory, decidePilotInput, pitsFromSolids, platformRanges, spikeRanges, type PilotGeometry, type PilotMemory } from '../ai/pilot';
 import {
   clampStepCount,
@@ -29,7 +29,7 @@ import { createTouchControls, isTouchDevice, type TouchControls } from '../ui/to
 import { loadLevel, type LevelDef } from '../levels/levelLoader';
 import { isLethalHazard, type Rect } from '../levels/levelSchema';
 import { LEVELS } from '../levels/levels';
-import { getBossDef } from '../balance/bosses';
+import { getBossDef, VOLLEY_HEIGHTS } from '../balance/bosses';
 import {
   advanceCheckpoint,
   resolveCheckpoint,
@@ -90,12 +90,16 @@ import { respawnPosition } from '../simulation/safeSpawn';
 import { ensureGameTextures } from '../art/textures';
 import { selectPlayerPose, playerPoseTexture, type PlayerPoseKey } from '../art/playerPose';
 import { bulletTexture } from '../art/weaponArt';
-import { enemyTexture } from '../art/enemyArt';
-import { bossTexture } from '../art/bossArt';
+import { enemyFrame } from '../art/enemyArt';
+import { getEnemyDef, type EnemyKind } from '../balance/enemies';
+import { bossFrame } from '../art/bossArt';
 import { propsForSolid, horizonForLevel, themeForLevel } from '../art/levelTheme';
 import { lifeHudLayout, MAX_LIFE_ICONS } from '../ui/hudLives';
 import { shakeFor, type ShakeEvent } from '../ui/screenShake';
+import { createHitStop, tickHitStop, triggerHitStop, type HitStopEvent, type HitStopState } from '../ui/hitStop';
 import { hookShutdown } from './sceneLifecycle';
+import { drawText, setText } from '../ui/text';
+import { attachScanlines } from '../ui/scanlines';
 import {
   spawnParticles,
   stepParticles,
@@ -108,6 +112,14 @@ import {
   solidContainerRects,
   type ContainerState
 } from '../simulation/containers';
+import {
+  bridgeCarries,
+  bridgeGaps,
+  createBridgeStates,
+  solidBridgeRects,
+  stepBridge,
+  type BridgeState
+} from '../simulation/bridges';
 import {
   CARRIER_HEIGHT,
   CARRIER_WIDTH,
@@ -132,6 +144,7 @@ import {
 } from '../simulation/weapons';
 import { DEFAULT_SETTINGS, type Settings } from '../persistence/schema';
 import { saveSettings } from '../persistence/StorageService';
+import { PALETTE_HEX } from '../art/palette';
 
 const MAX_ENEMIES = 12;
 const MAX_PROJECTILES = 96;
@@ -144,15 +157,33 @@ const round2 = (v: number): number => Math.round(v * 100) / 100;
 const COMPLETION_DELAY = 1.2;
 /** Seconds the death pose holds before the respawn (classic arcade death pause). */
 const DEATH_DURATION = 0.9;
+/** Simulation steps an enemy stays lit after taking a hit (~100 ms). */
+const ENEMY_FLASH_STEPS = 6;
+
 /** Seconds the hurt flinch pose shows after a damaging hit. */
 const HURT_DURATION = 0.3;
-/** Milliseconds per leg-swap in the player run cycle. */
-const RUN_FRAME_MS = 140;
+/**
+ * Simulation steps per player run-cycle frame. 8 steps ≈ 133 ms at 60 Hz, so
+ * the four-frame cycle loops in about half a second - and, being sim-driven,
+ * it freezes while paused and is deterministic under the manual clock.
+ */
+const RUN_FRAME_STEPS = 8;
 
 interface PlayerBullet extends Projectile {
   id: string;
   /** Collision ownership: always the player-projectile category (D3). */
   category: number;
+  /**
+   * Every target this projectile has already damaged, for its whole lifetime.
+   *
+   * The damage ledger is cleared each step, which is all a one-hit shot needs:
+   * it is consumed the moment it connects. A PIERCING shot outlives its first
+   * hit and can still be overlapping that same target on the next step, when
+   * the ledger no longer remembers it - so without this list a laser would
+   * re-damage one enemy every step it took to pass through. Piercing must let a
+   * shot hit MORE targets, never the same target more often.
+   */
+  hitIds: string[];
 }
 interface EnemyBullet {
   id: string;
@@ -235,10 +266,12 @@ export class LevelScene extends Phaser.Scene {
    * input disengages it immediately and permanently for the run.
    */
   private pilotEngaged = false;
+  /** True while this level is the title screen's attract demo. */
+  private attractMode = false;
   private pilotMemory: PilotMemory | null = null;
   /** Last published snapshot; the pilot's perception for the next step. */
   private lastRuntime: LevelRuntime | null = null;
-  private aiLabel?: Phaser.GameObjects.Text;
+  private aiLabel?: Phaser.GameObjects.BitmapText;
   /** Disposers for this scene's bridge commands, released on shutdown. */
   private debugDisposers: Array<() => void> = [];
   /**
@@ -253,6 +286,23 @@ export class LevelScene extends Phaser.Scene {
    */
   private ending: 'results' | 'gameOver' | null = null;
   private stepIndex = 0;
+  /** World-freeze state for heavy impacts (TASK-037). */
+  private hitStop: HitStopState = createHitStop();
+  /**
+   * Whether the step just run was held by a freeze.
+   *
+   * Published rather than `isFrozen(this.hitStop)`, which is the state AFTER
+   * the step's decrement and so reported the last frozen step as running - one
+   * step out of phase for anything reading the snapshot.
+   */
+  private hitStoppedThisStep = false;
+  /**
+   * Enemies flashing from a hit, as `enemy id -> steps of flash remaining`.
+   *
+   * Kept in the scene rather than on `EnemyState` because it is presentation
+   * only: the simulation must not carry a field that exists to tint a sprite.
+   */
+  private enemyFlash: Map<string, number> = new Map();
   private maxPlayerX = 0;
   private deaths: DeathEvent[] = [];
   private bossDamageTaken = 0;
@@ -268,6 +318,7 @@ export class LevelScene extends Phaser.Scene {
   private movingPlatforms: MovingPlatformState[] = [];
   private doors: DoorState[] = [];
   private containers: ContainerState[] = [];
+  private bridges: BridgeState[] = [];
   private supplyCarriers: SupplyCarrierState[] = [];
   private carrierDrops: CarrierDrop[] = [];
   private particles: Particle[] = [];
@@ -288,6 +339,7 @@ export class LevelScene extends Phaser.Scene {
   private movingPlatformTiles: Phaser.GameObjects.TileSprite[] = [];
   private doorImages: Phaser.GameObjects.Image[] = [];
   private containerImages: Phaser.GameObjects.Image[] = [];
+  private bridgeTiles: Phaser.GameObjects.Image[] = [];
   private particleRects: Phaser.GameObjects.Rectangle[] = [];
   private carrierImages: Phaser.GameObjects.Image[] = [];
   private subcomponentImages: Phaser.GameObjects.Image[] = [];
@@ -296,7 +348,7 @@ export class LevelScene extends Phaser.Scene {
   private enemyBulletImages: Phaser.GameObjects.Image[] = [];
   private playerBulletImages: Phaser.GameObjects.Image[] = [];
   private pickupImages: Phaser.GameObjects.Image[] = [];
-  private pickupLabels: Phaser.GameObjects.Text[] = [];
+  private pickupLabels: Phaser.GameObjects.BitmapText[] = [];
   private playerImage?: Phaser.GameObjects.Image;
   private enemyImages: Phaser.GameObjects.Image[] = [];
   private animTimeMs = 0;
@@ -306,15 +358,15 @@ export class LevelScene extends Phaser.Scene {
   private bossTeleRect?: Phaser.GameObjects.Rectangle;
   private bossZoneRect?: Phaser.GameObjects.Rectangle;
   private lifeImages: Phaser.GameObjects.Image[] = [];
-  private lifeCountText?: Phaser.GameObjects.Text;
+  private lifeCountText?: Phaser.GameObjects.BitmapText;
   private weaponIcon?: Phaser.GameObjects.Image;
-  private weaponText?: Phaser.GameObjects.Text;
-  private scoreText?: Phaser.GameObjects.Text;
-  private bossLabelText?: Phaser.GameObjects.Text;
+  private weaponText?: Phaser.GameObjects.BitmapText;
+  private scoreText?: Phaser.GameObjects.BitmapText;
+  private bossLabelText?: Phaser.GameObjects.BitmapText;
   private bossBarBack?: Phaser.GameObjects.Rectangle;
   private bossBarFill?: Phaser.GameObjects.Rectangle;
-  private overlayText?: Phaser.GameObjects.Text;
-  private overlaySubText?: Phaser.GameObjects.Text;
+  private overlayText?: Phaser.GameObjects.BitmapText;
+  private overlaySubText?: Phaser.GameObjects.BitmapText;
 
   constructor() {
     super(SCENE_KEYS.level);
@@ -331,6 +383,7 @@ export class LevelScene extends Phaser.Scene {
     // persists (registry) so the AI keeps playing across level transitions
     // and restarts until the player switches it off (I in-level).
     this.pilotEngaged = this.registry.get('autopilot') === true;
+    this.attractMode = this.registry.get('attractMode') === true;
     this.pilotMemory = this.pilotEngaged ? createPilotMemory(this.buildPilotGeometry()) : null;
     // Phaser reuses the scene instance across scene.start calls, so pooled
     // render arrays must be cleared before they are rebuilt; otherwise they
@@ -351,6 +404,7 @@ export class LevelScene extends Phaser.Scene {
     this.pickupImages = [];
     this.pickupLabels = [];
     this.containerImages = [];
+    this.bridgeTiles = [];
     this.particleRects = [];
     this.carrierImages = [];
     this.lifeImages = [];
@@ -365,10 +419,10 @@ export class LevelScene extends Phaser.Scene {
     this.bossImage = this.add.image(0, 0, 'art/boss-siege-walker').setOrigin(0, 0).setVisible(false);
     this.bossTeleRect = this.add.rectangle(0, 0, 72, 64);
     this.bossTeleRect.setOrigin(0, 0);
-    this.bossTeleRect.setStrokeStyle(3, 0xffff66);
-    this.bossTeleRect.setFillStyle(0x000000, 0);
+    this.bossTeleRect.setStrokeStyle(3, PALETTE_HEX.YELLOW);
+    this.bossTeleRect.setFillStyle(PALETTE_HEX.BLACK, 0);
     this.bossTeleRect.setVisible(false);
-    this.bossZoneRect = this.add.rectangle(0, 0, SHOCKWAVE_RADIUS * 2, 6, 0xffcc44);
+    this.bossZoneRect = this.add.rectangle(0, 0, SHOCKWAVE_RADIUS * 2, 6, PALETTE_HEX.GOLD);
     this.bossZoneRect.setOrigin(0.5, 1);
     this.bossZoneRect.setVisible(false);
 
@@ -381,54 +435,47 @@ export class LevelScene extends Phaser.Scene {
     for (let i = 0; i < MAX_LIFE_ICONS; i++) {
       this.lifeImages.push(this.add.image(LIFE_X + i * LIFE_STEP, 8, 'art/ui-life').setOrigin(0, 0).setDepth(100));
     }
-    this.lifeCountText = this.add
-      .text(LIFE_X + 18, 9, '', { fontFamily: 'monospace', fontSize: '13px', color: '#e8f1ff' })
-      .setDepth(100);
+    this.lifeCountText = drawText(this, LIFE_X + 18, 9, '', { size: 16, color: '#e8f1ff', depth: 100 });
     this.weaponIcon = this.add.image(WEAPON_X, 12, 'art/bullet-pulse').setOrigin(0, 0).setDepth(100);
-    this.weaponText = this.add
-      .text(WEAPON_X + 18, 16, '', { fontFamily: 'monospace', fontSize: '16px', color: '#e8f1ff' })
-      .setDepth(100);
-    this.scoreText = this.add
-      .text(LOGICAL_WIDTH - 12, 16, '', { fontFamily: 'monospace', fontSize: '16px', color: '#e8f1ff' })
-      .setOrigin(1, 0)
-      .setDepth(100);
-    this.add
-      .text(LOGICAL_WIDTH - 12, LOGICAL_HEIGHT - 16, 'v' + GAME_VERSION, { fontFamily: 'monospace', fontSize: '12px', color: '#5c6c8c' })
-      .setOrigin(1, 0.5)
-      .setDepth(100);
-    this.add
-      .text(12, LOGICAL_HEIGHT - 16, 'Arrows move/aim   Z jump   X fire   Up+X diagonal   Esc pause', {
-        fontFamily: 'monospace',
-        fontSize: '13px',
-        color: '#5c6c8c'
-      })
-      .setOrigin(0, 0.5)
-      .setDepth(100);
-    // Autoplay indicator, visible only while the AI pilot is in control.
-    this.aiLabel = this.add
-      .text(LOGICAL_WIDTH / 2, LOGICAL_HEIGHT - 16, 'AI PLAYING - press any control key to take over', {
-        fontFamily: 'monospace',
-        fontSize: '13px',
-        color: '#ffd970'
-      })
-      .setOrigin(1, 0.5)
-      .setDepth(100)
-      .setVisible(this.pilotEngaged);
-    this.bossLabelText = this.add
-      .text(LOGICAL_WIDTH / 2, 4, '', { fontFamily: 'monospace', fontSize: '12px', color: '#ffb3a7' })
-      .setOrigin(0.5, 0)
-      .setDepth(100)
-      .setVisible(false);
-    this.bossBarBack = this.add.rectangle(LOGICAL_WIDTH / 2 - 150, 28, 300, 10, 0x331111);
+    this.weaponText = drawText(this, WEAPON_X + 18, 16, '', { size: 16, color: '#e8f1ff', depth: 100 });
+    this.scoreText = drawText(this, LOGICAL_WIDTH - 12, 16, '', { size: 16, color: '#e8f1ff', originX: 1, originY: 0, depth: 100 });
+    drawText(this, LOGICAL_WIDTH - 12, LOGICAL_HEIGHT - 16, 'v' + GAME_VERSION, {
+      size: 8,
+      color: '#5c6c8c',
+      originX: 1,
+      originY: 0.5,
+      depth: 100
+    });
+    drawText(this, 12, LOGICAL_HEIGHT - 16, 'Arrows move/aim   Z jump   X fire   Up+X diagonal   Esc pause', {
+      size: 8,
+      color: '#5c6c8c',
+      originX: 0,
+      originY: 0.5,
+      depth: 100
+    });
+    // Autoplay indicator, visible only while the AI pilot is in control. The
+    // attract demo gets its own wording: any key returns to the title.
+    this.aiLabel = drawText(this, LOGICAL_WIDTH / 2, LOGICAL_HEIGHT - 16,
+      this.attractMode ? 'DEMO - PRESS ANY KEY' : 'AI PLAYING - press any control key to take over', {
+      size: 8,
+      color: '#ffd970',
+      originX: 0.5,
+      originY: 0.5,
+      depth: 100
+    });
+    this.aiLabel.setVisible(this.pilotEngaged);
+    this.bossLabelText = drawText(this, LOGICAL_WIDTH / 2, 4, '', { size: 16, color: '#ffb3a7', originX: 0.5, originY: 0, depth: 100 });
+    this.bossLabelText.setVisible(false);
+    this.bossBarBack = this.add.rectangle(LOGICAL_WIDTH / 2 - 150, 28, 300, 10, PALETTE_HEX.RED_DARK);
     this.bossBarBack.setOrigin(0, 0.5);
     this.bossBarBack.setVisible(false);
     this.bossBarBack.setDepth(100);
-    this.bossBarFill = this.add.rectangle(LOGICAL_WIDTH / 2 - 150, 28, 300, 10, 0xff5544);
+    this.bossBarFill = this.add.rectangle(LOGICAL_WIDTH / 2 - 150, 28, 300, 10, PALETTE_HEX.RED_LIGHT);
     this.bossBarFill.setOrigin(0, 0.5);
     this.bossBarFill.setVisible(false);
     this.bossBarFill.setDepth(100);
-    this.overlayText = this.add.text(LOGICAL_WIDTH / 2, LOGICAL_HEIGHT / 2, '', { fontFamily: 'monospace', fontSize: '34px', color: '#e8f1ff' }).setOrigin(0.5).setDepth(110);
-    this.overlaySubText = this.add.text(LOGICAL_WIDTH / 2, LOGICAL_HEIGHT / 2 + 40, '', { fontFamily: 'monospace', fontSize: '16px', color: '#8fa3c7' }).setOrigin(0.5).setDepth(110);
+    this.overlayText = drawText(this, LOGICAL_WIDTH / 2, LOGICAL_HEIGHT / 2, '', { size: 32, color: '#e8f1ff', originX: 0.5, originY: 0.5, depth: 110 });
+    this.overlaySubText = drawText(this, LOGICAL_WIDTH / 2, LOGICAL_HEIGHT / 2 + 40, '', { size: 16, color: '#8fa3c7', originX: 0.5, originY: 0.5, depth: 110 });
     this.overlayText.setVisible(false);
     this.overlaySubText.setVisible(false);
     this.keyboard.attach(window);
@@ -464,10 +511,11 @@ export class LevelScene extends Phaser.Scene {
     this.registerDebugCommands();
     hookShutdown(this.events, () => this.shutdown());
     reportScene(SCENE_KEYS.level);
+    attachScanlines(this);
     this.publishRuntime();
     const audio = this.registry.get('audio') as AudioService | undefined;
     audio?.setSettings(this.settings);
-    audio?.setMusic(true);
+    audio?.setMusic(stageTrack(this.levelIndex));
   }
 
   public shutdown(): void {
@@ -491,7 +539,23 @@ export class LevelScene extends Phaser.Scene {
       this.touch = null;
     }
     const audio = this.registry.get('audio') as AudioService | undefined;
-    audio?.setMusic(false);
+    audio?.setMusic(null);
+  }
+
+  /**
+   * Keep the music matched to the situation.
+   *
+   * Called every step; `setMusic` ignores a request for the track already
+   * playing, so this cannot restart the loop or stutter. The boss theme holds
+   * until the fight is genuinely over, then the stage theme returns.
+   */
+  private syncMusic(): void {
+    const audio = this.registry.get('audio') as AudioService | undefined;
+    if (!audio) {
+      return;
+    }
+    const fighting = this.boss.active && isBossAlive(this.boss);
+    audio.setMusic(fighting ? 'boss' : stageTrack(this.levelIndex));
   }
 
   public override update(_time: number, deltaMs: number): void {
@@ -563,6 +627,9 @@ export class LevelScene extends Phaser.Scene {
     this.health = createHealthState(startingLives);
     this.weapon = createWeaponState(DEFAULT_WEAPON);
     this.playerBullets = [];
+    this.hitStop = createHitStop();
+    this.hitStoppedThisStep = false;
+    this.enemyFlash.clear();
     this.enemyBullets = [];
     this.enemies = [];
     this.pickups = this.level.pickups.map((p) => ({ id: p.id, x: p.x, y: p.y, width: 18, height: 18, weapon: p.weapon, collected: false }));
@@ -571,6 +638,7 @@ export class LevelScene extends Phaser.Scene {
     this.movingPlatforms = createMovingPlatformStates(this.level.movingPlatforms);
     this.doors = createDoorStates(this.level.doors);
     this.containers = createContainerStates(this.level.containers);
+    this.bridges = createBridgeStates(this.level.bridges ?? []);
     this.supplyCarriers = createSupplyCarrierStates(this.level.supplyCarriers ?? []);
     this.carrierDrops = [];
     this.particles = [];
@@ -821,7 +889,15 @@ export class LevelScene extends Phaser.Scene {
   /** Static level knowledge the pilot may use, rebuilt for the current level. */
   private buildPilotGeometry(): PilotGeometry {
     return {
-      pits: pitsFromSolids(this.level.solids, GROUND_Y),
+      // Bridge spans join the pit list whatever stage they are in. The pilot
+      // builds this once at level start and a bridge can vanish at any moment
+      // afterwards, so the only safe advice is "there may be nothing here":
+      // jumping an intact bridge costs nothing, walking onto a failing one
+      // costs a life.
+      pits: [
+        ...pitsFromSolids(this.level.solids, GROUND_Y),
+        ...bridgeGaps(createBridgeStates(this.level.bridges ?? []))
+      ],
       platforms: platformRanges(this.level.oneWays),
       spikes: spikeRanges(this.level.hazards, GROUND_Y),
       bossArenaX0: this.level.boss.x0,
@@ -830,6 +906,15 @@ export class LevelScene extends Phaser.Scene {
   }
 
   /** Hand control back to the human for the rest of this run. */
+  private endAttract(): void {
+    this.attractMode = false;
+    this.pilotEngaged = false;
+    this.pilotMemory = null;
+    this.registry.set('attractMode', false);
+    this.registry.set('autopilot', false);
+    this.scene.start(SCENE_KEYS.title);
+  }
+
   private disengagePilot(): void {
     this.pilotEngaged = false;
     this.pilotMemory = null;
@@ -863,12 +948,19 @@ export class LevelScene extends Phaser.Scene {
       return;
     }
     this.stepIndex += 1;
+    this.syncMusic();
     const debug = this.readDebugInput();
     const touchInput = this.touch ? this.touch.read() : createNeutralInput();
     const device = mergeInput(this.keyboard.build(), this.gamepad.build());
     const humanInput = mergeInput(device, touchInput);
-    // Any human gameplay input takes over from the AI pilot immediately.
+    // Any human gameplay input takes over from the AI pilot immediately -
+    // except in the attract demo, where it ends the demo and returns to the
+    // title, which is what an arcade machine does when you touch the stick.
     if (this.pilotEngaged && !isNeutralInput(humanInput)) {
+      if (this.attractMode) {
+        this.endAttract();
+        return;
+      }
       this.disengagePilot();
     }
     const pilotInput = this.pilotEngaged ? this.decidePilotStep() : createNeutralInput();
@@ -893,6 +985,22 @@ export class LevelScene extends Phaser.Scene {
       return;
     }
 
+    // Hit-stop: hold the world for a few steps so a heavy impact lands.
+    //
+    // This sits with the death pause and the completion timer below, and works
+    // the same way: the step still happens - input is read, `stepIndex` has
+    // already advanced, and `advanceSteps` still counts it - but the world does
+    // not move. That is what keeps `advanceSteps(n)` advancing exactly n steps
+    // while the freeze is running.
+    const freeze = tickHitStop(this.hitStop);
+    this.hitStop = freeze.state;
+    this.hitStoppedThisStep = freeze.frozen;
+    if (freeze.frozen) {
+      this.clearPressedEdges();
+      this.publishRuntime();
+      return;
+    }
+
     // Death pause: the world holds while the death pose plays out, then the
     // life loss applies and the player respawns (or the run ends).
     if (this.deathTimer >= 0) {
@@ -906,6 +1014,16 @@ export class LevelScene extends Phaser.Scene {
     }
 
     this.hurtTimer = Math.max(0, this.hurtTimer - FIXED_DT);
+
+    // Age the enemy hit flashes; entries are dropped rather than left at zero
+    // so the map cannot grow across a long run (the soak test watches this).
+    for (const [id, steps] of this.enemyFlash) {
+      if (steps <= 1) {
+        this.enemyFlash.delete(id);
+      } else {
+        this.enemyFlash.set(id, steps - 1);
+      }
+    }
 
     this.health = tickInvuln(this.health, FIXED_DT);
 
@@ -924,11 +1042,21 @@ export class LevelScene extends Phaser.Scene {
       }
       return next;
     });
+    // Collapsing bridges advance with the world. The load test uses the
+    // player position from the end of the previous step, the same one-step lag
+    // every other dynamic solid here already has.
+    if (this.bridges.length > 0) {
+      this.bridges = this.bridges.map((b) =>
+        stepBridge(b, FIXED_DT, this.player.grounded && bridgeCarries(b, this.player.x, PLAYER_WIDTH, this.player.y))
+      );
+    }
+
     const dynamicSolids = [
       ...this.level.solids,
       ...platformDeltas.map((p) => p.rect),
       ...closedDoorRects(this.doors),
-      ...solidContainerRects(this.containers)
+      ...solidContainerRects(this.containers),
+      ...solidBridgeRects(this.bridges)
     ];
 
     const playerResult = stepPlatformer(this.player, this.stepInput, FIXED_DT, dynamicSolids, this.level.oneWays, {
@@ -1021,7 +1149,7 @@ export class LevelScene extends Phaser.Scene {
     const fireResult = stepWeapon(this.weapon, FIXED_DT, { pressed: this.stepInput.firePressed, held: this.stepInput.fireHeld });
     this.weapon = fireResult.weapon;
     if (fireResult.fired) {
-      this.sfx('shoot');
+      this.sfx(fireSound(this.weapon.id));
     }
     if (fireResult.projectiles.length > 0) {
       const h = currentHeight(this.player);
@@ -1038,6 +1166,7 @@ export class LevelScene extends Phaser.Scene {
           vy: rotated.vy,
           id: this.makeId('pb'),
           category: CollisionCategory.playerProjectile,
+          hitIds: [],
           x: gunX,
           y: gunY
         };
@@ -1066,11 +1195,13 @@ export class LevelScene extends Phaser.Scene {
       this.enemyBullets = [];
       const bossDef = getBossDef(this.level.boss.id);
       this.spawnFx([
-        { kind: 'burst', x: this.boss.x + bossDef.width / 2, y: this.boss.y + bossDef.height / 2 },
-        { kind: 'burst', x: this.boss.x + bossDef.width / 2, y: this.boss.y + bossDef.height / 2 }
+        { kind: 'explosion', x: this.boss.x + bossDef.width / 2, y: this.boss.y + bossDef.height / 2 },
+        { kind: 'explosion', x: this.boss.x + bossDef.width / 4, y: this.boss.y + bossDef.height / 3 },
+        { kind: 'explosion', x: this.boss.x + (bossDef.width * 3) / 4, y: this.boss.y + (bossDef.height * 2) / 3 }
       ]);
       this.sfx('explosion');
       this.shake('bossDefeat');
+      this.freeze('bossDefeat');
     }
     if (result.action.kind === 'shockwave') {
       this.sfx('explosion');
@@ -1115,6 +1246,38 @@ export class LevelScene extends Phaser.Scene {
         });
       }
       void len;
+    }
+
+    if (result.action.kind === 'volley') {
+      // A flat sweep at one of two heights: the high one passes over a crouch,
+      // the low one can only be jumped. The dodge is about what your body is
+      // doing rather than where you are standing, which is what makes this
+      // fight read differently from the Walker's shockwave (jump on cue) and
+      // the Warden's aimed burst (step aside).
+      const def = getBossDef(this.level.boss.id);
+      const y = result.action.volleyY ?? VOLLEY_HEIGHTS[0];
+      const facing = this.player.x < result.action.x ? -1 : 1;
+      const originX = result.action.x + (facing < 0 ? 0 : def.width);
+      // Three shots strung out horizontally, so the sweep reads as a wall
+      // coming at you rather than as a single pellet.
+      for (let i = 0; i < 3; i++) {
+        if (this.enemyBullets.length >= MAX_PROJECTILES) {
+          break;
+        }
+        this.enemyBullets.push({
+          sourceKind: this.level.boss.id,
+          id: this.makeId('bb'),
+          x: originX + facing * i * 22,
+          y,
+          vx: facing * def.burstSpeed,
+          vy: 0,
+          ttl: 3,
+          damage: 1,
+          arcGravity: 0,
+          category: CollisionCategory.enemyProjectile
+        });
+      }
+      this.sfx('telegraph');
     }
   }
 
@@ -1191,32 +1354,34 @@ export class LevelScene extends Phaser.Scene {
     }
     const surviving: PlayerBullet[] = [];
     for (const bullet of this.playerBullets) {
-      let consumed = false;
       if (bullet.category !== CollisionCategory.playerProjectile) {
         surviving.push(bullet);
         continue;
       }
-      for (let i = 0; i < this.enemies.length; i++) {
+      let pierceLeft = bullet.pierce;
+      let hitIds = bullet.hitIds;
+      for (let i = 0; i < this.enemies.length && pierceLeft > 0; i++) {
         const enemy = this.enemies[i];
         if (!isAlive(enemy) || !this.bulletHitsRect(bullet.x, bullet.y, 8, 4, enemy.x, enemy.y, enemyWidth(enemy), enemyHeight(enemy))) {
           continue;
         }
-        if (!recordHit(this.ledger, bullet.id, enemy.id)) {
+        if (hitIds.includes(enemy.id) || !recordHit(this.ledger, bullet.id, enemy.id)) {
           continue;
         }
         this.spawnFx([{ kind: 'spark', x: bullet.x, y: bullet.y }]);
         this.enemies[i] = damageEnemy(enemy, bullet.damage);
+        this.enemyFlash.set(enemy.id, ENEMY_FLASH_STEPS);
         if (!isAlive(this.enemies[i])) {
           this.killsByKind[enemy.kind] = (this.killsByKind[enemy.kind] ?? 0) + 1;
           this.score += enemyScore(enemy.kind);
-          this.spawnFx([{ kind: 'burst', x: enemy.x + enemyWidth(enemy) / 2, y: enemy.y + enemyHeight(enemy) / 2 }]);
-          this.sfx('hit');
+          this.spawnFx([{ kind: 'explosion', x: enemy.x + enemyWidth(enemy) / 2, y: enemy.y + enemyHeight(enemy) / 2 }]);
+          this.sfx('enemyDeath');
         }
-        consumed = true;
-        break;
+        hitIds = [...hitIds, enemy.id];
+        pierceLeft -= 1;
       }
-      if (!consumed) {
-        surviving.push(bullet);
+      if (pierceLeft > 0) {
+        surviving.push(pierceLeft === bullet.pierce ? bullet : { ...bullet, pierce: pierceLeft, hitIds });
       }
     }
     this.playerBullets = surviving;
@@ -1228,17 +1393,18 @@ export class LevelScene extends Phaser.Scene {
     }
     const surviving: PlayerBullet[] = [];
     for (const bullet of this.playerBullets) {
-      let consumed = false;
       if (bullet.category !== CollisionCategory.playerProjectile) {
         surviving.push(bullet);
         continue;
       }
-      for (let i = 0; i < this.containers.length; i++) {
+      let pierceLeft = bullet.pierce;
+      let hitIds = bullet.hitIds;
+      for (let i = 0; i < this.containers.length && pierceLeft > 0; i++) {
         const c = this.containers[i];
         if (c.destroyed || !this.bulletHitsRect(bullet.x, bullet.y, 8, 4, c.x, c.y, c.width, c.height)) {
           continue;
         }
-        if (!recordHit(this.ledger, bullet.id, c.id)) {
+        if (hitIds.includes(c.id) || !recordHit(this.ledger, bullet.id, c.id)) {
           continue;
         }
         this.spawnFx([{ kind: 'spark', x: bullet.x, y: bullet.y }]);
@@ -1249,11 +1415,11 @@ export class LevelScene extends Phaser.Scene {
           this.sfx('explosion');
           this.shake('explosion');
         }
-        consumed = true;
-        break;
+        hitIds = [...hitIds, c.id];
+        pierceLeft -= 1;
       }
-      if (!consumed) {
-        surviving.push(bullet);
+      if (pierceLeft > 0) {
+        surviving.push(pierceLeft === bullet.pierce ? bullet : { ...bullet, pierce: pierceLeft, hitIds });
       }
     }
     this.playerBullets = surviving;
@@ -1265,15 +1431,16 @@ export class LevelScene extends Phaser.Scene {
     }
     const surviving: PlayerBullet[] = [];
     for (const bullet of this.playerBullets) {
-      let consumed = false;
       if (bullet.category !== CollisionCategory.playerProjectile) {
         surviving.push(bullet);
         continue;
       }
-      for (let i = 0; i < this.supplyCarriers.length; i++) {
+      let pierceLeft = bullet.pierce;
+      for (let i = 0; i < this.supplyCarriers.length && pierceLeft > 0; i++) {
         const c = this.supplyCarriers[i];
-        // Single-hit object: no damage ledger needed (later same-step pellets
-        // see the destroyed state and pass through).
+        // Single-hit object: neither the ledger nor the bullet's lifetime hit
+        // list is needed, because a carrier is destroyed outright - later
+        // same-step pellets and later steps see `!alive` and pass through.
         if (!c.alive || !this.bulletHitsRect(bullet.x, bullet.y, 8, 4, c.x, c.y, CARRIER_WIDTH, CARRIER_HEIGHT)) {
           continue;
         }
@@ -1284,11 +1451,10 @@ export class LevelScene extends Phaser.Scene {
         }
         this.spawnFx([{ kind: 'burst', x: c.x + CARRIER_WIDTH / 2, y: c.y + CARRIER_HEIGHT / 2 }]);
         this.sfx('explosion');
-        consumed = true;
-        break;
+        pierceLeft -= 1;
       }
-      if (!consumed) {
-        surviving.push(bullet);
+      if (pierceLeft > 0) {
+        surviving.push(pierceLeft === bullet.pierce ? bullet : { ...bullet, pierce: pierceLeft });
       }
     }
     this.playerBullets = surviving;
@@ -1305,17 +1471,18 @@ export class LevelScene extends Phaser.Scene {
     }
     const surviving: PlayerBullet[] = [];
     for (const bullet of this.playerBullets) {
-      let consumed = false;
       if (bullet.category !== CollisionCategory.playerProjectile) {
         surviving.push(bullet);
         continue;
       }
-      for (let i = 0; i < this.subcomponents.length; i++) {
+      let pierceLeft = bullet.pierce;
+      let hitIds = bullet.hitIds;
+      for (let i = 0; i < this.subcomponents.length && pierceLeft > 0; i++) {
         const s = this.subcomponents[i];
         if (!s.alive || !this.bulletHitsRect(bullet.x, bullet.y, 8, 4, s.x, s.y, s.width, s.height)) {
           continue;
         }
-        if (!recordHit(this.ledger, bullet.id, s.id)) {
+        if (hitIds.includes(s.id) || !recordHit(this.ledger, bullet.id, s.id)) {
           continue;
         }
         this.spawnFx([{ kind: 'spark', x: bullet.x, y: bullet.y }]);
@@ -1323,14 +1490,14 @@ export class LevelScene extends Phaser.Scene {
         this.subcomponents[i] = { ...s, health, alive: health > 0 };
         if (health <= 0) {
           this.score += s.score;
-          this.spawnFx([{ kind: 'burst', x: s.x + s.width / 2, y: s.y + s.height / 2 }]);
-          this.sfx('hit');
+          this.spawnFx([{ kind: 'explosion', x: s.x + s.width / 2, y: s.y + s.height / 2 }]);
+          this.sfx('enemyDeath');
         }
-        consumed = true;
-        break;
+        hitIds = [...hitIds, s.id];
+        pierceLeft -= 1;
       }
-      if (!consumed) {
-        surviving.push(bullet);
+      if (pierceLeft > 0) {
+        surviving.push(pierceLeft === bullet.pierce ? bullet : { ...bullet, pierce: pierceLeft, hitIds });
       }
     }
     this.playerBullets = surviving;
@@ -1351,17 +1518,27 @@ export class LevelScene extends Phaser.Scene {
         surviving.push(bullet);
         continue;
       }
-      if (this.bulletHitsRect(bullet.x, bullet.y, 8, 4, this.boss.x, this.boss.y, def.width, def.height) && recordHit(this.ledger, bullet.id, 'boss')) {
-        const result = damageBoss(this.boss, bullet.damage);
-        this.boss = result.boss;
-        if (result.applied) {
-          this.bossDamageTaken += bullet.damage;
-          this.spawnFx([{ kind: 'spark', x: bullet.x, y: bullet.y }]);
-          this.sfx('hit');
-          this.shake('bossHit');
-        }
-      } else {
+      const hitsBoss =
+        this.bulletHitsRect(bullet.x, bullet.y, 8, 4, this.boss.x, this.boss.y, def.width, def.height) &&
+        !bullet.hitIds.includes('boss') &&
+        recordHit(this.ledger, bullet.id, 'boss');
+      if (!hitsBoss) {
         surviving.push(bullet);
+        continue;
+      }
+      const result = damageBoss(this.boss, bullet.damage);
+      this.boss = result.boss;
+      if (result.applied) {
+        this.bossDamageTaken += bullet.damage;
+        this.spawnFx([{ kind: 'spark', x: bullet.x, y: bullet.y }]);
+        this.sfx('bossHit');
+        this.shake('bossHit');
+        this.freeze('bossHit');
+      }
+      // A piercing shot carries on through the boss body; the lifetime hit list
+      // is what stops it damaging the boss again on the way out.
+      if (bullet.pierce > 1) {
+        surviving.push({ ...bullet, pierce: bullet.pierce - 1, hitIds: [...bullet.hitIds, 'boss'] });
       }
     }
     this.playerBullets = surviving;
@@ -1454,9 +1631,10 @@ export class LevelScene extends Phaser.Scene {
     }
     this.pendingDeathCause = cause;
     this.deathTimer = DEATH_DURATION;
-    this.spawnFx([{ kind: 'burst', x: this.player.x + PLAYER_WIDTH / 2, y: this.player.y - PLAYER_HEIGHT / 2 }]);
-    this.sfx('explosion');
+    this.spawnFx([{ kind: 'explosion', x: this.player.x + PLAYER_WIDTH / 2, y: this.player.y - PLAYER_HEIGHT / 2 }]);
+    this.sfx('playerDeath');
     this.shake('playerDeath');
+    this.freeze('playerDeath');
   }
 
   /** Applies the life loss at the end of the death pause, then respawns at the checkpoint or ends the run. */
@@ -1518,6 +1696,11 @@ export class LevelScene extends Phaser.Scene {
   }
 
   /** Camera kick for combat impact; suppressed by the reduced-flash setting. */
+  /** Freeze the world briefly on a heavy impact; honours reduced flash. */
+  private freeze(event: HitStopEvent): void {
+    this.hitStop = triggerHitStop(this.hitStop, event, this.settings.reducedFlash);
+  }
+
   private shake(event: ShakeEvent): void {
     const spec = shakeFor(event, this.settings.reducedFlash);
     if (spec === null) {
@@ -1603,6 +1786,7 @@ export class LevelScene extends Phaser.Scene {
       maxPlayerBulletsSeen: this.maxPlayerBulletsSeen,
       maxEnemyBulletsSeen: this.maxEnemyBulletsSeen,
       particleCount: this.particles.length,
+      bridges: this.bridges.map((b) => ({ id: b.id, x: b.x, y: b.y, width: b.width, stage: b.stage })),
       paused: this.paused,
       gameOver: this.health.gameOver,
       completing: this.completionTimer >= 0,
@@ -1610,6 +1794,7 @@ export class LevelScene extends Phaser.Scene {
       manualClock: this.manualClock,
       autopilot: this.pilotEngaged,
       stepIndex: this.stepIndex,
+      hitStopped: this.hitStoppedThisStep,
       maxPlayerX: round2(this.maxPlayerX),
       ending: this.ending,
       deaths: this.deaths.map((d) => ({ ...d })),
@@ -1686,7 +1871,7 @@ export class LevelScene extends Phaser.Scene {
 
     for (const r of this.level.hazards) {
       // The pit is a dark void; its rim carries hazard stripes as the warning.
-      const voidRect = this.add.rectangle(0, 0, r.width, r.height, 0x05070c).setOrigin(0, 0);
+      const voidRect = this.add.rectangle(0, 0, r.width, r.height, PALETTE_HEX.VOID).setOrigin(0, 0);
       this.hazardVoids.push(voidRect);
       const rim = this.add.tileSprite(0, 0, r.width, 8, 'art/tile-hazard').setOrigin(0, 0);
       rim.tilePositionX = r.x;
@@ -1764,6 +1949,25 @@ export class LevelScene extends Phaser.Scene {
       }
     });
 
+    // Collapsing bridges: solid ground while intact, shuddering visibly once
+    // committed, hidden once gone. The shudder is the only warning the player
+    // gets, so it reads as motion rather than as a colour change - which also
+    // means reduced flash has nothing to suppress here.
+    // The theme's own ledge tile, not the jungle one: a causeway drawn with
+    // Level 1's planks in a volcanic stage reads as a different game.
+    this.syncImagePool(this.bridgeTiles, this.bridges.length, themeForLevel(this.level.id).oneWayTile);
+    this.bridges.forEach((b, i) => {
+      const image = this.bridgeTiles[i];
+      image.setVisible(b.stage !== 'gone');
+      if (b.stage === 'gone') {
+        return;
+      }
+      image.setOrigin(0, 0);
+      image.setDisplaySize(b.width, b.height);
+      const shudder = b.stage === 'failing' ? ((this.stepIndex % 4) < 2 ? 1 : -1) : 0;
+      image.setPosition(b.x - this.cameraX, b.y + shudder);
+    });
+
     this.renderPlayer();
 
     this.syncImagePool(this.playerBulletImages, this.playerBullets.length, 'art/bullet-pulse');
@@ -1790,7 +1994,7 @@ export class LevelScene extends Phaser.Scene {
       }
     });
 
-    this.syncPool(this.particleRects, this.particles.length, 4, 4, 0xffffff);
+    this.syncPool(this.particleRects, this.particles.length, 4, 4, PALETTE_HEX.WHITE);
     this.particles.forEach((p, i) => {
       const rect = this.particleRects[i];
       rect.setSize(p.size, p.size);
@@ -1801,14 +2005,23 @@ export class LevelScene extends Phaser.Scene {
 
     this.syncImagePool(this.enemyImages, this.enemies.length, 'art/enemy-runner');
     this.syncPool(this.telegraphRects, this.enemies.length, 30, 38, 0, 0);
-    this.syncPool(this.aimLineRects, this.enemies.length, 110, 3, 0xffee88);
+    this.syncPool(this.aimLineRects, this.enemies.length, 110, 3, PALETTE_HEX.GOLD_LIGHT);
     this.enemies.forEach((e, i) => {
       const image = this.enemyImages[i];
       const tele = this.telegraphRects[i];
       const aim = this.aimLineRects[i];
       const w = enemyWidth(e);
       const hh = enemyHeight(e);
-      image.setTexture(enemyTexture(e.kind));
+      image.setTexture(enemyFrame(e, this.stepIndex));
+      // Damage flash: a hit enemy lights up for a few steps so a connecting
+      // shot is unmistakable even when the target has health left. Under
+      // reduced flash it warms rather than pops, which still reads as "hit"
+      // without the bright strobe.
+      if (this.enemyFlash.has(e.id)) {
+        image.setTint(this.settings.reducedFlash ? PALETTE_HEX.RED_LIGHT : PALETTE_HEX.WHITE).setTintMode(Phaser.TintModes.FILL);
+      } else {
+        image.clearTint();
+      }
       // Sprites are authored facing left; flip when the enemy faces right.
       image.setFlipX(e.facing > 0);
       image.setOrigin(0, 0);
@@ -1839,7 +2052,7 @@ export class LevelScene extends Phaser.Scene {
       image.setOrigin(0, 0);
       image.setPosition(p.x - this.cameraX, p.y);
       label.setPosition(p.x - this.cameraX + 9, p.y + 9);
-      label.setText(pickupLetter(p.weapon));
+      setText(label, pickupLetter(p.weapon));
     });
     // Falling carrier drops reuse the pickup visuals.
     this.carrierDrops.forEach((d, k) => {
@@ -1849,7 +2062,7 @@ export class LevelScene extends Phaser.Scene {
       image.setOrigin(0, 0);
       image.setPosition(d.x - this.cameraX, d.y);
       label.setPosition(d.x - this.cameraX + 9, d.y + 9);
-      label.setText(pickupLetter(d.weapon));
+      setText(label, pickupLetter(d.weapon));
     });
 
     this.syncImagePool(this.carrierImages, this.supplyCarriers.length, 'art/prop-skiff');
@@ -1868,12 +2081,12 @@ export class LevelScene extends Phaser.Scene {
         // Sprite boss: stretched to the hitbox, flipped toward the player,
         // warm tint during the vulnerable window.
         this.bossImage.setVisible(true);
-        this.bossImage.setTexture(bossTexture(this.level.boss.id));
+        this.bossImage.setTexture(bossFrame(this.level.boss.id, this.stepIndex));
         this.bossImage.setDisplaySize(bossDef.width, bossDef.height);
         this.bossImage.setPosition(this.boss.x - this.cameraX, this.boss.y);
         this.bossImage.setFlipX(this.player.x > this.boss.x + bossDef.width / 2);
         if (this.boss.vulnerable) {
-          this.bossImage.setTint(0xffd070);
+          this.bossImage.setTint(PALETTE_HEX.GOLD_LIGHT);
         } else {
           this.bossImage.clearTint();
         }
@@ -1912,7 +2125,7 @@ export class LevelScene extends Phaser.Scene {
     this.bossLabelText?.setVisible(showBossBar);
     if (showBossBar && this.bossBarFill && this.bossLabelText) {
       this.bossBarFill.setSize((300 * Math.max(0, this.boss.health)) / bossDef.health, 10);
-      this.bossLabelText.setText(bossDef.name.toUpperCase());
+      setText(this.bossLabelText, bossDef.name);
     }
 
     // HUD: life icons (collapsing to "icon xN" at high counts), weapon, score.
@@ -1920,10 +2133,10 @@ export class LevelScene extends Phaser.Scene {
     this.lifeImages.forEach((icon, i) => {
       icon.setVisible(i < lifeLayout.icons);
     });
-    this.lifeCountText?.setText(lifeLayout.countLabel ?? '');
+    if (this.lifeCountText) { setText(this.lifeCountText, lifeLayout.countLabel ?? ''); }
     this.weaponIcon?.setTexture(bulletTexture(this.weapon.id));
-    this.weaponText.setText(getWeapon(this.weapon.id).name.toUpperCase());
-    this.scoreText.setText('SCORE ' + this.score);
+    setText(this.weaponText, pickupLetter(this.weapon.id) + ' ' + getWeapon(this.weapon.id).name);
+    setText(this.scoreText, 'SCORE ' + this.score);
 
     if (this.completionTimer >= 0) {
       this.showOverlay('LEVEL COMPLETE', '');
@@ -1947,6 +2160,13 @@ export class LevelScene extends Phaser.Scene {
     const feetY = this.deathTimer >= 0 ? Math.min(this.player.y, LOGICAL_HEIGHT - 4) : this.player.y;
     image.setPosition(this.player.x - this.cameraX, feetY);
     image.setAlpha(this.health.invuln > 0 ? 0.55 : 1);
+    // The same damage flash the enemies get, on the hurt flinch: being hit
+    // should read instantly, not only as a lost life on the HUD.
+    if (this.hurtTimer > 0) {
+      image.setTint(this.settings.reducedFlash ? PALETTE_HEX.RED_LIGHT : PALETTE_HEX.WHITE).setTintMode(Phaser.TintModes.FILL);
+    } else {
+      image.clearTint();
+    }
   }
 
   private currentPose(): PlayerPoseKey {
@@ -1957,7 +2177,7 @@ export class LevelScene extends Phaser.Scene {
       grounded: this.player.grounded,
       speedX: this.player.vx,
       aimUp: this.stepInput.aimUp ?? false,
-      runFrame: Math.floor(this.animTimeMs / RUN_FRAME_MS) % 2
+      runFrame: Math.floor(this.stepIndex / RUN_FRAME_STEPS) % 4
     });
   }
 
@@ -2005,10 +2225,9 @@ export class LevelScene extends Phaser.Scene {
     }
   }
 
-  private syncTextPool(pool: Phaser.GameObjects.Text[], count: number): void {
+  private syncTextPool(pool: Phaser.GameObjects.BitmapText[], count: number): void {
     while (pool.length < count) {
-      const t = this.add.text(0, 0, '', { fontFamily: 'monospace', fontSize: '12px', color: '#06222b' });
-      t.setOrigin(0.5, 0.5);
+      const t = drawText(this, 0, 0, '', { size: 16, color: '#06222b', originX: 0.5, originY: 0.5 });
       pool.push(t);
     }
     for (let i = 0; i < pool.length; i++) {
@@ -2066,58 +2285,73 @@ export class LevelScene extends Phaser.Scene {
   }
 }
 
+/**
+ * Collision size straight from the archetype data.
+ *
+ * These used to be hand-written switches that happened to agree with
+ * `ENEMY_DEFS`; reading the data means a new archetype cannot be added with a
+ * hitbox that silently disagrees with its own definition.
+ */
 function enemyWidth(e: EnemyState): number {
-  if (e.kind === 'sentry' || e.kind === 'grenadier') {
-    return e.kind === 'sentry' ? 24 : 22;
-  }
-  if (e.kind === 'drone') {
-    return 22;
-  }
-  return 20;
+  return getEnemyDef(e.kind).width;
 }
 
 function enemyHeight(e: EnemyState): number {
-  if (e.kind === 'sentry') {
-    return 24;
-  }
-  if (e.kind === 'drone') {
-    return 18;
-  }
-  return 30;
+  return getEnemyDef(e.kind).height;
 }
 
-function enemyScore(kind: string): number {
-  if (kind === 'sentry') {
-    return 150;
-  }
-  if (kind === 'drone') {
-    return 120;
-  }
-  if (kind === 'grenadier') {
-    return 140;
-  }
-  return 100;
+function enemyScore(kind: EnemyKind): number {
+  return getEnemyDef(kind).score;
 }
 
+/** The fire voice for a weapon; the two new weapons sound like themselves. */
+function fireSound(weapon: WeaponId): SfxName {
+  switch (weapon) {
+    case 'scatter':
+      return 'shootScatter';
+    case 'rapid':
+      return 'shootRapid';
+    case 'laser':
+      return 'shootLaser';
+    case 'flame':
+      return 'shootFlame';
+    default:
+      return 'shoot';
+  }
+}
+
+/**
+ * The capsule letter for a weapon - the genre convention that lets a pickup be
+ * read at a glance. The HUD shows the same letter beside the weapon name, so
+ * what you grabbed and what you are holding always match.
+ */
 function pickupLetter(weapon: string): string {
-  if (weapon === 'scatter') {
-    return 'S';
+  switch (weapon) {
+    case 'scatter':
+      return 'S';
+    case 'rapid':
+      return 'R';
+    case 'laser':
+      return 'L';
+    case 'flame':
+      return 'F';
+    default:
+      return 'P';
   }
-  if (weapon === 'rapid') {
-    return 'R';
-  }
-  return 'P';
 }
 
 function particleColor(kind: string): number {
   if (kind === 'muzzle') {
-    return 0xfff2a8;
+    return PALETTE_HEX.GOLD_LIGHT;
   }
   if (kind === 'spark') {
-    return 0xffd166;
+    return PALETTE_HEX.GOLD;
   }
   if (kind === 'beacon') {
-    return 0x66ffcc;
+    return PALETTE_HEX.MINT;
   }
-  return 0xff8855;
+  if (kind === 'explosion') {
+    return PALETTE_HEX.FIRE_LIGHT;
+  }
+  return PALETTE_HEX.FIRE;
 }

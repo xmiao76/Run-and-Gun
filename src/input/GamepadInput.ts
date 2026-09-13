@@ -1,8 +1,7 @@
 import { createNeutralInput, type InputState } from './InputState';
 
 /**
- * Gamepad support built on the browser Gamepad API (GAME_REQUIREMENTS.md
- * section 2, ACCEPTANCE_CRITERIA H2).
+ * Gamepad support built on the browser Gamepad API (PROJECT.md, Controls).
  *
  * The pure `mapGamepadSnapshot` turns a polled snapshot into the normalized
  * InputState (D-pad/left stick to move + aim, A jump, X/RB fire, Start pause).

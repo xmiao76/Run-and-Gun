@@ -96,8 +96,10 @@ export async function driveRun(page, config, errors) {
   const sampleSteps = config.sampleSteps ?? SAMPLE_STEPS;
 
   if (config.setup !== 'natural') {
-    if (!policy.autopilot || config.level === 2) {
-      await command(page, config.level === 2 ? 'startLevel2' : 'startLevel1');
+    if (!policy.autopilot || config.level !== 1) {
+      // Built from the level number: a two-way choice sent every level past 2
+      // to level 1 and reported it under the wrong name.
+      await command(page, `startLevel${config.level}`);
     }
     await waitForScene(page, 'level');
 

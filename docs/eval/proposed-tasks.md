@@ -8,10 +8,10 @@ delete the rest. Each carries the evidence that produced it so it can be
 judged rather than taken on trust - a finding says something looked wrong,
 not that it must be fixed, and that call stays with a person.
 
-4 proposed, 0 already covered by an existing task
+5 proposed, 0 already covered by an existing task, 1 more not shown (raise --max to see them)
 
 ---
-### TASK-029 - Repeated deaths clustered at x=1920 in level 2
+### TASK-043 - Repeated deaths clustered at x=1920 in level 2
 
 - Status: TODO
 - Source: eval finding `deathTrap@1920:L2` (CRITICAL, seen in 1 run(s): L2-mid-30lives-doorCamper; policies: doorCamper)
@@ -32,7 +32,49 @@ not that it must be fixed, and that call stays with a person.
 
 ---
 
-### TASK-030 - Repeated deaths clustered at x=2304 in level 2
+### TASK-044 - Repeated deaths clustered at x=2016 in level 2
+
+- Status: TODO
+- Source: eval finding `deathTrap@2016:L2` (CRITICAL, seen in 1 run(s): L2-mid-30lives-doorCamper; policies: doorCamper)
+- Requirement:
+  Self-play died over and over in one small stretch of level: 4 deaths in a
+  row within 96px of x=2058 (causes: enemyFire) - respawning straight back
+  into it. Respawning into the same death is a loop the player cannot learn
+  their way out of within a life. Decide whether this is intended difficulty
+  or a trap, and if it is a trap, break the cycle.
+- Acceptance criteria:
+  - [ ] A player respawning near x=2016 in level 2 is not returned straight
+        into the same death
+  - [ ] The intended rule is recorded next to the code that enforces it
+  - [ ] `npm run eval -- --baseline` no longer reports this cluster
+- Non-goals / constraints:
+  - Do not change global difficulty; this is about one location.
+  - Do not move the checkpoint if the real problem is the hazard.
+
+---
+
+### TASK-045 - Repeated deaths clustered at x=2784 in level 1
+
+- Status: TODO
+- Source: eval finding `deathTrap@2784:L1` (CRITICAL, seen in 1 run(s): L1-preboss-30lives-bossHugger; policies: bossHugger)
+- Requirement:
+  Self-play died over and over in one small stretch of level: 6 deaths in a
+  row within 96px of x=2824 (causes: bossShockwave,enemyFire) - respawning
+  straight back into it. Respawning into the same death is a loop the player
+  cannot learn their way out of within a life. Decide whether this is
+  intended difficulty or a trap, and if it is a trap, break the cycle.
+- Acceptance criteria:
+  - [ ] A player respawning near x=2784 in level 1 is not returned straight
+        into the same death
+  - [ ] The intended rule is recorded next to the code that enforces it
+  - [ ] `npm run eval -- --baseline` no longer reports this cluster
+- Non-goals / constraints:
+  - Do not change global difficulty; this is about one location.
+  - Do not move the checkpoint if the real problem is the hazard.
+
+---
+
+### TASK-046 - Repeated deaths clustered at x=2304 in level 2
 
 - Status: TODO
 - Source: eval finding `deathTrap@2304:L2` (CRITICAL, seen in 1 run(s): L2-preboss-30lives-bossHugger; policies: bossHugger)
@@ -53,39 +95,18 @@ not that it must be fixed, and that call stays with a person.
 
 ---
 
-### TASK-031 - Repeated deaths clustered at x=3168 in level 1
+### TASK-047 - Repeated deaths clustered at x=3168 in level 1
 
 - Status: TODO
 - Source: eval finding `deathTrap@3168:L1` (CRITICAL, seen in 1 run(s): L1-start-30lives-jumper; policies: jumper)
 - Requirement:
-  Self-play died over and over in one small stretch of level: 25 deaths in a
+  Self-play died over and over in one small stretch of level: 26 deaths in a
   row within 96px of x=3218 (causes: enemyFire) - respawning straight back
   into it. Respawning into the same death is a loop the player cannot learn
   their way out of within a life. Decide whether this is intended difficulty
   or a trap, and if it is a trap, break the cycle.
 - Acceptance criteria:
   - [ ] A player respawning near x=3168 in level 1 is not returned straight
-        into the same death
-  - [ ] The intended rule is recorded next to the code that enforces it
-  - [ ] `npm run eval -- --baseline` no longer reports this cluster
-- Non-goals / constraints:
-  - Do not change global difficulty; this is about one location.
-  - Do not move the checkpoint if the real problem is the hazard.
-
----
-
-### TASK-032 - Repeated deaths clustered at x=768 in level 1
-
-- Status: TODO
-- Source: eval finding `deathTrap@768:L1` (CRITICAL, seen in 1 run(s): L1-start-30lives-crouchWalker; policies: crouchWalker)
-- Requirement:
-  Self-play died over and over in one small stretch of level: 9 deaths in a
-  row within 96px of x=830 (causes: pit) - respawning straight back into it.
-  Respawning into the same death is a loop the player cannot learn their way
-  out of within a life. Decide whether this is intended difficulty or a
-  trap, and if it is a trap, break the cycle.
-- Acceptance criteria:
-  - [ ] A player respawning near x=768 in level 1 is not returned straight
         into the same death
   - [ ] The intended rule is recorded next to the code that enforces it
   - [ ] `npm run eval -- --baseline` no longer reports this cluster

@@ -5,15 +5,18 @@ import { type AudioService } from '../audio/AudioService';
 import { DEFAULT_SETTINGS, nextStartingLives, type Settings } from '../persistence/schema';
 import { saveSettings } from '../persistence/StorageService';
 import { hookShutdown } from './sceneLifecycle';
+import { drawText } from '../ui/text';
+import { attachScanlines } from '../ui/scanlines';
 
 /**
- * Settings screen (GAME_REQUIREMENTS.md section 11). Adjusts music and SFX
+ * Settings screen (PROJECT.md, Persistence). Adjusts music and SFX
  * volume, mute, and reduced-flash; every change is persisted through the
  * versioned, validated storage service.
  */
 export class SettingsScene extends Phaser.Scene {
   private settings: Settings = { ...DEFAULT_SETTINGS };
-  private rows: Phaser.GameObjects.Text[] = [];
+  private rows: Phaser.GameObjects.BitmapText[] = [];
+  private refreshScanlines?: () => void;
   private onKey?: (e: KeyboardEvent) => void;
 
   constructor() {
@@ -22,30 +25,22 @@ export class SettingsScene extends Phaser.Scene {
 
   public create(): void {
     reportScene(SCENE_KEYS.settings);
+    this.refreshScanlines = attachScanlines(this);
     this.settings = (this.registry.get('settings') as Settings | undefined) ?? { ...DEFAULT_SETTINGS };
     this.rows = [];
 
     const cx = LOGICAL_WIDTH / 2;
-    this.add
-      .text(cx, 110, 'SETTINGS', { fontFamily: 'monospace', fontSize: '38px', color: '#e8f1ff', fontStyle: 'bold' })
-      .setOrigin(0.5);
-    for (const y of [180, 218, 256, 294, 332]) {
-      this.rows.push(this.add.text(cx, y, '', { fontFamily: 'monospace', fontSize: '18px', color: '#cdd9f0' }).setOrigin(0.5));
+    drawText(this, cx, 110, 'SETTINGS', { size: 40, color: '#e8f1ff', originX: 0.5, originY: 0.5 });
+    for (const y of [170, 206, 242, 278, 314, 350]) {
+      this.rows.push(drawText(this, cx, y, '', { size: 16, color: '#cdd9f0', originX: 0.5, originY: 0.5 }));
     }
-    this.add
-      .text(cx, 392, 'LEFT/RIGHT music    UP/DOWN sfx    M mute    F reduced flash', {
-        fontFamily: 'monospace',
-        fontSize: '14px',
-        color: '#5c6c8c'
-      })
-      .setOrigin(0.5);
-    this.add
-      .text(cx, 414, 'L starting lives    ESC back', {
-        fontFamily: 'monospace',
-        fontSize: '14px',
-        color: '#5c6c8c'
-      })
-      .setOrigin(0.5);
+    drawText(this, cx, 392, 'LEFT/RIGHT music    UP/DOWN sfx    M mute    F reduced flash    C scanlines', {
+      size: 16,
+      color: '#5c6c8c',
+      originX: 0.5,
+      originY: 0.5
+    });
+    drawText(this, cx, 414, 'L starting lives    ESC back', { size: 16, color: '#5c6c8c', originX: 0.5, originY: 0.5 });
 
     this.refresh();
     this.publish();
@@ -89,6 +84,8 @@ export class SettingsScene extends Phaser.Scene {
         return { ...s, reducedFlash: !s.reducedFlash };
       case 'KeyL':
         return { ...s, startingLives: nextStartingLives(s.startingLives) };
+      case 'KeyC':
+        return { ...s, scanlines: !s.scanlines };
       default:
         return null;
     }
@@ -100,6 +97,9 @@ export class SettingsScene extends Phaser.Scene {
     this.rows[2].setText('MUTE (M): ' + (this.settings.mute ? 'ON' : 'OFF'));
     this.rows[3].setText('REDUCED FLASH (F): ' + (this.settings.reducedFlash ? 'ON' : 'OFF'));
     this.rows[4].setText('STARTING LIVES (L): < ' + this.settings.startingLives + ' >');
+    this.rows[5].setText('SCANLINES (C): ' + (this.settings.scanlines ? 'ON' : 'OFF'));
+    // The overlay updates in place, so toggling shows the effect immediately.
+    this.refreshScanlines?.();
   }
 
   private publish(): void {
@@ -109,6 +109,7 @@ export class SettingsScene extends Phaser.Scene {
       sfxVolume: this.settings.sfxVolume,
       mute: this.settings.mute,
       reducedFlash: this.settings.reducedFlash,
+      scanlines: this.settings.scanlines,
       startingLives: this.settings.startingLives
     });
   }

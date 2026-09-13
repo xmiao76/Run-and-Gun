@@ -229,8 +229,21 @@ Do NOT include these in the first release unless explicitly added later as enhan
 - leaderboard service
 - level editor
 - procedural generation
-- more than 2 core levels
 - copying original Contra art, music, enemy designs, or level layouts
+
+Note the last entry is permanent, not a first-release limit. It is the one
+non-goal that never expires, and `ASSET_POLICY.md` states it in full.
+
+### Amended after the first release
+
+- **"more than 2 core levels"** applied to the first release and has been lifted.
+  The first release shipped complete (TASK-001 to TASK-011) and additional stages
+  are now in scope, added one at a time through the normal task workflow.
+- The project has always been "inspired by the feel of classic Contra-style
+  arcade gameplay" (see Project purpose and Genre and style above). A programme
+  of work to deepen that resemblance - presentation, animation, weapon roster,
+  set pieces, audio - is sanctioned, bounded by `ASSET_POLICY.md`: emulate
+  mechanics and conventions, never reproduce specific expression.
 
 ## Quality expectations
 

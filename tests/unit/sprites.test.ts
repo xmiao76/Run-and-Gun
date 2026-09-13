@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { parsePixelArt } from '../../src/art/pixelArt';
 import { SPRITE_SPECS, type SpriteKey } from '../../src/art/sprites';
 import { PLAYER_HEIGHT, PLAYER_WIDTH, CROUCH_HEIGHT } from '../../src/balance/player';
+import { getEnemyDef } from '../../src/balance/enemies';
 
 const KEYS = Object.keys(SPRITE_SPECS) as SpriteKey[];
 
@@ -65,6 +66,15 @@ describe('sprite sheet', () => {
     expect(sentry.width).toBeGreaterThanOrEqual(20);
     expect(sentry.width).toBeLessThanOrEqual(24);
     expect(sentry.height).toBe(24);
+  });
+
+  it('draws the turret emplacement at exactly its declared hitbox', () => {
+    // An emplacement never moves, so a sprite that disagrees with its hitbox
+    // would be permanently, visibly wrong in one fixed spot.
+    const turret = parsePixelArt(SPRITE_SPECS['art/enemy-turret']);
+    const def = getEnemyDef('turret');
+    expect(turret.width).toBe(def.width);
+    expect(turret.height).toBe(def.height);
   });
 
   it('covers the Siege Walker boss hitbox (scene scales to 64x56)', () => {

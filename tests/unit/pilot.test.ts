@@ -64,6 +64,8 @@ function makeRuntime(overrides: Partial<LevelRuntime> = {}): LevelRuntime {
     manualClock: false,
     autopilot: true,
     stepIndex: 0,
+  hitStopped: false,
+  bridges: [],
     maxPlayerX: 200,
     ending: null,
     deaths: [],

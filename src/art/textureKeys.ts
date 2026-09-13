@@ -9,3 +9,6 @@ export const SKY_TEXTURE = 'art/bg-sky';
 
 /** Fortress interior backdrop gradient. */
 export const FORTRESS_SKY_TEXTURE = 'art/bg-sky-fortress';
+
+/** Ashfall ridge backdrop gradient (Level 3): ember glow under a smoke ceiling. */
+export const ASH_SKY_TEXTURE = 'art/bg-sky-ash';

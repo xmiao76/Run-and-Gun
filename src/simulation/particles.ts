@@ -7,7 +7,7 @@
  * scene owns rendering; this module owns lifetimes and movement.
  */
 
-export type ParticleKind = 'muzzle' | 'spark' | 'burst' | 'beacon';
+export type ParticleKind = 'muzzle' | 'spark' | 'burst' | 'beacon' | 'explosion';
 
 export interface Particle {
   id: number;
@@ -44,6 +44,13 @@ const SPARK_VECTORS: readonly (readonly [number, number])[] = [
 const BURST_SPEED = 180;
 const BURST_GRAVITY = 400;
 const MUZZLE_SPEED = 120;
+/**
+ * A death explosion is a burst with a shape: two rings at different speeds and
+ * lifetimes, so it blooms outward and trails instead of expanding as one flat
+ * ribbon of squares. Still fixed tables, still no randomness.
+ */
+const EXPLOSION_INNER_SPEED = 90;
+const EXPLOSION_OUTER_SPEED = 260;
 
 function fan(count: number, speed: number): [number, number][] {
   const out: [number, number][] = [];
@@ -79,6 +86,18 @@ export function spawnParticles(
       for (const [vx, vy] of fan(8, BURST_SPEED)) {
         push('burst', s.x, s.y, vx, vy, 0.5, 4);
       }
+    } else if (s.kind === 'explosion') {
+      // Outer ring: fast, short-lived, small - the blast front.
+      for (const [vx, vy] of fan(10, EXPLOSION_OUTER_SPEED)) {
+        push('explosion', s.x, s.y, vx, vy, 0.32, 3);
+      }
+      // Inner ring: slow, long-lived, fat - the fireball that lingers, offset
+      // half a segment so the two rings do not sit on the same spokes.
+      for (const [vx, vy] of fan(6, EXPLOSION_INNER_SPEED)) {
+        push('explosion', s.x, s.y, vy, vx, 0.6, 6);
+      }
+      // A bright motionless core for the first instant of the blast.
+      push('explosion', s.x, s.y, 0, 0, 0.18, 10);
     } else {
       push('beacon', s.x, s.y, 0, 0, 1.2, 6);
     }
@@ -96,7 +115,7 @@ export function stepParticles(particles: readonly Particle[], dt: number): Parti
     if (ttl <= 0) {
       continue;
     }
-    const vy = p.kind === 'burst' ? p.vy + BURST_GRAVITY * dt : p.vy;
+    const vy = p.kind === 'burst' || p.kind === 'explosion' ? p.vy + BURST_GRAVITY * dt : p.vy;
     out.push({ ...p, x: p.x + p.vx * dt, y: p.y + vy * dt, vy, ttl });
   }
   return out;

@@ -90,7 +90,7 @@ test.describe('M4 checkpoints and game-over flow', () => {
 });
 
 test.describe('M4 Level 2 and final flow', () => {
-  test('Level 1 completes into Level 2, and Level 2 completes into the final screen', async ({ page }) => {
+  test('Level 1 completes into Level 2, and Level 2 completes into Level 3', async ({ page }) => {
     const pageErrors: string[] = [];
     page.on('pageerror', (e) => pageErrors.push(String(e)));
 
@@ -121,14 +121,18 @@ test.describe('M4 Level 2 and final flow', () => {
     await page.waitForFunction(() => window.__GAME_DEBUG__?.getState()?.runtime?.bossState === 'dead');
 
     await page.evaluate(() => window.__GAME_DEBUG__?.command('teleportPlayer', { x: 3180 }));
+    // Level 2 is no longer the last stage (TASK-039 added Ashfall Ridge), so
+    // its results screen is an intermediate one and Enter advances rather than
+    // returning to the title. The end-to-end ending is covered by
+    // `fullGame.spec.ts`, which plays all three stages.
     await page.waitForFunction(() => {
       const s = window.__GAME_DEBUG__?.getState();
-      return s?.scene === 'results' && (s.runtime as { final?: boolean } | null)?.final === true;
+      return s?.scene === 'results' && (s.runtime as { final?: boolean } | null)?.final === false;
     });
 
-    // Final completion returns to the title.
+    // Completion advances to the next stage.
     await page.keyboard.press('Enter');
-    await page.waitForFunction(() => window.__GAME_DEBUG__?.getState()?.scene === 'title');
+    await page.waitForFunction(() => window.__GAME_DEBUG__?.getState()?.runtime?.level === 'ashfall-ridge');
 
     expect(pageErrors).toEqual([]);
   });

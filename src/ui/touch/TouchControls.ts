@@ -1,8 +1,7 @@
 import { createNeutralInput, type InputState } from '../../input/InputState';
 
 /**
- * Touch controls for coarse-pointer devices (GAME_REQUIREMENTS.md section 2,
- * ACCEPTANCE_CRITERIA H3).
+ * Touch controls for coarse-pointer devices (PROJECT.md, Controls).
  *
  * Renders DOM buttons (move, aim-up, jump, fire, pause) over the canvas only
  * when a touch device is detected. Buttons feed the same normalized InputState

@@ -3,7 +3,7 @@
  *
  * Installed only in development builds or when the page carries a `?debug`
  * query parameter; otherwise it is inert and absent from `window`, so it cannot
- * affect normal gameplay (GAME_REQUIREMENTS.md section 13).
+ * affect normal gameplay (docs/AUTOMATION.md).
  *
  * The bridge has two halves:
  *  - a read-only `getState()` snapshot that the active scene reports each step;
@@ -37,6 +37,7 @@ export type DebugCommandName =
   | 'startSandbox'
   | 'startLevel1'
   | 'startLevel2'
+  | 'startLevel3'
   | 'gotoTitle'
   | 'pause'
   | 'resume'

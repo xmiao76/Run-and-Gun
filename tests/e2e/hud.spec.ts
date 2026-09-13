@@ -26,7 +26,7 @@ async function hudInfo(page: import('@playwright/test').Page): Promise<{
       if (o.type === 'Image' && (o.texture?.key ?? '').startsWith('art/bullet') && o.depth === 100) {
         out.weaponIcon = o.texture?.key ?? '';
       }
-      if (o.type === 'Text' && typeof o.text === 'string') {
+      if ((o.type === 'Text' || o.type === 'BitmapText') && typeof o.text === 'string') {
         if (/RIFLE|BLASTER|CARBINE/.test(o.text)) {
           out.weaponText = o.text;
         }
@@ -63,7 +63,9 @@ test.describe('HUD presentation', () => {
     let hud = await hudInfo(page);
     expect(hud.lifeIcons).toBe(3);
     expect(hud.weaponIcon).toBe('art/bullet-pulse');
-    expect(hud.weaponText).toBe('PULSE RIFLE');
+    // TASK-036: the HUD leads with the weapon's capsule letter, so what you
+    // picked up and what you are holding read the same.
+    expect(hud.weaponText).toBe('P PULSE RIFLE');
     expect(hud.scoreText).toBe('SCORE 0');
 
     // Weapon pickup: icon and name follow the current weapon.
@@ -71,7 +73,7 @@ test.describe('HUD presentation', () => {
     await page.waitForFunction(() => window.__GAME_DEBUG__?.getState()?.runtime?.weapon === 'scatter');
     hud = await hudInfo(page);
     expect(hud.weaponIcon).toBe('art/bullet-scatter');
-    expect(hud.weaponText).toBe('SCATTER BLASTER');
+    expect(hud.weaponText).toBe('S SCATTER BLASTER');
 
     // Pit death: one life icon disappears after respawn.
     await page.evaluate(() => window.__GAME_DEBUG__?.command('teleportPlayer', { x: 780, y: 800 }));

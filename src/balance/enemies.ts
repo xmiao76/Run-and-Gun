@@ -3,11 +3,11 @@
  *
  * Balance values live here; the finite-state behaviour that consumes them is in
  * `src/simulation/enemies.ts`. All four regular archetypes are original
- * (GAME_REQUIREMENTS.md section 6): Runner + Sentry (M2), Drone + Grenadier
+ * (PROJECT.md, Enemies): Runner + Sentry (M2), Drone + Grenadier
  * (M3).
  */
 
-export type EnemyKind = 'runner' | 'sentry' | 'drone' | 'grenadier';
+export type EnemyKind = 'runner' | 'sentry' | 'drone' | 'grenadier' | 'turret';
 
 export interface EnemyDef {
   kind: EnemyKind;
@@ -105,6 +105,35 @@ export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
     patrolSpeed: 1.6,
     width: 22,
     height: 18
+  },
+  /**
+   * A fixed gun emplacement: it never moves and never repositions, so it is
+   * pure area denial - the thing you must destroy or route around rather than
+   * out-manoeuvre. Tougher than any walking archetype to earn that.
+   *
+   * It needs no new code path: `stepEnemy` already leaves a kind that is
+   * neither runner nor grenadier standing still, so the turret inherits the
+   * telegraph, the aim, and the concurrent-attack cap unchanged.
+   */
+  turret: {
+    kind: 'turret',
+    name: 'Turret Emplacement',
+    health: 4,
+    score: 160,
+    moveSpeed: 0,
+    engageRange: 300,
+    preferredRange: 0,
+    telegraphDuration: 0.5,
+    fireInterval: 1.5,
+    projectileSpeed: 300,
+    projectileLifetime: 2.4,
+    projectileDamage: 1,
+    arcGravity: 0,
+    aerial: false,
+    patrolAmplitude: 0,
+    patrolSpeed: 0,
+    width: 24,
+    height: 22
   },
   grenadier: {
     kind: 'grenadier',

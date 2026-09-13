@@ -3,7 +3,7 @@
  *
  * Damage events require source ownership and a per-step identifier so a single
  * attack cannot apply damage more than once to the same target in one
- * simulation step (ACCEPTANCE_CRITERIA D5, ARCHITECTURE.md section 5). The
+ * simulation step. The
  * ledger records (attackId, targetId) pairs and is cleared at the end of each
  * step; recordHit returns true only the first time a pair is seen.
  */

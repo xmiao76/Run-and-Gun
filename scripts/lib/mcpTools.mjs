@@ -13,6 +13,7 @@ import { join } from 'node:path';
 
 import { closeSession, log, openGame, launch, DEFAULT_BASE } from './browser.mjs';
 import { act, command, getState, settleSceneSwap, waitForScene } from './bridge.mjs';
+import { LEVELS } from '../eval/matrix.mjs';
 
 const REPORT_PATH = join('docs', 'eval', 'report.md');
 
@@ -100,7 +101,7 @@ export function createTools() {
       description:
         'Start a fresh run under the manual clock and return the first state. The clock is frozen: nothing moves until game_act advances it, so there is no time pressure between calls.',
       inputSchema: schema({
-        level: { type: 'integer', enum: [1, 2], description: 'Which level to play.' },
+        level: { type: 'integer', enum: LEVELS, description: 'Which level to play.' },
         checkpoint: {
           type: 'string',
           enum: ['start', 'mid', 'preboss'],
@@ -113,7 +114,7 @@ export function createTools() {
       handler: async (params) => {
         const level = params.level ?? 1;
         const active = await ensureSession(params.base, params.autopilot === true);
-        await command(active.page, level === 2 ? 'startLevel2' : 'startLevel1');
+        await command(active.page, `startLevel${level}`);
         await waitForScene(active.page, 'level');
         await command(active.page, 'startAtCheckpoint', {
           id: params.checkpoint ?? 'start',
