@@ -11,6 +11,12 @@
     "noImplicitOverride": true,
     "esModuleInterop": true,
     "isolatedModules": true,
+    // The evaluation harness lives in `scripts/` as .mjs (the repo has no
+    // @types/node on purpose). `allowJs` lets the unit tests import those
+    // modules and infer their types from the source, rather than carrying a
+    // hand-written .d.mts that would drift. `checkJs` stays off, so the JS
+    // itself is not type-checked - ESLint covers it.
+    "allowJs": true,
     "skipLibCheck": true,
     "noEmit": true,
     "types": ["vite/client"]

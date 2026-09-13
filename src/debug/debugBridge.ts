@@ -49,7 +49,10 @@ export type DebugCommandName =
   | 'advanceSteps'
   | 'teleportPlayer'
   | 'spawnEnemyAt'
+  | 'startAtCheckpoint'
   | 'setManualClock'
+  | 'confirmMenu'
+  | 'backMenu'
   | 'report';
 
 export interface DebugInputState extends InputState {
@@ -77,6 +80,10 @@ export type InputCommandName =
   | 'releaseAimUp'
   | 'holdAimDown'
   | 'releaseAimDown'
+  | 'holdCrouch'
+  | 'releaseCrouch'
+  | 'holdDrop'
+  | 'releaseDrop'
   | 'resetInput';
 
 declare global {
@@ -128,8 +135,25 @@ export function clearRuntime(): void {
   state.runtime = null;
 }
 
-export function registerCommand(name: DebugCommandName, handler: CommandHandler): void {
+/**
+ * Bind a command handler and return a disposer.
+ *
+ * Scenes call the disposer on shutdown so a stopped scene's handlers can never
+ * be invoked: without it the registry kept handlers bound to a dead scene alive
+ * and `command()` would silently mutate it (or no-op) instead of reporting that
+ * no such surface is active - a trap for any agent driving the bridge.
+ *
+ * The disposer only removes the name while it is still bound to *this* handler,
+ * so a scene shutting down after its successor has registered the same name
+ * (the level-to-level transition order) cannot unregister the live one.
+ */
+export function registerCommand(name: DebugCommandName, handler: CommandHandler): () => void {
   commands.set(name, handler);
+  return () => {
+    if (commands.get(name) === handler) {
+      commands.delete(name);
+    }
+  };
 }
 
 /** Debug-only simulated input merged with real device input by the scene. */
@@ -210,6 +234,18 @@ function applyInputCommand(name: InputCommandName): void {
       break;
     case 'releaseAimDown':
       debugInput.aimDown = false;
+      break;
+    case 'holdCrouch':
+      debugInput.crouch = true;
+      break;
+    case 'releaseCrouch':
+      debugInput.crouch = false;
+      break;
+    case 'holdDrop':
+      debugInput.drop = true;
+      break;
+    case 'releaseDrop':
+      debugInput.drop = false;
       break;
     case 'resetInput':
       Object.assign(debugInput, createNeutralInput());

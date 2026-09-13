@@ -456,3 +456,283 @@ cceptance criteria:
     preserving the documented reversible "stand on the pad" mechanic.
 
 ---
+
+### TASK-020 - Bridge correctness and run instrumentation
+
+- Status: DONE
+- Requirement:
+  Make the debug bridge trustworthy enough to build an evaluation harness on,
+  and publish the telemetry such a harness needs. `src/` only - no driver
+  scripts in this task.
+  The blocking defect: `advanceSteps` does NOT stop at a scene transition.
+  Phaser's `ScenePlugin.start` only queues the swap ("this will happen at the
+  next Scene Manager update, not immediately"), so `this.scene.isActive()` stays
+  true for the whole synchronous batch. The guard at `LevelScene.ts:664` and its
+  comment are therefore wrong: a game over re-queues stop+start once per
+  remaining step, and after a completion `completionTimer` goes negative so the
+  branch is skipped and the level keeps simulating for the rest of the batch -
+  which can start `results` and `gameOver` in the same queue. Every long-batch
+  measurement is suspect until this is fixed.
+- Acceptance criteria:
+  - [x] A transition latch (`ending: 'results' | 'gameOver' | null`) is set before
+        any `scene.start`, short-circuits `stepOnce`, and stops the `advanceSteps`
+        loop; it is cleared in `create()`
+  - [x] `advanceSteps` returns `{ ok, steps, ended }` so a driver never has to
+        poll `getState().scene` to learn that the scene swapped
+  - [x] E2E proves `advanceSteps(3600)` across a completion returns
+        `steps < 3600` with `ended: 'results'`, and that exactly one scene is
+        active afterwards
+  - [x] Scene-registered commands are released on scene shutdown, so a stopped
+        scene can no longer answer bridge commands
+  - [x] New input commands `holdCrouch` / `releaseCrouch` / `holdDrop` /
+        `releaseDrop` (`readDebugInput` already reads both fields; only the
+        command names were missing)
+  - [x] `confirmMenu` and `backMenu` commands let a driver leave the title,
+        results, game-over and help screens with no real key press and no
+        real-time wait; `GameOverScene` gains the same double-start latch
+        `ResultsScene` already has
+  - [x] `startAtCheckpoint({ id | index, lives?, weapon? })` starts a level at a
+        chosen checkpoint with every spawn trigger ahead of it still armed.
+        `teleportPlayer` must not be used for this: `updateSpawnTriggers` fires on
+        `playerX` entering `[x0,x1]`, so teleporting past a trigger permanently
+        skips its content - which is exactly how `fullGame.spec` masked the
+        Level 2 door bug
+  - [x] `LevelRuntime` gains `stepIndex`, `maxPlayerX` (monotone, so a sampling
+        driver cannot miss progress between samples), `ending`, and
+        `deaths: DeathEvent[]` (capped) where
+        `DeathCause = 'pit' | 'hazard' | 'enemyFire' | 'bossShockwave'`
+  - [x] All four causes are attributed at their three sites: the hazard/fall
+        check in `stepOnce` (carried into `finishDeath`), the boss shockwave, and
+        the enemy-bullet overlap. Enemy body contact is deliberately harmless and
+        is not a cause
+  - [x] All existing unit (249+) and e2e (74+) tests stay green; lint, typecheck,
+        build clean
+- Non-goals / constraints:
+  - No balance, physics, level-layout or enemy-behaviour changes.
+  - Do not make the pilot's tuning constants configurable (dropped: it explores
+    policy space, not game state, and is the weakest source of run variation).
+  - Normal visitors (no `?debug`) see zero behaviour change.
+
+---
+
+### TASK-021 - Shared driver library and the single-run evaluator
+
+- Status: DONE
+- Requirement:
+  Extract the Playwright/bridge boilerplate that 26 `scripts/*.mjs` files
+  duplicate, and build the one-run evaluator on top of it: drive one configured
+  self-play run, sample it, and check gameplay invariants. The invariant logic
+  must be pure and browser-free so it can be unit-tested against synthetic
+  traces before it is ever pointed at the game.
+- Acceptance criteria:
+  - [x] `scripts/lib/browser.mjs` (`gameUrl`, `launch`, `openGame`) centralises
+        `chromium.launch()`, the 960x540 viewport, the debug/renderer/manualClock
+        URL, the bridge fail-fast wait, `pageerror` + console-error capture, and
+        seeds settings through `addInitScript` (the default is 30 starting lives,
+        so an eval that does not force 3 never reaches the game-over path at all)
+  - [x] `scripts/lib/bridge.mjs` owns the hold/release/tap maps as the single
+        source of truth, plus `act()` and `settleSceneSwap()` (a scene swap needs
+        two animation frames before `getState()` reports the new scene)
+  - [x] `scripts/agent-server.mjs` consumes the lib instead of its own copies;
+        all seven endpoints behave identically
+  - [x] `scripts/lib/rng.mjs` (mulberry32) and `scripts/lib/policies.mjs`
+        (`pilot`, `rusher`, `idler`, `jumper`, plus scripted adversarial policies)
+  - [x] `scripts/eval/checks.mjs` is pure and browser-free: `progressed`,
+        `stallSuppressed`, `detectStall`, `detectDeathTrap`, `checkBounds`,
+        `checkMonotonic`, `checkResources`, `checkStructural`
+  - [x] The stall detector uses monotone progress (`maxPlayerX`, checkpoint,
+        lives, score, bossHealth, subcomponentsAlive, bossPhase, containersAlive),
+        a 600-step traversal window and a 3600-step boss window, and is suppressed
+        while `dying`, `completing`, `paused`, `autoPaused`, or `ending !== null`.
+        600 steps is chosen against the slowest legitimate wait in the game, the
+        4 s `l2-mp-vert` platform cycle
+  - [x] A separate death-trap detector catches respawn loops (3+ deaths inside one
+        96 px window), which the stall detector cannot see because a respawn loop
+        keeps changing `lives`
+  - [x] `tests/unit/evalChecks.test.ts` asserts no false positive for each
+        legitimately stationary case: boss standoff, the 4 s platform wait, the
+        death pause, and the completion delay
+  - [x] `node scripts/eval/run.mjs --level 1 --checkpoint start --lives 3 --policy pilot`
+        writes one `test-results/eval/run-<id>.json` with zero violations
+- Non-goals / constraints:
+  - No `src/` changes; no new npm dependencies.
+  - Keep every harness file `.mjs` - the repo deliberately has no `@types/node`.
+  - Anything in `scripts/lib/` must log to stderr only, because the MCP server
+    (TASK-023) shares it and any stray stdout write corrupts its protocol stream.
+
+---
+
+### TASK-022 - Batch matrix, aggregation, `npm run eval`
+
+- Status: TODO
+- Requirement:
+  Run the evaluator across a varied matrix and aggregate the result into a
+  report a human and the development loop can both read. The simulation has no
+  RNG at all, so variation is injected entirely from the harness.
+- Acceptance criteria:
+  - [ ] Variation axes, in priority order: the start-state matrix
+        (2 levels x 3 checkpoints x {3,30} lives x starting weapon), seeded
+        additive input hiccups over a pilot run, scripted adversarial policies
+        aimed at named mechanics (door camper, platform rider, pit-edge nudger,
+        boss hugger, respawn spammer), seeded input fuzzing, and step-batch-size
+        variation (1 / 30 / 600 / 3600, a harness-correctness axis that is exactly
+        what would have caught the TASK-020 transition defect)
+  - [ ] One full title -> Level 1 -> results -> Level 2 -> MISSION COMPLETE chain
+        runs as its own config, since it is the only thing exercising the
+        cross-level registry carry-over
+  - [ ] `npm run eval -- --quick` finishes inside 2 minutes; the default matrix
+        inside 6 minutes; one browser is reused across runs with a fresh context
+        per run (localStorage and the Phaser registry both persist otherwise)
+  - [ ] `test-results/eval/report.md` plus a greppable one-liner in the existing
+        soak convention: `EVAL runs=... completed=... stuck=... violations=...`
+  - [ ] Non-zero exit on any CRITICAL violation
+  - [ ] Detection proven end-to-end: temporarily narrowing the Level 2 trigger pad
+        back to width 60 reproduces the door bug and the harness reports a stall at
+        the right x (verification only - reverted, never committed)
+  - [ ] Any baseline comparison is opt-in (`--baseline`) and compares only
+        categorical outcomes (completed / stall bucket / death-cause histogram),
+        never exact numbers, which would diff on every gameplay commit
+- Non-goals / constraints:
+  - No `src/` gameplay changes; no balance tuning; no level edits.
+  - Do not run the harness under `@playwright/test`; import `chromium` as a
+    library the way `scripts/agent-server.mjs` does.
+
+---
+
+### TASK-023 - MCP server for the game bridge
+
+- Status: TODO
+- Requirement:
+  A stdio MCP server so an MCP client (including Claude Code in this repo) can
+  start, observe and drive the game as tools, sharing `scripts/lib/` with the
+  HTTP server so the two cannot drift.
+- Acceptance criteria:
+  - [ ] `scripts/lib/jsonrpc.mjs` holds a pure dispatcher and a line decoder;
+        `scripts/mcp-server.mjs` is wiring only
+  - [ ] Newline-delimited JSON-RPC 2.0 over stdio (not LSP `Content-Length`
+        framing), tolerating `\r\n` and messages split across stdin chunks
+  - [ ] `initialize` returns `protocolVersion`, `capabilities: { tools: {} }` and
+        `serverInfo`; only `tools` is advertised, since advertising `resources` or
+        `prompts` without handlers fails the connection
+  - [ ] Notifications (`notifications/initialized`, `notifications/cancelled`)
+        produce no response at all; `ping` returns `{}`; unknown methods return -32601
+  - [ ] Every tool's `inputSchema` is an object schema with a `properties` map,
+        even when empty
+  - [ ] Nothing but protocol JSON ever reaches stdout
+  - [ ] Chromium is launched lazily on first use, not at module load, so
+        `initialize` answers within a couple of seconds
+  - [ ] `run_eval` is asynchronous (returns a job id immediately, with
+        `eval_status` / `read_findings`), because a full matrix exceeds the
+        default MCP tool timeout
+  - [ ] `act` returns a compact state projection by default with `verbose` to opt
+        into the full snapshot, so a session is not flooded with enemy arrays
+  - [ ] `tests/unit/mcpProtocol.test.ts` drives a scripted byte stream (split
+        chunks, `\r\n`, notification silence, schema shape) with no child process
+  - [ ] `.mcp.json` at the repo root registers the server; `docs/AUTOMATION.md`
+        gains an MCP section
+  - [ ] No new npm dependencies; lint, typecheck, build clean
+- Non-goals / constraints:
+  - Do not change gameplay.
+  - The MCP server does not replace `scripts/agent-server.mjs`; both share the lib.
+
+---
+
+### TASK-024 - Close the loop: eval findings become TASKS.md entries
+
+- Status: TODO
+- Requirement:
+  Turn the evaluation report into the producer side of the development loop.
+  `.claude/loop.md` today only consumes tasks and reports `IDLE - NO READY WORK`
+  when none remain; this task supplies well-formed TODO entries from observed
+  gameplay defects, for review rather than automatic implementation.
+- Acceptance criteria:
+  - [ ] `scripts/eval/proposeTasks.mjs` emits a `Proposed tasks` section in the
+        `ADD_ENHANCEMENT_PROMPT.md` shape (next sequential ID, `Status: TODO`,
+        bounded requirement, objective acceptance criteria, non-goals), one per
+        distinct CRITICAL/HIGH finding, deduped against the IDs already in `TASKS.md`
+  - [ ] Given a fixture report containing one stall and one boss stall, the
+        producer emits two well-formed task blocks
+  - [ ] `.claude/eval-loop.md` documents the producer iteration and hands off to
+        `.claude/loop.md`
+  - [ ] Proposals are never auto-implemented and no source file is auto-edited
+  - [ ] `docs/AUTOMATION.md` documents the eval harness, its variation axes and
+        its invariant list; README links it
+- Non-goals / constraints:
+  - Do not weaken the safety rules in `CLAUDE.md` or the one-task-per-iteration
+    discipline.
+  - Do not push, deploy, or modify cloud resources.
+
+---
+
+### TASK-025 - Fix: input takeover from the AI pilot drops the first press
+
+- Status: TODO
+- Requirement:
+  `LevelScene.stepOnce` calls `this.keyboard.build(this.stepInput)`, passing the
+  previous step's *merged* input as `prev`. `buildInputFromRaw` derives
+  `jumpPressed = raw.jump && !prev.jumpHeld`, so while the AI pilot (or any other
+  merged source) is holding jump or fire, a human's first real press is treated
+  as a continuation and its edge is silently dropped. The human must release and
+  press again. Found by inspection during the TASK-020 review; user-facing.
+- Acceptance criteria:
+  - [ ] The keyboard adapter derives its edges from the previous *device* input,
+        not the merged step input
+  - [ ] A unit test covers the regression directly
+  - [ ] An e2e test proves that with the pilot engaged and holding jump, a single
+        human jump press is honoured on the takeover step
+  - [ ] No change to the merge order or to which sources can take over
+- Non-goals / constraints:
+  - Do not change movement physics, jump feel, or fire rate.
+
+---
+
+### TASK-026 - Fix: a pit or hazard death while invulnerable is free
+
+- Status: TODO
+- Requirement:
+  `finishDeath` calls `applyDamage`, which returns `applied: false` while the
+  invulnerability window from an earlier hit is still open - but the respawn runs
+  regardless. So taking an enemy hit and then immediately falling into a pit
+  costs one life instead of two, and hands the player a free teleport back to the
+  checkpoint. Decide the intended rule and make it explicit.
+- Acceptance criteria:
+  - [ ] A pit or hazard death always costs a life, or the documented rule says
+        otherwise and the code enforces it deliberately
+  - [ ] Unit coverage for the invulnerable-death case
+  - [ ] An e2e test takes a hit and then falls into a pit, asserting the resulting
+        life count
+  - [ ] The death list published in the runtime stays consistent with lives lost
+- Non-goals / constraints:
+  - Do not change the invulnerability duration or projectile damage rules.
+
+---
+
+### TASK-027 - The "non-lethal" pit markers are lethal on contact
+
+- Status: TODO
+- Requirement:
+  `src/levels/level1.ts` declares its pit markers with the comment
+  "Visual pit markers (non-lethal; lethality comes from the fall threshold)",
+  but `LevelScene.hazardTouchesPlayer()` treats every rect in `level.hazards`
+  as lethal on overlap and makes no distinction between a decorative marker and
+  a spike strip. A player falling into a Level 1 pit therefore dies on contact
+  with the marker band (y 520-560) rather than at the fall threshold, and the
+  death is attributed `hazard` instead of `pit`.
+  Found by the evaluation harness: the `rusher` policy reported
+  `deathTrap @x=770 (causes: hazard)` at the first pit, where `pit` was expected.
+  Decide which is intended and make the code and the data agree.
+- Acceptance criteria:
+  - [ ] Either the markers are genuinely non-lethal (excluded from the lethal
+        hazard test, so the fall threshold ends the life) or the comment and the
+        level data are corrected to say they are lethal
+  - [ ] A Level 1 pit fall is attributed to exactly one cause, and that cause
+        matches the documented rule
+  - [ ] Level 2's spike strip keeps its `hazard` attribution
+  - [ ] The existing death-cause e2e coverage still passes, updated if the
+        intended rule changes
+- Non-goals / constraints:
+  - Do not change pit geometry, the fall threshold, or any balance value; a pit
+    fall must still cost exactly one life.
+  - Do not make Level 2 spikes non-lethal.
+
+---

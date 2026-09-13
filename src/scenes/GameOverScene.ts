@@ -43,10 +43,22 @@ export class GameOverScene extends Phaser.Scene {
       .setOrigin(0.5);
     this.tweens.add({ targets: prompt, alpha: 0.3, duration: 700, yoyo: true, repeat: -1 });
 
+    // One latch for both exits: a keydown and a pointerdown can land in the
+    // same frame (attachMenuConfirm listens for both), and `scene.start` only
+    // queues, so without this two scene swaps get queued from one gesture.
+    let left = false;
     const restart = (): void => {
+      if (left) {
+        return;
+      }
+      left = true;
       this.scene.start(SCENE_KEYS.level);
     };
     const toTitle = (): void => {
+      if (left) {
+        return;
+      }
+      left = true;
       this.scene.start(SCENE_KEYS.title);
     };
 

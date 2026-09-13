@@ -1551,3 +1551,261 @@ Include enough detail so the next iteration can continue without guessing.
   https://run-and-gun.pages.dev (press I on any level to switch the pilot on/off;
   with it on, the AI plays both levels hands-free to MISSION COMPLETE).
 - Status after: deployed to production.
+### 2026-09-12 12:58 - TASK-020 (bridge correctness and run instrumentation)
+
+- Status before: TODO (new task; TASK-020..TASK-026 added this iteration from a
+  user request to build a self-play / self-evaluation loop).
+- Goal of this iteration:
+  Make the debug bridge trustworthy enough to build an evaluation harness on,
+  and publish the telemetry that harness needs. `src/` only.
+- Planning note (what changed before any code was written):
+  The user asked whether the game needed a slow-motion mode so an AI could
+  watch the screen and react, or an MCP/web interface for near-real-time
+  control. Neither is the gap: `?manualClock=1` already freezes wall time so the
+  agent IS the clock (unlimited thinking time per decision, zero races), and the
+  typed `LevelRuntime` snapshot already gives richer perception than pixels.
+  What was missing was everything downstream of "the AI can play": batch runs,
+  run variation, invariant checks, and a producer that turns play into tasks.
+  The user chose bug-finding as the loop's goal, the built-in heuristic pilot as
+  the driver, and asked for an MCP server (TASK-023).
+- **The blocking defect found while planning, and fixed here:**
+  `advanceSteps` did NOT stop at a scene transition, contrary to its own comment
+  at `LevelScene.ts:661`. Phaser's `ScenePlugin.start` only queues the swap
+  ("this will happen at the next Scene Manager update, not immediately" -
+  `node_modules/phaser/src/scene/ScenePlugin.js`), so `this.scene.isActive()`
+  stays true for the whole synchronous batch. Consequences, both verified:
+  - a game over re-queued stop+start once per remaining step;
+  - after a completion `completionTimer` went negative, so its branch was
+    skipped on the next step and the level kept simulating for the rest of the
+    batch - able to queue `results` and `gameOver` from one call.
+  Fixed with an explicit `ending: 'results' | 'gameOver' | null` latch set
+  before any `scene.start`, checked at the top of `stepOnce` and in the
+  `advanceSteps` loop. `advanceSteps` now returns `{ ok, steps, ended }`, so a
+  driver learns the run ended without polling `getState().scene` (which lags the
+  swap by up to two frames).
+- **Second finding: the soak test has been passing vacuously.**
+  `scripts/soak-probe.mjs` (new) showed the soak reaching game over in chunk 1
+  of 10 (~6,300 of 36,000 steps), never clearing the first pit (maxX=769, 21
+  deaths in the first 60 simulated seconds - it holds right and walks into the
+  pit at x=720, respawns at x=60, repeats). After that transition
+  `getState().runtime` is the game-over snapshot, which carries no counters, so
+  `after.maxEnemiesSeen ?? 0` evaluated to 0 and all three resource-bound
+  assertions were comparing 0 against their caps. The spec was rewritten, not
+  weakened: counters are now sampled inside the same evaluate that runs the
+  chunk (before any frame can swap the scene), the loop runs on steps remaining
+  rather than a fixed chunk count, an ended run is restarted and the soak
+  continues, and it now asserts the counters are non-zero and that all 36,000
+  steps were really simulated. Result: `maxEnemies=3 maxPlayerBullets=1
+  maxEnemyBullets=3 restarts=5 steps=36000 heapBefore=12700000
+  heapAfter=12700000` - ten minutes of live simulation across five restarts,
+  heap flat.
+- Work completed:
+  - **Transition latch** (above), plus `ending` published in the runtime.
+  - **Command lifetime.** `registerCommand` now returns a disposer and scenes
+    release their commands on shutdown, so a stopped scene can no longer answer
+    the bridge (it previously kept mutating a dead scene, or silently no-opped).
+    The disposer only removes a name still bound to *its* handler, so an
+    outgoing scene shutting down after its successor registered the same name
+    cannot unregister the live one - that ordering is real, because Phaser
+    queues swaps.
+  - **Input surface completed:** `holdCrouch` / `releaseCrouch` / `holdDrop` /
+    `releaseDrop`. `readDebugInput` already read both fields; only the command
+    names were missing.
+  - **Menu commands:** `confirmMenu` and `backMenu`, registered inside
+    `attachMenuConfirm` so every menu scene (title, results, game over, help)
+    gets them from one place. A batch run can now advance results -> next level
+    and game over -> restart with no real key press and no real-time wait; the
+    only hands-free path before was ResultsScene's 2 s wall-clock `delayedCall`,
+    which `advanceSteps` cannot drive. `GameOverScene` gained the double-start
+    latch `ResultsScene` already had.
+  - **`startAtCheckpoint({ id | index, lives?, weapon? })`.** The evaluation
+    matrix needs to start each segment at its checkpoint, and `teleportPlayer`
+    cannot do it: `updateSpawnTriggers` fires when playerX enters `[x0,x1]`, so
+    teleporting across a band skips that wave permanently - which is exactly how
+    `fullGame.spec` flew past (and hid) the Level 2 door bug for months.
+  - **Run instrumentation** in `LevelRuntime`: `stepIndex`, `maxPlayerX`
+    (monotone, so a driver sampling every N steps cannot miss progress between
+    samples), `ending`, and `deaths: DeathEvent[]` with
+    `DeathCause = 'pit' | 'hazard' | 'enemyFire' | 'bossShockwave'` and a
+    `costLife` flag. Three damage sites carry the cause; enemy body contact is
+    deliberately harmless and so is not a cause.
+- Evidence for all four death causes:
+  - `pit` and `hazard`: deterministic e2e cases (`bridgeContract.spec.ts`).
+  - `enemyFire`: `scripts/death-cause-probe.mjs` - the pilot completes Level 1
+    in 1438 steps losing 4 lives (x=672/1185/1881/2529) and Level 2 in 3183
+    steps losing 9, all `enemyFire`, zero page errors. Matches the loss counts
+    recorded for TASK-018/019.
+  - `bossShockwave`: `scripts/shockwave-probe.mjs` - a grounded, passive player
+    in the Siege Walker arena dies to the stomp 7 times out of 13 deaths. The AI
+    pilot never produces this cause because it jumps every stomp telegraph.
+- Worth recording for TASK-022: the Level 2 probe shows five deaths at exactly
+  x=2583.25 on a ~337-step cycle (respawn at preboss -> walk -> killed at the
+  identical spot). That is the death-trap signature the evaluation harness is
+  meant to detect, already present in real play.
+- Files changed:
+  - src/debug/debugBridge.ts (disposer-returning `registerCommand`, crouch/drop
+    inputs, `confirmMenu`/`backMenu`/`startAtCheckpoint` names)
+  - src/debug/runtimeTypes.ts (`DeathCause`, `DeathEvent`, four new LevelRuntime fields)
+  - src/scenes/LevelScene.ts (latch, instrumentation, `startAtCheckpoint`,
+    death-cause plumbing, command disposal, hoisted `round2`)
+  - src/scenes/SandboxScene.ts (command disposal)
+  - src/scenes/GameOverScene.ts (double-start latch)
+  - src/input/menuConfirm.ts (`confirmMenu`/`backMenu` for every menu scene)
+  - tests/e2e/bridgeContract.spec.ts (new, 11 tests), tests/e2e/soak.spec.ts (rewritten)
+  - tests/unit/debugBridge.test.ts (new, 8 tests), tests/unit/pilot.test.ts (fixture fields)
+  - scripts/soak-probe.mjs, scripts/death-cause-probe.mjs, scripts/shockwave-probe.mjs (new diagnostics)
+  - TASKS.md (TASK-020..TASK-026 added; 020 completed)
+- Assets added or updated:
+  - none.
+- Commands run:
+  - `npm run lint`, `npm run typecheck` (clean)
+  - `npm run test:unit` (257 passed, 43 files; was 249/42)
+  - `npm run build` (pass)
+  - `npx playwright test` (85 passed; was 74)
+  - `node scripts/soak-probe.mjs`, `death-cause-probe.mjs` (levels 1 and 2),
+    `shockwave-probe.mjs`
+- Verification result:
+  - Every TASK-020 acceptance criterion verified. 257 unit, 85 e2e, lint,
+    typecheck and build all green.
+  - The transition contract is asserted directly: `advanceSteps(3600)` across a
+    completion returns `steps < 3600` with `ended: 'results'`, and exactly one
+    scene is running afterwards (read from `__GAME__.scene.getScenes(true)`).
+- Visual quality notes:
+  - none; no user-facing presentation changed. Normal visitors (no `?debug`) see
+    no behaviour change at all.
+- Status after: DONE. Not deployed (loop rules forbid it).
+- Remaining work:
+  - none for this task.
+- Next recommended task:
+  - TASK-021 - Shared driver library and the single-run evaluator.
+- Blockers (if any):
+  - none. Note TASK-025 and TASK-026 were filed from review findings (a dropped
+    first input press on pilot takeover, and a free respawn when a pit death
+    lands inside an open invulnerability window); both are user-facing and
+    independent of the harness work.
+
+---
+
+### 2026-09-12 13:30 - TASK-021 (shared driver library and the single-run evaluator)
+
+- Status before: TODO
+- Goal of this iteration:
+  Kill the one real duplication in the driver layer, and build the single-run
+  evaluator on top of it: drive one configured self-play run, sample it, and
+  check gameplay invariants. No `src/` changes.
+- Work completed:
+  - **`scripts/lib/`** - the setup 26 probe scripts were each repeating:
+    - `browser.mjs`: `gameUrl`, `launch`, `openGame`, `closeSession`, `log`.
+      `openGame` uses a fresh browser context per run (localStorage and the
+      Phaser registry both survive a plain re-navigation, so reusing a context
+      would leak settings, best score and `autopilot` between runs) and seeds
+      settings via `addInitScript`. That seeding is not cosmetic: the shipped
+      default is 30 starting lives, so a run that does not force a lower count
+      effectively never reaches the game-over path.
+    - `bridge.mjs`: the hold/release/tap maps as the single source of truth,
+      plus `act()` (inputs + advance + snapshot in ONE evaluate, so no real
+      frame can interleave) and `settleSceneSwap()` (a queued scene swap needs
+      two animation frames before `getState()` reports the new scene).
+    - `rng.mjs` (mulberry32) and `policies.mjs` (8 policies).
+  - **`scripts/agent-server.mjs` refactored onto the lib.** It had hand-copied
+    the action maps from `tests/e2e/helpers/gameDriver.ts` - its own comment
+    admitted it. All seven endpoints verified by hand against a live server,
+    including the error paths (400 on an unknown action, 405 on a wrong method,
+    `/goto` re-navigation). Its logging moved to stderr, because the MCP server
+    (TASK-023) will share `scripts/lib/` and speaks JSON-RPC on stdout.
+  - **`scripts/eval/checks.mjs`** - every detector is a pure function over a
+    trace array, so the whole thing is unit-testable with no browser.
+  - **`scripts/eval/run.mjs`** - drives one config to its end or its budget
+    (18,000 steps = 5 simulated minutes), sampling every 30 steps.
+- Design decisions worth keeping:
+  - **Progress is measured monotonically**, never as a raw `playerX` delta. A
+    delta is wrong in both directions: the boss standoff oscillates left/right
+    forever (reads as progress) and a player wedged against a door jitters a
+    pixel or two (also reads as progress). `maxPlayerX` was added to the
+    snapshot in TASK-020 precisely so a driver sampling every 30 steps cannot
+    miss progress that happened between samples.
+  - **Two stall windows.** 600 steps (10 s) for traversal, chosen against the
+    slowest legitimately stationary state in the game - the Level 2 vertical
+    platform's 4 s round trip - and 3600 steps (60 s) in the boss arena, where
+    `maxPlayerX` cannot grow by design and holding position between attack
+    cycles is the correct play.
+  - **Suppressed samples freeze the stall clock rather than resetting it**, so a
+    run cannot hide a wedge behind a periodic death or pause.
+  - **The death-trap detector is separate** from the stall detector, because a
+    respawn loop keeps changing `lives` and therefore reads as progress forever.
+  - **`startAtCheckpoint` rather than `teleportPlayer`** for every run setup
+    (see TASK-020): a teleport across a spawn-trigger band skips that wave
+    permanently.
+- Two false-positive classes found by running it, and fixed:
+  - The `idler` policy reported 28 stalls in one run. Standing still forever is
+    what that policy is *for*, so policies now carry `expectsProgress` and the
+    stall detector is skipped when it is false. A detector that cries wolf gets
+    muted and then finds nothing.
+  - A wedged run re-reported the same stall every window until the budget ran
+    out. Findings are now deduplicated per `(kind, bucket)` with an occurrence
+    count, and tagged with the policy so aggregation (TASK-022) can weight a
+    pilot finding above a chaos-policy one.
+- **The harness independently found real defects on its first run:**
+  - `L2-start-30lives-pilot` -> `deathTrap @x=2587: 6 deaths within 96px
+    (enemyFire)`. This is the same trap spotted by hand during TASK-020, now
+    detected automatically.
+  - `L1-start-3lives-rusher` -> `freeDeath @x=770: 1 death cost no life`. That
+    is TASK-026 (an invulnerability window swallows the life loss but the
+    respawn still runs), caught in the wild without being looked for.
+  - `L1-start-3lives-rusher` -> `deathTrap @x=770 (causes: hazard)` where `pit`
+    was expected, which exposed a new inconsistency: `level1.ts` documents its
+    pit markers as "non-lethal; lethality comes from the fall threshold", but
+    `hazardTouchesPlayer()` treats every hazard rect as lethal on contact, so
+    the markers kill and pit falls are attributed `hazard`. Filed as TASK-027
+    rather than fixed here (it is a gameplay/data decision, not harness work).
+- Note on `tsconfig.json`: `allowJs` was enabled so the unit tests can import
+  the `.mjs` harness modules and infer their types from source, instead of a
+  hand-written `.d.mts` that would drift. `checkJs` stays off. It earned its
+  keep immediately - inference caught a `string` index into the release map in
+  the new test.
+- Files changed:
+  - scripts/lib/browser.mjs, scripts/lib/bridge.mjs, scripts/lib/rng.mjs,
+    scripts/lib/policies.mjs (new)
+  - scripts/eval/checks.mjs, scripts/eval/run.mjs (new)
+  - scripts/agent-server.mjs (refactored onto the lib)
+  - tests/unit/evalChecks.test.ts (new, 22 tests), tests/unit/agentActions.test.ts (new, 8 tests)
+  - tsconfig.json (allowJs), eslint.config.js (browser globals used inside
+    page.evaluate callbacks)
+  - TASKS.md (021 completed, TASK-027 filed)
+- Assets added or updated:
+  - none.
+- Commands run:
+  - `npm run lint`, `npm run typecheck` (clean)
+  - `npm run test:unit` (287 passed, 45 files; was 257/43)
+  - `npm run build` (pass)
+  - `npx playwright test` (85 passed, unchanged)
+  - `node scripts/eval/run.mjs` across pilot/rusher/idler/doorCamper/bossHugger
+    on both levels and several checkpoints
+  - live `curl` pass over all seven agent-server endpoints plus error paths
+- Verification result:
+  - Every TASK-021 acceptance criterion verified. The required false-positive
+    cases are pinned in `tests/unit/evalChecks.test.ts`: boss standoff, the 4 s
+    platform wait, the death pause, the completion delay, and a mid-wedge pause.
+  - `node scripts/eval/run.mjs --level 1 --checkpoint start --lives 3 --policy pilot`
+    writes `test-results/eval/run-L1-start-3lives-pilot.json` with zero findings.
+  - `L1-start-30lives-pilot` completes the level (ended=results, 1438 steps,
+    zero findings), which is the clean-run baseline.
+- Visual quality notes:
+  - none; no `src/` or presentation changes in this task.
+- Status after: DONE. Not deployed (loop rules forbid it).
+- Remaining work:
+  - none for this task.
+- Next recommended task:
+  - TASK-022 - Batch matrix, aggregation, `npm run eval`.
+- Caveat recorded for TASK-022:
+  `test-results/` is Playwright's output directory and Playwright clears it at
+  the start of every run, so eval traces written there do not survive a
+  subsequent `npx playwright test`. The per-run traces are disposable working
+  data so that is acceptable, but the aggregated report and any baseline must be
+  written somewhere durable (`docs/eval/`, which is also committed - unlike
+  `test-results/`, which is gitignored).
+- Blockers (if any):
+  - none. TASK-025, TASK-026 and TASK-027 are open user-facing findings,
+    independent of the harness chain.
+
+---

@@ -26,7 +26,10 @@ export default tseslint.config(
         navigator: 'readonly',
         // Node builtins used by the driver/launcher scripts.
         URL: 'readonly',
-        Buffer: 'readonly'
+        Buffer: 'readonly',
+        // Browser globals referenced inside page.evaluate callbacks.
+        requestAnimationFrame: 'readonly',
+        performance: 'readonly'
       }
     }
   }

@@ -1,5 +1,7 @@
 import { createServer } from 'node:http';
-import { chromium } from '@playwright/test';
+
+import { gameUrl, launch, log, VIEWPORT } from './lib/browser.mjs';
+import { act, actCommands, command as bridgeCommand, getState as bridgeState, input as bridgeInput } from './lib/bridge.mjs';
 
 /**
  * Local HTTP driver server for agent-controlled play.
@@ -32,44 +34,13 @@ const PORT = Number(process.env.PORT ?? 8787);
 const HEADLESS = (process.env.HEADLESS ?? '1') !== '0';
 const MAX_BODY_BYTES = 64 * 1024;
 
-/** Build the debug-enabled, manual-clock URL the agent always drives against. */
-function gameUrl(base) {
-  const u = new URL(base);
-  u.searchParams.set('debug', '1');
-  u.searchParams.set('renderer', 'canvas');
-  u.searchParams.set('manualClock', '1');
-  return u.toString();
-}
-
-// Map the agent-facing action names onto the bridge's input commands
-// (mirrors tests/e2e/helpers/gameDriver.ts so docs can be shared).
-const HOLD_COMMANDS = { left: 'holdLeft', right: 'holdRight', aimUp: 'holdAimUp', aimDown: 'holdAimDown' };
-const RELEASE_COMMANDS = {
-  left: 'releaseLeft',
-  right: 'releaseRight',
-  aimUp: 'releaseAimUp',
-  aimDown: 'releaseAimDown',
-  jump: 'jumpRelease',
-  fire: 'fireRelease'
-};
-const TAP_COMMANDS = { jump: 'jumpPress', fire: 'firePress' };
-
-function actCommands(spec) {
-  const commands = [];
-  for (const a of spec.hold ?? []) {
-    if (!HOLD_COMMANDS[a]) throw httpError(400, `unknown hold action: ${a}`);
-    commands.push(HOLD_COMMANDS[a]);
-  }
-  for (const a of spec.release ?? []) {
-    if (!RELEASE_COMMANDS[a]) throw httpError(400, `unknown release action: ${a}`);
-    commands.push(RELEASE_COMMANDS[a]);
-  }
-  for (const a of spec.tap ?? []) {
-    if (!TAP_COMMANDS[a]) throw httpError(400, `unknown tap action: ${a}`);
-    commands.push(TAP_COMMANDS[a]);
-  }
-  return commands;
-}
+/**
+ * The URL builder and the action vocabulary both live in `scripts/lib/` now, so
+ * this server, the MCP server and the evaluation harness cannot drift apart.
+ * `actCommands` already throws errors carrying `status: 400`, which the handler
+ * wrapper below surfaces unchanged.
+ */
+const AGENT_URL_OPTIONS = { manualClock: true, renderer: 'canvas' };
 
 function httpError(status, message) {
   const err = new Error(message);
@@ -126,7 +97,7 @@ let browser;
 let page;
 
 async function startPage(url) {
-  page = await browser.newPage({ viewport: { width: 960, height: 540 } });
+  page = await browser.newPage({ viewport: VIEWPORT });
   await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30_000 });
   // Fail fast if the bridge never appears (wrong target, build without debug).
   await page.waitForFunction(() => !!window.__GAME_DEBUG__, undefined, { timeout: 20_000 });
@@ -140,7 +111,7 @@ async function closePage() {
 }
 
 async function getState() {
-  return page.evaluate(() => window.__GAME_DEBUG__?.getState() ?? null);
+  return bridgeState(page);
 }
 
 async function handle(req, res) {
@@ -170,9 +141,7 @@ async function handle(req, res) {
     if (typeof body.name !== 'string') {
       throw httpError(400, 'missing command name');
     }
-    const result = await enqueue(() =>
-      page.evaluate(([n, p]) => window.__GAME_DEBUG__?.command(n, p) ?? null, [body.name, body.payload])
-    );
+    const result = await enqueue(() => bridgeCommand(page, body.name, body.payload));
     sendJson(res, 200, { result });
     return;
   }
@@ -181,45 +150,30 @@ async function handle(req, res) {
     if (typeof body.name !== 'string') {
       throw httpError(400, 'missing input name');
     }
-    await enqueue(() => page.evaluate((n) => window.__GAME_DEBUG__?.input(n), body.name));
+    await enqueue(() => bridgeInput(page, body.name));
     sendJson(res, 200, { ok: true });
     return;
   }
 
   if (path === '/step') {
     const n = Number.isFinite(body.n) ? Math.floor(body.n) : 1;
-    const state = await enqueue(() =>
-      page.evaluate((steps) => {
-        const bridge = window.__GAME_DEBUG__;
-        if (!bridge) return null;
-        bridge.command('advanceSteps', steps);
-        return bridge.getState();
-      }, n)
-    );
-    sendJson(res, 200, state ?? { error: 'bridge returned no state' });
+    const result = await enqueue(() => act(page, {}, n));
+    sendJson(res, 200, result?.state ?? { error: 'bridge returned no state' });
     return;
   }
 
   if (path === '/act') {
-    const commands = actCommands(body);
+    // Validate the vocabulary before touching the page, so an unknown action is
+    // a clean 400 rather than a half-applied input batch.
+    actCommands(body);
     const n = Number.isFinite(body.n) ? Math.floor(body.n) : 1;
-    const state = await enqueue(() =>
-      page.evaluate(([cmds, steps]) => {
-        const bridge = window.__GAME_DEBUG__;
-        if (!bridge) return null;
-        for (const c of cmds) {
-          bridge.input(c);
-        }
-        bridge.command('advanceSteps', steps);
-        return bridge.getState();
-      }, [commands, n])
-    );
-    sendJson(res, 200, state ?? { error: 'bridge returned no state' });
+    const result = await enqueue(() => act(page, body, n));
+    sendJson(res, 200, result?.state ?? { error: 'bridge returned no state' });
     return;
   }
 
   if (path === '/goto') {
-    const target = gameUrl(typeof body.url === 'string' && body.url ? body.url : TARGET_URL);
+    const target = gameUrl(typeof body.url === 'string' && body.url ? body.url : TARGET_URL, AGENT_URL_OPTIONS);
     await enqueue(async () => {
       await closePage();
       await startPage(target);
@@ -248,10 +202,12 @@ async function shutdown(code) {
 process.on('SIGINT', () => void shutdown(0));
 process.on('SIGTERM', () => void shutdown(0));
 
-browser = await chromium.launch({ headless: HEADLESS });
-const startTarget = gameUrl(TARGET_URL);
+browser = await launch({ headless: HEADLESS });
+const startTarget = gameUrl(TARGET_URL, AGENT_URL_OPTIONS);
 await startPage(startTarget);
-console.log(`agent-server listening on http://localhost:${PORT}`);
-console.log(`  target: ${startTarget}`);
-console.log('  GET /health | GET /state | POST /command /input /step /act /goto');
+// stderr, not stdout: `scripts/lib/` is shared with the MCP server, whose
+// stdout carries the JSON-RPC stream.
+log(`agent-server listening on http://localhost:${PORT}`);
+log(`  target: ${startTarget}`);
+log('  GET /health | GET /state | POST /command /input /step /act /goto');
 server.listen(PORT);

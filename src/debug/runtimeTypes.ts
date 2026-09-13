@@ -43,6 +43,26 @@ export interface SubcomponentSnapshot {
 }
 
 /** Current world-space position of a moving platform. */
+/**
+ * How a life was lost. Enemy body contact is deliberately harmless (only
+ * projectiles and the boss shockwave damage the player), so it is not a cause.
+ */
+export type DeathCause = 'pit' | 'hazard' | 'enemyFire' | 'bossShockwave';
+
+export interface DeathEvent {
+  cause: DeathCause;
+  x: number;
+  y: number;
+  /** Simulation step the death landed on. */
+  stepIndex: number;
+  /**
+   * False when an already-open invulnerability window swallowed the life loss.
+   * A pit death can currently respawn the player for free this way; the
+   * evaluator flags it rather than the scene silently hiding it.
+   */
+  costLife: boolean;
+}
+
 export interface MovingPlatformSnapshot {
   id: string;
   x: number;
@@ -121,6 +141,21 @@ export interface LevelRuntime {
   manualClock: boolean;
   /** True while the built-in AI pilot is playing (disengages on human input). */
   autopilot: boolean;
+  /** Simulation steps run since this level started. */
+  stepIndex: number;
+  /**
+   * Furthest x reached this run. Monotone, so a driver sampling every N steps
+   * cannot miss progress that happened between two samples.
+   */
+  maxPlayerX: number;
+  /**
+   * Set once a step has queued the scene swap that ends this run. The
+   * simulation is finished at that point even though Phaser has not yet
+   * processed the swap.
+   */
+  ending: 'results' | 'gameOver' | null;
+  /** Deaths this run, oldest first (capped). */
+  deaths: DeathEvent[];
 }
 
 /** Gameplay snapshot published each step by the sandbox scene. */

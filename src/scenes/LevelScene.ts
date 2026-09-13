@@ -6,7 +6,7 @@ import {
   PLAYER_HEIGHT,
   PLAYER_WIDTH
 } from '../balance/player';
-import { DEFAULT_WEAPON, getWeapon } from '../balance/weapons';
+import { DEFAULT_WEAPON, getWeapon, type WeaponId } from '../balance/weapons';
 import { GAME_VERSION, LOGICAL_HEIGHT, LOGICAL_WIDTH, SCENE_KEYS } from '../app/config';
 import { type AudioService } from '../audio/AudioService';
 import { createPilotMemory, decidePilotInput, pitsFromSolids, platformRanges, spikeRanges, type PilotGeometry, type PilotMemory } from '../ai/pilot';
@@ -17,9 +17,11 @@ import {
   manualClockRequested,
   registerCommand,
   reportRuntime,
-  reportScene
+  reportScene,
+  type CommandHandler,
+  type DebugCommandName
 } from '../debug/debugBridge';
-import { type LevelRuntime } from '../debug/runtimeTypes';
+import { type DeathCause, type DeathEvent, type LevelRuntime } from '../debug/runtimeTypes';
 import { createKeyboardInput, type KeyboardInput } from '../input/KeyboardInput';
 import { createGamepadInput, type GamepadInput } from '../input/GamepadInput';
 import { createNeutralInput, isNeutralInput, mergeInput, type InputState } from '../input/InputState';
@@ -133,6 +135,12 @@ import { saveSettings } from '../persistence/StorageService';
 
 const MAX_ENEMIES = 12;
 const MAX_PROJECTILES = 96;
+/** Cap on the published death log; a 30-life run cannot exceed this. */
+const MAX_DEATH_EVENTS = 64;
+
+/** Snapshot precision for positions: two decimals is plenty and keeps the wire small. */
+const round2 = (v: number): number => Math.round(v * 100) / 100;
+
 const COMPLETION_DELAY = 1.2;
 /** Seconds the death pose holds before the respawn (classic arcade death pause). */
 const DEATH_DURATION = 0.9;
@@ -229,6 +237,24 @@ export class LevelScene extends Phaser.Scene {
   /** Last published snapshot; the pilot's perception for the next step. */
   private lastRuntime: LevelRuntime | null = null;
   private aiLabel?: Phaser.GameObjects.Text;
+  /** Disposers for this scene's bridge commands, released on shutdown. */
+  private debugDisposers: Array<() => void> = [];
+  /**
+   * Set the moment a step queues the scene swap that ends the run.
+   *
+   * Phaser's `scene.start` only QUEUES the swap - it lands on the next Scene
+   * Manager update, not immediately - so `this.scene.isActive()` stays true for
+   * the rest of a synchronous `advanceSteps` batch. Without this latch a game
+   * over re-queued stop+start once per remaining step, and after a completion
+   * `completionTimer` went negative so its branch was skipped and the level kept
+   * simulating, which could start `results` and `gameOver` from one batch.
+   */
+  private ending: 'results' | 'gameOver' | null = null;
+  private stepIndex = 0;
+  private maxPlayerX = 0;
+  private deaths: DeathEvent[] = [];
+  /** Cause of the death currently playing out, carried into `finishDeath`. */
+  private pendingDeathCause: DeathCause | null = null;
   private completionTimer = -1;
   private maxEnemiesSeen = 0;
   private maxPlayerBulletsSeen = 0;
@@ -440,6 +466,10 @@ export class LevelScene extends Phaser.Scene {
   }
 
   public shutdown(): void {
+    for (const dispose of this.debugDisposers) {
+      dispose();
+    }
+    this.debugDisposers = [];
     this.keyboard.detach(window);
     LevelScene.detachKeys();
     if (this.onBlur) {
@@ -567,6 +597,11 @@ export class LevelScene extends Phaser.Scene {
     this.maxEnemiesSeen = 0;
     this.maxPlayerBulletsSeen = 0;
     this.maxEnemyBulletsSeen = 0;
+    this.stepIndex = 0;
+    this.maxPlayerX = this.player.x;
+    this.deaths = [];
+    this.pendingDeathCause = null;
+    this.ending = null;
   }
 
   private buildSubcomponents(): void {
@@ -594,17 +629,23 @@ export class LevelScene extends Phaser.Scene {
   }
 
   private registerDebugCommands(): void {
-    registerCommand('pause', () => {
+    // Every handler below closes over this scene instance, so each registration
+    // is disposed on shutdown (see `shutdown()`); otherwise a stopped level
+    // would keep answering bridge commands.
+    const reg = (name: DebugCommandName, handler: CommandHandler): void => {
+      this.debugDisposers.push(registerCommand(name, handler));
+    };
+    reg('pause', () => {
       this.paused = true;
       this.publishRuntime();
       return { ok: true };
     });
-    registerCommand('resume', () => {
+    reg('resume', () => {
       this.paused = false;
       this.publishRuntime();
       return { ok: true };
     });
-    registerCommand('teleportPlayer', (payload) => {
+    reg('teleportPlayer', (payload) => {
       const p = payload as { x?: number; y?: number } | undefined;
       if (typeof p?.x === 'number') {
         this.player = { ...this.player, x: p.x };
@@ -615,7 +656,7 @@ export class LevelScene extends Phaser.Scene {
       this.publishRuntime();
       return { ok: true };
     });
-    registerCommand('damageBoss', (payload) => {
+    reg('damageBoss', (payload) => {
       if (!this.boss.active) {
         this.boss = activateBoss(this.boss);
       }
@@ -625,7 +666,7 @@ export class LevelScene extends Phaser.Scene {
       this.publishRuntime();
       return { ok: true, applied: result.applied, health: this.boss.health };
     });
-    registerCommand('defeatBoss', () => {
+    reg('defeatBoss', () => {
       if (!this.boss.active) {
         this.boss = activateBoss(this.boss);
       }
@@ -636,43 +677,86 @@ export class LevelScene extends Phaser.Scene {
       this.publishRuntime();
       return { ok: true };
     });
-    registerCommand('completeLevel', () => {
+    reg('completeLevel', () => {
       if (this.completionTimer < 0 && !this.health.gameOver) {
         this.completionTimer = COMPLETION_DELAY;
       }
       this.publishRuntime();
       return { ok: true };
     });
-    registerCommand('triggerGameOver', () => {
+    reg('triggerGameOver', () => {
       this.health = { lives: 0, invuln: 0, gameOver: true };
       this.publishRuntime();
       return { ok: true };
     });
-    registerCommand('awardScore', (payload) => {
+    reg('awardScore', (payload) => {
       const amount = typeof payload === 'number' ? payload : 0;
       this.score += Math.max(0, Math.floor(amount));
       this.publishRuntime();
       return { ok: true, score: this.score };
     });
-    registerCommand('advanceSteps', (payload) => {
-      // Test affordance for the soak test: fast-forward simulation time
-      // synchronously (bounded), driving the real fixed-step loop. Under the
-      // manual clock this is the ONLY way the simulation advances. Stops
-      // early if a step transitions the scene (completion, game over).
+    reg('startAtCheckpoint', (payload) => {
+      // Restart the run at a chosen checkpoint with every spawn trigger AHEAD
+      // of it still armed. `teleportPlayer` cannot be used for this:
+      // `updateSpawnTriggers` fires when playerX enters [x0,x1], so teleporting
+      // across a trigger skips its wave permanently - which is exactly how
+      // `fullGame.spec` flew past (and hid) the Level 2 door bug.
+      const p = payload as { id?: string; index?: number; lives?: number; weapon?: WeaponId } | undefined;
+      const list = this.level.checkpoints;
+      const cp =
+        typeof p?.id === 'string'
+          ? list.find((c) => c.id === p.id)
+          : typeof p?.index === 'number'
+            ? list[p.index]
+            : list[0];
+      if (!cp) {
+        return { ok: false, error: `no such checkpoint: ${p?.id ?? p?.index}` };
+      }
+      this.resetRun();
+      if (typeof p?.lives === 'number' && p.lives > 0) {
+        this.health = createHealthState(Math.floor(p.lives));
+      }
+      if (p?.weapon) {
+        this.weapon = createWeaponState(p.weapon);
+      }
+      this.lastCheckpointId = cp.id;
+      this.player = createPlatformerState(cp.x, cp.y);
+      this.maxPlayerX = cp.x;
+      this.checkpoint = snapshotCheckpoint({
+        levelId: this.level.id,
+        checkpointId: cp.id,
+        lives: this.health.lives,
+        score: 0,
+        weapon: this.weapon.id,
+        spawnX: cp.x,
+        spawnY: cp.y
+      });
+      this.cameraX = Math.min(Math.max(cp.x - LOGICAL_WIDTH / 2, 0), Math.max(0, this.level.width - LOGICAL_WIDTH));
+      this.publishRuntime();
+      return { ok: true, checkpoint: cp.id, x: cp.x, lives: this.health.lives };
+    });
+    reg('advanceSteps', (payload) => {
+      // Fast-forward simulation time synchronously (bounded), driving the real
+      // fixed-step loop. Under the manual clock this is the ONLY way the
+      // simulation advances.
+      //
+      // The loop stops on `this.ending`, not on `this.scene.isActive()`:
+      // Phaser queues scene swaps for the next Scene Manager update, so
+      // `isActive()` is still true for every remaining step of this batch.
       const n = clampStepCount(payload);
       let ran = 0;
-      for (let i = 0; i < n && this.scene.isActive(); i++) {
+      for (let i = 0; i < n && this.ending === null; i++) {
         this.stepOnce();
         ran += 1;
       }
-      // Only republish while this scene still owns the frame; otherwise the
-      // fresh scene (results/game over) has already published its snapshot.
-      if (this.scene.isActive()) {
+      if (this.ending === null) {
         this.publishRuntime();
       }
-      return { ok: true, steps: ran };
+      // `ended` tells a driver the run finished without it having to poll
+      // `getState().scene`, which lags the swap by up to two frames.
+      return { ok: true, steps: ran, ended: this.ending };
     });
-    registerCommand('setManualClock', (payload) => {
+    reg('setManualClock', (payload) => {
       // Runtime toggle for agent drivers that did not navigate with
       // `?manualClock`. A boolean payload sets the flag explicitly; any other
       // payload enables it.
@@ -683,7 +767,7 @@ export class LevelScene extends Phaser.Scene {
       this.publishRuntime();
       return { ok: true, manualClock: this.manualClock };
     });
-    registerCommand('report', () => {
+    reg('report', () => {
       this.publishRuntime();
       return { ok: true };
     });
@@ -764,6 +848,13 @@ export class LevelScene extends Phaser.Scene {
   }
 
   private stepOnce(): void {
+    if (this.ending !== null) {
+      // The swap is queued; this scene is finished even though Phaser has not
+      // processed it yet. Simulating further would run a level that is on its
+      // way out and could queue a second, conflicting transition.
+      return;
+    }
+    this.stepIndex += 1;
     const debug = this.readDebugInput();
     const touchInput = this.touch ? this.touch.read() : createNeutralInput();
     const device = mergeInput(this.keyboard.build(this.stepInput), this.gamepad.build());
@@ -776,10 +867,7 @@ export class LevelScene extends Phaser.Scene {
     this.stepInput = mergeInput(humanInput, mergeInput(debug, pilotInput));
 
     if (this.health.gameOver) {
-      // Guard against repeated transitions when steps are driven externally.
-      if (this.scene.isActive()) {
-        this.goToGameOver();
-      }
+      this.goToGameOver();
       return;
     }
 
@@ -787,6 +875,8 @@ export class LevelScene extends Phaser.Scene {
       this.completionTimer -= FIXED_DT;
       if (this.completionTimer <= 0) {
         this.registry.set('lastScore', this.score);
+        this.ending = 'results';
+        this.publishRuntime();
         this.scene.start(SCENE_KEYS.results);
         return;
       }
@@ -892,8 +982,12 @@ export class LevelScene extends Phaser.Scene {
 
     this.cameraX = Math.min(Math.max(this.player.x - LOGICAL_WIDTH / 2, 0), Math.max(0, this.level.width - LOGICAL_WIDTH));
 
+    this.maxPlayerX = Math.max(this.maxPlayerX, this.player.x);
+
     if (this.hazardTouchesPlayer() || playerResult.died) {
-      this.startDeath();
+      // `died` is the fall-below-the-world threshold, i.e. a pit; anything else
+      // reaching here is a floor hazard (spike strip).
+      this.startDeath(playerResult.died ? 'pit' : 'hazard');
     }
 
     if (isBossAlive(this.boss) === false && this.boss.active && this.player.x >= this.level.completionX && this.completionTimer < 0) {
@@ -976,7 +1070,7 @@ export class LevelScene extends Phaser.Scene {
       const zoneCenter = result.action.x + def.width / 2;
       // Honest, grounded-only shockwave damage (jumping dodges it).
       if (shockwaveHits(zoneCenter, this.player.x + PLAYER_WIDTH / 2, this.player.grounded)) {
-        this.playerHit();
+        this.playerHit('bossShockwave');
       }
       this.spawnFx([
         { kind: 'spark', x: zoneCenter - 120, y: def.groundY - 4 },
@@ -1272,7 +1366,7 @@ export class LevelScene extends Phaser.Scene {
       }
       const overlaps = this.bulletHitsRect(bullet.x, bullet.y, 8, 8, this.player.x, top, PLAYER_WIDTH, h);
       if (overlaps && recordHit(this.ledger, bullet.id, 'player')) {
-        this.playerHit();
+        this.playerHit('enemyFire');
       } else {
         surviving.push(bullet);
       }
@@ -1291,13 +1385,28 @@ export class LevelScene extends Phaser.Scene {
     }
   }
 
-  private playerHit(): void {
+  private playerHit(cause: DeathCause): void {
     const damage = applyDamage(this.health, INVULN_DURATION);
     this.health = damage.health;
     if (damage.applied) {
+      this.recordDeath(cause, true);
       this.sfx('hit');
       this.hurtTimer = HURT_DURATION;
     }
+  }
+
+  /** Append to the published death log, oldest first, bounded for snapshot size. */
+  private recordDeath(cause: DeathCause, costLife: boolean): void {
+    if (this.deaths.length >= MAX_DEATH_EVENTS) {
+      this.deaths.shift();
+    }
+    this.deaths.push({
+      cause,
+      x: round2(this.player.x),
+      y: round2(this.player.y),
+      stepIndex: this.stepIndex,
+      costLife
+    });
   }
 
   private hazardTouchesPlayer(): boolean {
@@ -1316,10 +1425,11 @@ export class LevelScene extends Phaser.Scene {
    * respawn are deferred to finishDeath() so the death pose gets its moment;
    * tests observe the life decrement exactly when the respawn lands.
    */
-  private startDeath(): void {
+  private startDeath(cause: DeathCause): void {
     if (this.deathTimer >= 0) {
       return;
     }
+    this.pendingDeathCause = cause;
     this.deathTimer = DEATH_DURATION;
     this.spawnFx([{ kind: 'burst', x: this.player.x + PLAYER_WIDTH / 2, y: this.player.y - PLAYER_HEIGHT / 2 }]);
     this.sfx('explosion');
@@ -1330,6 +1440,11 @@ export class LevelScene extends Phaser.Scene {
   private finishDeath(): void {
     const damage = applyDamage(this.health, INVULN_DURATION);
     this.health = damage.health;
+    // `applied` is false when an invulnerability window from an earlier hit was
+    // still open. The respawn still runs, so the death is logged either way and
+    // `costLife` records which it was (see TASK-026).
+    this.recordDeath(this.pendingDeathCause ?? 'pit', damage.applied);
+    this.pendingDeathCause = null;
     if (this.health.gameOver) {
       // The game-over scene transition fires at the top of the next step.
       return;
@@ -1351,6 +1466,8 @@ export class LevelScene extends Phaser.Scene {
 
   private goToGameOver(): void {
     this.registry.set('lastScore', this.score);
+    this.ending = 'gameOver';
+    this.publishRuntime();
     this.scene.start(SCENE_KEYS.gameOver);
   }
 
@@ -1403,7 +1520,6 @@ export class LevelScene extends Phaser.Scene {
   }
 
   private publishRuntime(): void {
-    const round2 = (v: number): number => Math.round(v * 100) / 100;
     const bossVisible = this.boss.active && isBossAlive(this.boss);
     const snapshot: LevelRuntime = {
       level: this.level.id,
@@ -1467,7 +1583,11 @@ export class LevelScene extends Phaser.Scene {
       completing: this.completionTimer >= 0,
       score: this.score,
       manualClock: this.manualClock,
-      autopilot: this.pilotEngaged
+      autopilot: this.pilotEngaged,
+      stepIndex: this.stepIndex,
+      maxPlayerX: round2(this.maxPlayerX),
+      ending: this.ending,
+      deaths: this.deaths.map((d) => ({ ...d }))
     };
     reportRuntime(snapshot);
     // The AI pilot perceives the game through this very snapshot next step.

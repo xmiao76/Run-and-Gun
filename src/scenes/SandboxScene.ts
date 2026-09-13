@@ -21,7 +21,9 @@ import {
   manualClockRequested,
   registerCommand,
   reportRuntime,
-  reportScene
+  reportScene,
+  type CommandHandler,
+  type DebugCommandName
 } from '../debug/debugBridge';
 import { createKeyboardInput, type KeyboardInput } from '../input/KeyboardInput';
 import { createNeutralInput, mergeInput, type InputState } from '../input/InputState';
@@ -116,6 +118,8 @@ export class SandboxScene extends Phaser.Scene {
   private stepInput: InputState = createNeutralInput();
   /** Agent-driven manual clock (`?manualClock`); see LevelScene for details. */
   private manualClock = false;
+  /** Disposers for this scene's bridge commands, released on shutdown. */
+  private debugDisposers: Array<() => void> = [];
   private keyboard: KeyboardInput = createKeyboardInput();
   private checkpoint: CheckpointData = {
     levelId: 'sandbox',
@@ -169,6 +173,10 @@ export class SandboxScene extends Phaser.Scene {
   }
 
   public shutdown(): void {
+    for (const dispose of this.debugDisposers) {
+      dispose();
+    }
+    this.debugDisposers = [];
     this.keyboard.detach(window);
     clearRuntime();
   }
@@ -448,9 +456,13 @@ export class SandboxScene extends Phaser.Scene {
   }
 
   private registerDebugCommands(): void {
-    registerCommand('damagePlayer', () => this.applyExternalHit());
-    registerCommand('spawnEnemyAt', (payload) => this.spawnEnemyAt(payload));
-    registerCommand('advanceSteps', (payload) => {
+    // Disposed on shutdown so a stopped sandbox cannot answer bridge commands.
+    const reg = (name: DebugCommandName, handler: CommandHandler): void => {
+      this.debugDisposers.push(registerCommand(name, handler));
+    };
+    reg('damagePlayer', () => this.applyExternalHit());
+    reg('spawnEnemyAt', (payload) => this.spawnEnemyAt(payload));
+    reg('advanceSteps', (payload) => {
       // Same bounded fast-forward as the level scene; under the manual clock
       // this is the only way the sandbox simulation advances.
       const n = clampStepCount(payload);
@@ -460,7 +472,7 @@ export class SandboxScene extends Phaser.Scene {
       this.publishRuntime();
       return { ok: true, steps: n };
     });
-    registerCommand('setManualClock', (payload) => {
+    reg('setManualClock', (payload) => {
       this.manualClock = typeof payload === 'boolean' ? payload : true;
       if (this.manualClock) {
         this.clock.accumulator = 0;
@@ -468,7 +480,7 @@ export class SandboxScene extends Phaser.Scene {
       this.publishRuntime();
       return { ok: true, manualClock: this.manualClock };
     });
-    registerCommand('report', () => {
+    reg('report', () => {
       this.publishRuntime();
       return { ok: true };
     });

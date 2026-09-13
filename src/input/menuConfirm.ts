@@ -5,10 +5,15 @@
  * (Enter/Space), tap/click anywhere, or a gamepad (A/X/Start to confirm,
  * Back for the optional secondary action). Returns a detach function that
  * scenes must run on shutdown (see sceneLifecycle.hookShutdown).
+ *
+ * Every menu also gets the debug `confirmMenu` / `backMenu` bridge commands for
+ * free, so an agent driving the game can leave a menu without synthesizing real
+ * keys - and, under `?manualClock`, without waiting on wall time at all.
  */
 
 import type Phaser from 'phaser';
 
+import { registerCommand } from '../debug/debugBridge';
 import { createGamepadInput } from './GamepadInput';
 
 const CONFIRM_KEYS = new Set(['Enter', 'Space']);
@@ -54,9 +59,23 @@ export function attachMenuConfirm(
   window.addEventListener('pointerdown', onPointer);
   scene.events.on('update', onUpdate);
 
+  const disposeConfirm = registerCommand('confirmMenu', () => {
+    onConfirm();
+    return { ok: true };
+  });
+  const disposeBack = registerCommand('backMenu', () => {
+    if (!options.onBack) {
+      return { ok: false, error: 'this menu has no back action' };
+    }
+    options.onBack();
+    return { ok: true };
+  });
+
   return () => {
     window.removeEventListener('keydown', onKey);
     window.removeEventListener('pointerdown', onPointer);
     scene.events.off('update', onUpdate);
+    disposeConfirm();
+    disposeBack();
   };
 }
