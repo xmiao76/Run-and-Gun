@@ -3956,3 +3956,47 @@ Include enough detail so the next iteration can continue without guessing.
   - none.
 
 ---
+
+### 2026-09-13 10:05 - Title screen: promote the AI demo to a call to action
+
+- Status before: all tasks DONE. This came from a direct request.
+- The problem: "I - WATCH AI PLAY" was the LAST of four items on a single dim
+  8px line at the very bottom of the title screen, below the controls panel and
+  next to the version string. A new visitor never saw it - which is a shame,
+  because watching the pilot play is the fastest way to understand what this
+  game is without committing to a run.
+- Work completed:
+  - It is now a second call to action directly under "PRESS ENTER OR SPACE TO
+    START": same 16px size, so it reads as that prompt's peer rather than a
+    footnote, and in the gold the game already uses to mean "the AI is driving"
+    (the in-level AI label and the control-panel keys both use it), so the
+    colour carries meaning rather than just being loud.
+  - Wording changed from "I - WATCH AI PLAY" to "PRESS I TO WATCH THE AI PLAY",
+    parallel with the start prompt, so it needs no decoding.
+  - Its pulse is slower than the start prompt's and out of phase, so the two
+    alternate rather than blinking as one block - each takes a turn being the
+    bright thing on screen.
+  - Removed from the bottom hint line, which would otherwise say it twice.
+- A layout bug I introduced and caught in the screenshot: to make room I had
+  moved the controls panel down 4px, which pushed the panel's own "also: WASD
+  move" footnote into the hint line beneath it - two 8px lines drawn on top of
+  each other. The AI prompt fits in the gap the start prompt vacated instead,
+  so the panel is back at its original position and the bottom stack is
+  untouched.
+- Tests: the title spec now pins the intent rather than the pixel - the AI
+  prompt must exist, be the same size as the start prompt, sit directly below
+  it (within 60px, so it cannot drift to the foot of the screen), and must not
+  be duplicated in the hint line. A second test presses I from a cold title and
+  asserts the promise it makes: the level starts with the pilot driving.
+- Files changed:
+  - src/scenes/TitleScene.ts, tests/e2e/title.spec.ts (+2)
+- Commands run:
+  - `npm run lint`, `npm run typecheck` (clean)
+  - `npm run test:unit` (473 passed), `npm run build` (pass)
+  - `npx playwright test` (110 passed, up from 108; soak heap-flat)
+  - `npm run eval -- --baseline` (exit 0)
+- Verification result:
+  - Green, and reviewed in screenshots at both pulse phases.
+- Status after: DONE. Live site does not have this yet.
+
+---
