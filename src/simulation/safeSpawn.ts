@@ -1,8 +1,8 @@
 import { PLAYER_HEIGHT, PLAYER_WIDTH } from '../balance/player';
 
 /**
- * Spawn-safety checks. Enemies must never spawn on top of the player
- * (ACCEPTANCE_CRITERIA E3). A candidate point is rejected when its body box,
+ * Spawn-safety checks. Enemies must never spawn on top of the player.
+ * A candidate point is rejected when its body box,
  * expanded by a safety margin, overlaps the player body.
  */
 

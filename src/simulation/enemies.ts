@@ -73,6 +73,7 @@ export function isAlive(enemy: EnemyState): boolean {
   return enemy.state !== 'dead' && enemy.health > 0;
 }
 
+
 /** Apply one player hit; transitions to `dead` when health reaches zero. */
 export function damageEnemy(enemy: EnemyState, amount: number): EnemyState {
   if (!isAlive(enemy)) {

@@ -14,7 +14,7 @@ import { TitleScene } from '../scenes/TitleScene';
  * Creates the Phaser game instance.
  *
  * The logical resolution is fixed at 960x540 and scaled to fit its parent
- * while preserving aspect ratio, per GAME_REQUIREMENTS.md section 3. The
+ * while preserving aspect ratio (PROJECT.md, target platform). The
  * renderer defaults to AUTO (WebGL) for real users; a debug query parameter
  * may force Canvas/WebGL for headless automation (see debugBridge).
  */

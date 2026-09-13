@@ -17,26 +17,32 @@ describe('Drone aerial patrol', () => {
 });
 
 describe('Grenadier distance-keeping', () => {
+  // These three asserted the OPPOSITE of their own names until TASK-041, with
+  // comments that contradicted themselves ("player to the right ... moves the
+  // enemy left, toward the player"). They matched the sign error in
+  // `repositionDir` rather than the behaviour, which is why a Grenadier that
+  // walked out of its own engage range and never attacked went unnoticed.
   it('backs away from a player who is too close', () => {
     const e = createEnemyState('g1', 'grenadier', 500, 450);
-    // Player to the left and too close: backing away moves the enemy left (x down).
-    // canFire=false so a pending attack doesn't take precedence over repositioning.
+    // Player to the LEFT and too close: backing away grows the gap, so the
+    // enemy moves RIGHT (x up). canFire=false so a pending attack does not take
+    // precedence over repositioning.
     const r = stepEnemy(e, 400, 450, DT, false); // distance 100 < preferred-24
-    expect(r.enemy.x).toBeLessThan(500);
+    expect(r.enemy.x).toBeGreaterThan(500);
   });
 
   it('backs away from a right player who is too close', () => {
     const e = createEnemyState('g1', 'grenadier', 500, 450);
-    // Player to the right and too close: backing away moves the enemy right (x up).
+    // Player to the RIGHT and too close: backing away moves the enemy LEFT.
     const r = stepEnemy(e, 600, 450, DT, false); // distance 100 < preferred-24
-    expect(r.enemy.x).toBeGreaterThan(500);
+    expect(r.enemy.x).toBeLessThan(500);
   });
 
   it('closes in on a player who is too far', () => {
     const e = createEnemyState('g1', 'grenadier', 500, 450);
-    // Player to the right and too far: closing in moves the enemy left, toward
-    // the player (x down).
+    // Player to the RIGHT and too far: closing in shrinks the gap, so the enemy
+    // moves RIGHT (x up).
     const r = stepEnemy(e, 900, 450, DT, true); // distance 400 > preferred+24
-    expect(r.enemy.x).toBeLessThan(500);
+    expect(r.enemy.x).toBeGreaterThan(500);
   });
 });

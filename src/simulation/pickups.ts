@@ -3,7 +3,7 @@ import { type WeaponId } from '../balance/weapons';
 /**
  * Weapon pickups and collection. Pure AABB overlap against the player body;
  * collecting a pickup yields the weapon it carries so the scene can switch the
- * active weapon and communicate the result (ACCEPTANCE_CRITERIA D2).
+ * active weapon and communicate the result.
  */
 
 export interface Pickup {

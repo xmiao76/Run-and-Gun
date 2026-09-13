@@ -33,7 +33,7 @@ test.describe('per-level AI autoplay toggle', () => {
     await page.waitForFunction(() => window.__GAME_DEBUG__?.getState()?.runtime?.autopilot === false);
   });
 
-  test('with the toggle on, the AI plays Level 1 and Level 2 hands-free', async ({ page }) => {
+  test('with the toggle on, the AI plays the whole game hands-free', async ({ page }) => {
     test.setTimeout(240_000);
     const pageErrors: string[] = [];
     page.on('pageerror', (e) => pageErrors.push(String(e)));
@@ -55,25 +55,40 @@ test.describe('per-level AI autoplay toggle', () => {
     }
     expect(await page.evaluate(() => window.__GAME_DEBUG__?.getState()?.scene)).toBe('results');
 
-    // Results auto-advances (real time) into Level 2 with the pilot still on.
+    // Results auto-advances (real time) into the next stage, pilot still on.
     await page.waitForFunction(() => window.__GAME_DEBUG__?.getState()?.runtime?.level === 'fortress-interior', null, {
       timeout: 10_000
     });
     expect((await rt(page))?.autopilot).toBe(true);
 
-    // AI defeats the Reactor Warden -> results marked final (MISSION COMPLETE).
+    // Then play out every remaining stage until the ending. Written as a loop
+    // over stages rather than one leg per level, so adding a stage extends the
+    // AI's job without needing this test rewritten again (TASK-039).
     let final = false;
-    for (let i = 0; i < 300; i++) {
-      const s = await page.evaluate(() => {
-        window.__GAME_DEBUG__?.command('advanceSteps', 600);
-        return window.__GAME_DEBUG__?.getState();
-      });
-      if (s?.scene === 'results') {
-        final = (s?.runtime as AiRuntime | null)?.final === true;
+    let stagesPlayed = 1;
+    for (let stage = 0; stage < 8 && !final; stage++) {
+      for (let i = 0; i < 300; i++) {
+        const s = await page.evaluate(() => {
+          window.__GAME_DEBUG__?.command('advanceSteps', 600);
+          return window.__GAME_DEBUG__?.getState();
+        });
+        if (s?.scene === 'results') {
+          final = (s?.runtime as AiRuntime | null)?.final === true;
+          stagesPlayed += 1;
+          break;
+        }
+      }
+      if (final) {
         break;
       }
+      // Intermediate results auto-advance; wait for the next level to start.
+      await page.waitForFunction(() => window.__GAME_DEBUG__?.getState()?.scene === 'level', null, {
+        timeout: 15_000
+      });
     }
     expect(final).toBe(true);
+    // The pilot really played every stage, not just the first and last.
+    expect(stagesPlayed).toBeGreaterThanOrEqual(3);
     expect(pageErrors).toEqual([]);
   });
 

@@ -11,6 +11,10 @@ export function bulletTexture(weapon: WeaponId): string {
       return 'art/bullet-scatter';
     case 'rapid':
       return 'art/bullet-rapid';
+    case 'laser':
+      return 'art/bullet-laser';
+    case 'flame':
+      return 'art/bullet-flame';
     case 'pulse':
       return 'art/bullet-pulse';
   }

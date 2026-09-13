@@ -21,10 +21,13 @@ describe('selectPlayerPose', () => {
     expect(selectPlayerPose(IDLE)).toBe('idle');
   });
 
-  it('alternates run frames while moving on the ground', () => {
+  it('cycles all four run frames while moving on the ground', () => {
+    // TASK-035 widened the cycle from two frames to four: stride, passing,
+    // counter-stride, counter-passing.
     expect(selectPlayerPose({ ...IDLE, speedX: 190, runFrame: 0 })).toBe('run-a');
-    expect(selectPlayerPose({ ...IDLE, speedX: 190, runFrame: 1 })).toBe('run-b');
-    expect(selectPlayerPose({ ...IDLE, speedX: -190, runFrame: 1 })).toBe('run-b');
+    expect(selectPlayerPose({ ...IDLE, speedX: 190, runFrame: 1 })).toBe('run-c');
+    expect(selectPlayerPose({ ...IDLE, speedX: 190, runFrame: 2 })).toBe('run-b');
+    expect(selectPlayerPose({ ...IDLE, speedX: -190, runFrame: 3 })).toBe('run-d');
   });
 
   it('returns jump while airborne, even when aiming', () => {

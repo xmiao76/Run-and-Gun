@@ -115,3 +115,27 @@ describe('storage service', () => {
     expect(saveSettings(DEFAULT_SETTINGS, null)).toBe(false);
   });
 });
+
+/**
+ * TASK-034: the scanlines setting follows the same rules as every other
+ * persisted setting: off by default, honoured when stored, and a corrupt or
+ * wrong-typed stored value falls back to the default rather than breaking
+ * startup.
+ */
+describe('scanlines setting', () => {
+  it('defaults to off', () => {
+    expect(DEFAULT_SETTINGS.scanlines).toBe(false);
+    expect(parseSettings({}).scanlines).toBe(false);
+    expect(parseSettings(null).scanlines).toBe(false);
+  });
+
+  it('honours a stored boolean', () => {
+    expect(parseSettings({ scanlines: true }).scanlines).toBe(true);
+    expect(parseSettings({ scanlines: false }).scanlines).toBe(false);
+  });
+
+  it('falls back to the default for a wrong-typed stored value', () => {
+    expect(parseSettings({ scanlines: 'yes' }).scanlines).toBe(false);
+    expect(parseSettings({ scanlines: 1 }).scanlines).toBe(false);
+  });
+});

@@ -37,7 +37,7 @@ function lifeHud(page: Page): Promise<{ icons: number; label: string }> {
       if (o.type === 'Image' && o.texture?.key === 'art/ui-life') {
         out.icons += 1;
       }
-      if (o.type === 'Text' && typeof o.text === 'string' && /^x\d+$/.test(o.text)) {
+      if ((o.type === 'Text' || o.type === 'BitmapText') && typeof o.text === 'string' && /^x\d+$/i.test(o.text)) {
         out.label = o.text;
       }
     }
@@ -62,13 +62,13 @@ test.describe('starting lives setting', () => {
     expect(DEFAULT_SETTINGS.startingLives).toBe(30);
     expect((await runtime(page)).lives).toBe(30);
     const hud = await lifeHud(page);
-    expect(hud.label).toBe('x30');
+    expect(hud.label).toBe('X30');
     expect(hud.icons).toBe(1); // not 30 icons across the screen
 
     // A death decrements from 30, not from the old default of 3.
     await page.evaluate(() => window.__GAME_DEBUG__?.command('teleportPlayer', { x: 780, y: 800 }));
     await page.waitForFunction(() => window.__GAME_DEBUG__?.getState()?.runtime?.lives === 29);
-    expect((await lifeHud(page)).label).toBe('x29');
+    expect((await lifeHud(page)).label).toBe('X29');
 
     expect(pageErrors).toEqual([]);
   });

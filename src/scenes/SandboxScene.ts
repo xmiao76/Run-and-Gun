@@ -66,7 +66,12 @@ import { updateSpawnTriggers, type SpawnTrigger } from '../simulation/spawnTrigg
 import { GAME_VERSION, LOGICAL_HEIGHT, LOGICAL_WIDTH, SCENE_KEYS } from '../app/config';
 import { ensureGameTextures, SKY_TEXTURE } from '../art/textures';
 import { bulletTexture } from '../art/weaponArt';
+import { enemyFrame } from '../art/enemyArt';
+import { getEnemyDef } from '../balance/enemies';
 import { hookShutdown } from './sceneLifecycle';
+import { drawText, setText } from '../ui/text';
+import { attachScanlines } from '../ui/scanlines';
+import { PALETTE_HEX } from '../art/palette';
 
 const HUD_Y = 20;
 const MAX_PROJECTILES = 64;
@@ -74,11 +79,13 @@ const GUN_OFFSET_X = PLAYER_WIDTH;
 const GUN_OFFSET_Y = 12;
 const ENEMY_PROJECTILE_W = 8;
 const ENEMY_PROJECTILE_H = 8;
-/** Milliseconds per leg-swap in the player run cycle. */
-const RUN_FRAME_MS = 140;
+/** Simulation steps per player run-cycle frame (see LevelScene). */
+const RUN_FRAME_STEPS = 8;
 
 interface PlayerBullet extends Projectile {
   id: string;
+  /** Targets already damaged for this projectile's lifetime; see LevelScene. */
+  hitIds: string[];
 }
 
 interface EnemyBullet {
@@ -135,14 +142,16 @@ export class SandboxScene extends Phaser.Scene {
   private playerImage?: Phaser.GameObjects.Image;
   private playerFacing = 1;
   private animTimeMs = 0;
+  /** Simulation steps run; drives the run-cycle frames deterministically. */
+  private simSteps = 0;
   private playerBulletImages: Phaser.GameObjects.Image[] = [];
   private enemyBulletImages: Phaser.GameObjects.Image[] = [];
   private enemyImages: Phaser.GameObjects.Image[] = [];
   private enemyTelegraphRects: Phaser.GameObjects.Rectangle[] = [];
   private pickupImages: Phaser.GameObjects.Image[] = [];
-  private pickupLabels: Phaser.GameObjects.Text[] = [];
-  private hudText?: Phaser.GameObjects.Text;
-  private overlayText?: Phaser.GameObjects.Text;
+  private pickupLabels: Phaser.GameObjects.BitmapText[] = [];
+  private hudText?: Phaser.GameObjects.BitmapText;
+  private overlayText?: Phaser.GameObjects.BitmapText;
 
   constructor() {
     super(SCENE_KEYS.sandbox);
@@ -150,6 +159,7 @@ export class SandboxScene extends Phaser.Scene {
 
   public create(): void {
     reportScene(SCENE_KEYS.sandbox);
+    attachScanlines(this);
     // Phaser reuses the scene instance across scene.start calls, so the flag
     // is re-read here rather than once at construction.
     this.manualClock = manualClockRequested();
@@ -157,15 +167,14 @@ export class SandboxScene extends Phaser.Scene {
     this.resetRun();
     this.buildEnvironment();
     this.playerImage = this.add.image(0, 0, 'art/player-idle').setOrigin(0, 0).setDepth(30);
-    this.hudText = this.add.text(12, HUD_Y, '', { fontFamily: 'monospace', fontSize: '16px', color: '#e8f1ff' }).setDepth(100);
-    this.add
-      .text(12, LOGICAL_HEIGHT - 22, 'Arrows: move/aim   Z: jump   X: fire', {
-        fontFamily: 'monospace',
-        fontSize: '13px',
-        color: '#8fa3c7'
-      })
-      .setOrigin(0, 0.5)
-      .setDepth(100);
+    this.hudText = drawText(this, 12, HUD_Y, '', { size: 16, color: '#e8f1ff', depth: 100 });
+    drawText(this, 12, LOGICAL_HEIGHT - 22, 'Arrows: move/aim   Z: jump   X: fire', {
+      size: 16,
+      color: '#8fa3c7',
+      originX: 0,
+      originY: 0.5,
+      depth: 100
+    });
     this.keyboard.attach(window);
     this.registerDebugCommands();
     hookShutdown(this.events, () => this.shutdown());
@@ -205,6 +214,7 @@ export class SandboxScene extends Phaser.Scene {
   }
 
   private stepOnce(): void {
+    this.simSteps += 1;
     const debug = this.readDebugInput();
     this.stepInput = mergeInput(this.keyboard.build(), debug);
 
@@ -246,6 +256,7 @@ export class SandboxScene extends Phaser.Scene {
       const spawned = fireResult.projectiles.map((p): PlayerBullet => ({
         ...p,
         id: this.makeId('pb'),
+        hitIds: [],
         x: this.player.x + GUN_OFFSET_X,
         y: this.player.y + GUN_OFFSET_Y
       }));
@@ -309,8 +320,11 @@ export class SandboxScene extends Phaser.Scene {
   private resolvePlayerBulletsVsEnemies(): void {
     const surviving: PlayerBullet[] = [];
     for (const bullet of this.playerBullets) {
-      let consumed = false;
-      for (let i = 0; i < this.enemies.length; i++) {
+      // Same piercing rules as the real game, so the prototype room stays a
+      // faithful place to test a weapon (see LevelScene for the reasoning).
+      let pierceLeft = bullet.pierce;
+      let hitIds = bullet.hitIds;
+      for (let i = 0; i < this.enemies.length && pierceLeft > 0; i++) {
         const enemy = this.enemies[i];
         if (!isAlive(enemy)) {
           continue;
@@ -318,18 +332,18 @@ export class SandboxScene extends Phaser.Scene {
         if (!this.bulletHitsEnemy(bullet, enemy)) {
           continue;
         }
-        if (!recordHit(this.ledger, bullet.id, enemy.id)) {
+        if (hitIds.includes(enemy.id) || !recordHit(this.ledger, bullet.id, enemy.id)) {
           continue;
         }
         this.enemies[i] = damageEnemy(enemy, bullet.damage);
         if (!isAlive(this.enemies[i])) {
           this.score += this.scoreFor(enemy.kind);
         }
-        consumed = true;
-        break;
+        hitIds = [...hitIds, enemy.id];
+        pierceLeft -= 1;
       }
-      if (!consumed) {
-        surviving.push(bullet);
+      if (pierceLeft > 0) {
+        surviving.push(pierceLeft === bullet.pierce ? bullet : { ...bullet, pierce: pierceLeft, hitIds });
       }
     }
     this.playerBullets = surviving;
@@ -578,7 +592,7 @@ export class SandboxScene extends Phaser.Scene {
 
     // The pit: a dark void, its rims marked with hazard stripes.
     this.add
-      .rectangle((PIT_X0 + ARENA_WIDTH) / 2, GROUND_Y, ARENA_WIDTH - PIT_X0, LOGICAL_HEIGHT - GROUND_Y, 0x05070c)
+      .rectangle((PIT_X0 + ARENA_WIDTH) / 2, GROUND_Y, ARENA_WIDTH - PIT_X0, LOGICAL_HEIGHT - GROUND_Y, PALETTE_HEX.VOID)
       .setOrigin(0.5, 0)
       .setDepth(-59);
     this.add
@@ -618,7 +632,7 @@ export class SandboxScene extends Phaser.Scene {
     this.renderPickups();
 
     const def = getWeapon(this.weapon.id);
-    this.hudText.setText(
+    setText(this.hudText, 
       'LIVES ' + this.health.lives + '   ' + def.name.toUpperCase() + '   SCORE ' + this.score + '   v' + GAME_VERSION
     );
 
@@ -648,7 +662,7 @@ export class SandboxScene extends Phaser.Scene {
     if (!this.player.grounded) {
       key = 'art/player-jump';
     } else if (Math.abs(this.player.vx) > 1) {
-      key = Math.floor(this.animTimeMs / RUN_FRAME_MS) % 2 === 0 ? 'art/player-run-a' : 'art/player-run-b';
+      key = 'art/player-' + (['run-a', 'run-c', 'run-b', 'run-d'] as const)[Math.floor(this.simSteps / RUN_FRAME_STEPS) % 4];
     }
     image.setTexture(key);
     image.setFlipX(this.playerFacing < 0);
@@ -701,7 +715,10 @@ export class SandboxScene extends Phaser.Scene {
         continue;
       }
       image.setVisible(true);
-      image.setTexture(e.kind === 'sentry' ? 'art/enemy-sentry' : 'art/enemy-runner');
+      // Use the shared frame selector rather than a local guess: this line was
+      // a two-way choice from when the prototype room only had a Runner and a
+      // Sentry, so every later archetype silently drew as a Runner.
+      image.setTexture(enemyFrame(e, this.simSteps));
       // Sprites are authored facing left; flip when the enemy faces right.
       image.setFlipX(e.facing > 0);
       image.setPosition(e.x, e.y);
@@ -712,7 +729,7 @@ export class SandboxScene extends Phaser.Scene {
       tele.setSize(w + 8, h + 8);
       tele.setVisible(e.telegraphing);
       if (e.telegraphing) {
-        tele.setStrokeStyle(2, 0xffff66);
+        tele.setStrokeStyle(2, PALETTE_HEX.YELLOW);
         tele.setAlpha(0.5 + 0.5 * Math.sin(performance.now() / 60));
       }
     }
@@ -735,7 +752,7 @@ export class SandboxScene extends Phaser.Scene {
       image.setPosition(p.x, p.y);
       label.setVisible(true);
       label.setPosition(p.x + 9, p.y + 9);
-      label.setText(pickupLetter(p.weapon));
+      setText(label, pickupLetter(p.weapon));
       label.setDepth(-35);
     }
   }
@@ -764,25 +781,23 @@ export class SandboxScene extends Phaser.Scene {
     }
   }
 
-  private syncTextPool(pool: Phaser.GameObjects.Text[], count: number): void {
+  private syncTextPool(pool: Phaser.GameObjects.BitmapText[], count: number): void {
     while (pool.length < count) {
-      const t = this.add.text(0, 0, '', { fontFamily: 'monospace', fontSize: '12px', color: '#06222b' });
-      t.setOrigin(0.5, 0.5);
+      const t = drawText(this, 0, 0, '', { size: 16, color: '#06222b', originX: 0.5, originY: 0.5 });
       pool.push(t);
     }
   }
 
   private showOverlay(message: string): void {
     if (!this.overlayText) {
-      this.overlayText = this.add
-        .text(ARENA_WIDTH / 2, ARENA_HEIGHT / 2, message, {
-          fontFamily: 'monospace',
-          fontSize: '40px',
-          color: '#ff7777'
-        })
-        .setOrigin(0.5);
+      this.overlayText = drawText(this, ARENA_WIDTH / 2, ARENA_HEIGHT / 2, message, {
+        size: 40,
+        color: '#ff7777',
+        originX: 0.5,
+        originY: 0.5
+      });
     } else {
-      this.overlayText.setText(message);
+      setText(this.overlayText, message);
       this.overlayText.setVisible(true);
     }
   }
@@ -794,20 +809,33 @@ export class SandboxScene extends Phaser.Scene {
   }
 }
 
+/**
+ * Collision size from the archetype data, not a local guess.
+ *
+ * These were two-way switches dating from when the prototype room only had a
+ * Runner and a Sentry, so every archetype added later silently inherited the
+ * Runner's hitbox here while using its own in the real game.
+ */
 function enemyWidth(enemy: EnemyState): number {
-  return enemy.kind === 'sentry' ? 24 : 20;
+  return getEnemyDef(enemy.kind).width;
 }
 
 function enemyHeight(enemy: EnemyState): number {
-  return enemy.kind === 'sentry' ? 24 : 30;
+  return getEnemyDef(enemy.kind).height;
 }
 
+/** Capsule letter; kept in step with the level HUD (TASK-036 added L and F). */
 function pickupLetter(weapon: WeaponId): string {
-  if (weapon === 'scatter') {
-    return 'S';
+  switch (weapon) {
+    case 'scatter':
+      return 'S';
+    case 'rapid':
+      return 'R';
+    case 'laser':
+      return 'L';
+    case 'flame':
+      return 'F';
+    default:
+      return 'P';
   }
-  if (weapon === 'rapid') {
-    return 'R';
-  }
-  return 'P';
 }

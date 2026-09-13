@@ -4,13 +4,35 @@
  * The Siege Walker is an original ground machine with three telegraphed attack
  * patterns and a vulnerable phase. The Reactor Warden is an original fortress
  * core with two phases, each gated by destructible subcomponents that must be
- * destroyed before the core becomes vulnerable (GAME_REQUIREMENTS.md section 7).
+ * destroyed before the core becomes vulnerable (PROJECT.md, Bosses).
  * All timing is in seconds so the simulation stays deterministic.
  */
 
-export type BossId = 'siegeWalker' | 'reactorWarden';
+import { GROUND_Y, PLAYER_HEIGHT } from './player';
 
-export type BossPattern = 'stomp' | 'burst' | 'charge';
+export type BossId = 'siegeWalker' | 'reactorWarden' | 'ashSentinel';
+
+export type BossPattern = 'stomp' | 'burst' | 'charge' | 'volley';
+
+/**
+ * The two heights a `volley` can be fired at, derived from the player's own
+ * collision box so each one means something.
+ *
+ * A standing player occupies `GROUND_Y - PLAYER_HEIGHT` to `GROUND_Y`
+ * (448-480); a crouching one `GROUND_Y - CROUCH_HEIGHT` to `GROUND_Y`
+ * (460-480). So:
+ *   - HIGH sits inside the standing box but above the crouching one: duck.
+ *   - LOW sits inside both: the only way over it is a jump.
+ * A first draft picked three evenly spaced slots by eye, and two of them
+ * passed clean over the player's head - the wall was decorative and only the
+ * bottom shot could ever hit. Heights that are computed from the body cannot
+ * drift like that.
+ */
+export const VOLLEY_HIGH_Y = GROUND_Y - PLAYER_HEIGHT + 2;
+export const VOLLEY_LOW_Y = GROUND_Y - 12;
+
+/** Heights in fire order; the volley alternates between them. */
+export const VOLLEY_HEIGHTS: readonly number[] = [VOLLEY_HIGH_Y, VOLLEY_LOW_Y];
 
 /** A destructible subcomponent (e.g. a turret/shield node) within a boss phase. */
 export interface BossSubcomponentDef {
@@ -65,6 +87,54 @@ export interface BossDef {
 }
 
 export const BOSS_DEFS: Record<BossId, BossDef> = {
+  /**
+   * Ash Sentinel (Level 3) - a wide, squat artillery platform on short struts.
+   *
+   * Deliberately a third KIND of fight rather than a third skin:
+   *  - the Siege Walker makes you wait: three attacks, then one long window;
+   *  - the Reactor Warden makes you disarm it: destroy its nodes to earn a
+   *    window at all;
+   *  - the Sentinel makes you TRADE. It has no subcomponents and no gate, and
+   *    it is vulnerable after every single attack, so the fight is a constant
+   *    exchange rather than a wait for permission. It has more health to pay
+   *    for those windows.
+   *
+   * Its signature is the `volley`: a wall of fire with one gap, which is
+   * dodged by being in the right place vertically rather than by moving aside
+   * or jumping on cue. That is a different reading skill from either of the
+   * other two.
+   */
+  ashSentinel: {
+    id: 'ashSentinel',
+    name: 'Ash Sentinel',
+    health: 14,
+    score: 3500,
+    width: 76,
+    height: 48,
+    groundY: 480,
+    homeX: 2840,
+    // A shorter wind-up than either other boss: the fight is quick exchanges,
+    // and a long telegraph would make the rhythm sag.
+    telegraphDuration: 0.7,
+    attackDuration: 0.6,
+    // A short window, but one after EVERY attack.
+    //
+    // Widened from 1.2s after the eval matrix ran all five weapons at it: at
+    // 1.2 the Scatter Blaster and Flare Thrower took roughly three times as
+    // long as the Pulse Rifle and died seven times doing it, because a window
+    // that short converts a damage-per-second gap into a survival gap. 1.8
+    // keeps the trading rhythm while leaving the slower weapons viable.
+    vulnerableDuration: 1.8,
+    patternsPerCycle: 1,
+    patterns: ['volley', 'burst', 'volley', 'charge'],
+    burstCount: 4,
+    burstSpeed: 230,
+    // It repositions rather than rams: slow enough to shoot back at.
+    chargeSpeed: 120,
+    contactDamage: 1,
+    phaseCount: 1,
+    phases: []
+  },
   siegeWalker: {
     id: 'siegeWalker',
     name: 'Siege Walker',
@@ -99,7 +169,14 @@ export const BOSS_DEFS: Record<BossId, BossDef> = {
     attackDuration: 0.7,
     vulnerableDuration: 2.0,
     patternsPerCycle: 2,
-    patterns: ['burst', 'charge'],
+    // 'charge' used to sit here beside a `chargeSpeed` of 0, which made half
+    // the Warden's rotation a wind-up followed by nothing at all - it neither
+    // moved nor fired. A ground shock suits a floor-mounted core and is dodged
+    // by jumping rather than by stepping aside, so the two attacks now ask for
+    // different things. The Warden stays static and subcomponent-gated, which
+    // is its identity; `chargeSpeed` stays 0 because it is genuinely immobile
+    // and no longer claims an attack that needs movement. (TASK-043)
+    patterns: ['burst', 'stomp'],
     burstCount: 4,
     burstSpeed: 240,
     chargeSpeed: 0,

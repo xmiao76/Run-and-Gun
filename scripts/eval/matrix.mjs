@@ -9,7 +9,16 @@
 
 import { SAMPLE_STEPS } from '../lib/policies.mjs';
 
-export const LEVELS = [1, 2];
+/**
+ * Playable level numbers.
+ *
+ * Declared here because the harness is plain Node and cannot import the game's
+ * TypeScript level list. Everything downstream derives from this list rather
+ * than hardcoding a count - `LEVELS.length`, never `% 2` - and
+ * `tests/unit/evalMatrix.test.ts` fails if it ever falls out of step with the
+ * game, so a new stage cannot be silently left untested.
+ */
+export const LEVELS = [1, 2, 3];
 export const CHECKPOINTS = ['start', 'mid', 'preboss'];
 
 /**
@@ -19,7 +28,7 @@ export const CHECKPOINTS = ['start', 'mid', 'preboss'];
  */
 export const LIVES = [3, 30];
 
-export const WEAPONS = ['pulse', 'scatter', 'rapid'];
+export const WEAPONS = ['pulse', 'scatter', 'rapid', 'laser', 'flame'];
 
 /** Chaos policies are not trying to finish, so they get a shorter budget. */
 const CHAOS_BUDGET = 6_000;
@@ -54,7 +63,7 @@ function startStateRuns() {
 function hiccupRuns(seeds) {
   const runs = [];
   for (const seed of seeds) {
-    const level = (seed % 2) + 1;
+    const level = LEVELS[seed % LEVELS.length];
     runs.push({
       level,
       checkpoint: CHECKPOINTS[seed % CHECKPOINTS.length],
@@ -90,7 +99,7 @@ function scriptedRuns() {
 /** Axis 4 - pure input noise. Narrow reach, judged only on invariants. */
 function fuzzRuns(seeds) {
   return seeds.map((seed) => ({
-    level: (seed % 2) + 1,
+    level: LEVELS[seed % LEVELS.length],
     checkpoint: 'start',
     lives: 30,
     policy: 'fuzz',

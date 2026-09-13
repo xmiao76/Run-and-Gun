@@ -14,18 +14,18 @@ import type { PixelArtSpec } from './pixelArt';
 /* ------------------------------------------------------------------ */
 
 const PLAYER_PALETTE = {
-  h: '#356e42', // helmet shade
-  H: '#5cab64', // helmet light
-  r: '#d6493b', // headband
+  h: '#3d8549', // helmet shade
+  H: '#58b368', // helmet light
+  r: '#c84a34', // headband
   s: '#e8b06f', // skin
-  S: '#b98548', // skin shade
+  S: '#b08a4a', // skin shade
   v: '#1c2733', // eyes / visor
   a: '#58b368', // armor
   A: '#3d8549', // armor shade
-  b: '#2b3a2e', // belt
-  l: '#46603c', // fatigues
-  L: '#5a7a4c', // fatigues light
-  k: '#2a2f26', // boots
+  b: '#1d3a2a', // belt
+  l: '#2c543a', // fatigues
+  L: '#6a8a4a', // fatigues light
+  k: '#1d3a2a', // boots
   g: '#31383f', // rifle body
   G: '#9aa7b4' // rifle barrel
 } as const;
@@ -112,6 +112,42 @@ const PLAYER_RUN_B_LEGS: readonly string[] = [
   '    kkkkk'
 ];
 
+const PLAYER_RUN_C_LEGS: readonly string[] = [
+  '      lLLLl',
+  '      lLLLl',
+  '      lLLLl',
+  '      lLLLl',
+  '       lLLLl',
+  '       lLLLl',
+  '       kkkkk',
+  '        kkkkk',
+  '        kkkkk',
+  '',
+  '    lLLLl',
+  '    lLLLl',
+  '     lLLLl',
+  '     kkkkk',
+  '     kkkkk'
+];
+
+const PLAYER_RUN_D_LEGS: readonly string[] = [
+  '    lLLLl',
+  '    lLLLl',
+  '    lLLLl',
+  '     lLLLl',
+  '     lLLLl',
+  '      lLLLl',
+  '      kkkkk',
+  '       kkkkk',
+  '       kkkkk',
+  '',
+  '         lLLLl',
+  '        lLLLl',
+  '        lLLLl',
+  '        kkkkk',
+  '        kkkkk'
+];
+
 const PLAYER_JUMP_LEGS: readonly string[] = [
   '     lLLLllLLLl',
   '     lLLLllLLLl',
@@ -123,6 +159,8 @@ const PLAYER_JUMP_LEGS: readonly string[] = [
 export const PLAYER_IDLE: PixelArtSpec = { palette: PLAYER_PALETTE, rows: [...PLAYER_BODY, ...PLAYER_IDLE_LEGS] };
 export const PLAYER_RUN_A: PixelArtSpec = { palette: PLAYER_PALETTE, rows: [...PLAYER_BODY, ...PLAYER_RUN_A_LEGS] };
 export const PLAYER_RUN_B: PixelArtSpec = { palette: PLAYER_PALETTE, rows: [...PLAYER_BODY, ...PLAYER_RUN_B_LEGS] };
+export const PLAYER_RUN_C: PixelArtSpec = { palette: PLAYER_PALETTE, rows: [...PLAYER_BODY, ...PLAYER_RUN_C_LEGS] };
+export const PLAYER_RUN_D: PixelArtSpec = { palette: PLAYER_PALETTE, rows: [...PLAYER_BODY, ...PLAYER_RUN_D_LEGS] };
 export const PLAYER_JUMP: PixelArtSpec = { palette: PLAYER_PALETTE, rows: [...PLAYER_BODY, ...PLAYER_JUMP_LEGS] };
 
 /** Crouched commando: knee up, rifle level. 22x20 to match the crouch hitbox. */
@@ -253,7 +291,7 @@ export const ENEMY_RUNNER: PixelArtSpec = {
     w: '#7a2a20', // armor shade
     W: '#c84a34', // armor
     o: '#ffd23f', // visor
-    k: '#33201c' // boots / joints
+    k: '#413325' // boots / joints
   },
   rows: [
     '       wwwwww',
@@ -292,9 +330,9 @@ export const ENEMY_RUNNER: PixelArtSpec = {
 /** Sentry: armored gun turret on a bolted base, barrel aimed left. */
 export const ENEMY_SENTRY: PixelArtSpec = {
   palette: {
-    m: '#4a525e', // metal shade
+    m: '#4c5560', // metal shade
     M: '#68727f', // metal
-    w: '#8a3a3a', // dome shade
+    w: '#7a2a20', // dome shade
     W: '#c84a34', // dome
     o: '#ffd23f', // optic
     g: '#31383f', // barrel
@@ -337,9 +375,9 @@ export const ENEMY_GRENADIER: PixelArtSpec = {
     g: '#31383f', // cannon
     G: '#9aa7b4', // muzzle
     n: '#6a8a4a', // grenade rounds
-    k: '#2a2030', // boots
-    l: '#3a2a44', // fatigues
-    L: '#584a66' // fatigues light
+    k: '#1c2733', // boots
+    l: '#4a2a52', // fatigues
+    L: '#7a4a8a' // fatigues light
   },
   rows: [
     '        pppppp',
@@ -378,12 +416,12 @@ export const ENEMY_GRENADIER: PixelArtSpec = {
 /** Drone: rotor attack craft with a red optic and chin guns, facing left. */
 export const ENEMY_DRONE: PixelArtSpec = {
   palette: {
-    r: '#8a97a5', // rotor
-    m: '#4a525e', // hull shade
-    M: '#7a8494', // hull light
-    o: '#ff5533', // optic
+    r: '#9aa7b4', // rotor
+    m: '#4c5560', // hull shade
+    M: '#68727f', // hull light
+    o: '#ff5544', // optic
     g: '#31383f', // chin guns
-    f: '#ff9a3a' // thruster
+    f: '#ff8a3a' // thruster
   },
   rows: [
     '         rr',
@@ -413,7 +451,7 @@ export const ENEMY_DRONE: PixelArtSpec = {
 
 /** Pulse Rifle bolt: hot core, warm trail. */
 export const BULLET_PULSE: PixelArtSpec = {
-  palette: { o: '#ff9a3a', y: '#ffd23f', W: '#fff6d8' },
+  palette: { o: '#ff8a3a', y: '#ffd23f', W: '#fff6d8' },
   rows: [' oyyyyo ', 'oyWWWWyo', 'oyWWWWyo', ' oyyyyo ']
 };
 
@@ -425,13 +463,34 @@ export const BULLET_SCATTER: PixelArtSpec = {
 
 /** Rapid Carbine dart: slim cyan tracer with a hot tip. */
 export const BULLET_RAPID: PixelArtSpec = {
-  palette: { c: '#2a6a8a', C: '#4fc3e8', W: '#d8f4ff' },
+  palette: { c: '#2a6a8a', C: '#4fc3e8', W: '#e8f1ff' },
   rows: ['   cCCWW', 'ccCCCWWWW', '   cCCWW']
+};
+
+/** Lance Laser beam: a long thin violet lance with a white-hot core. */
+export const BULLET_LASER: PixelArtSpec = {
+  palette: { p: '#4a2a52', P: '#7a4a8a', W: '#e8f1ff' },
+  rows: ['pPPPPPPPPPPPp', 'PWWWWWWWWWWWP', 'pPPPPPPPPPPPp']
+};
+
+/** Flare Thrower ember: a fat round fireball, hottest at the centre. */
+export const BULLET_FLAME: PixelArtSpec = {
+  palette: { r: '#c84a34', o: '#ff8a3a', y: '#ffd23f', W: '#fff6d8' },
+  rows: [
+    '  rroo  ',
+    ' royyor ',
+    'royWWyor',
+    'roWWWWor',
+    'roWWWWor',
+    'royWWyor',
+    ' royyor ',
+    '  rroo  '
+  ]
 };
 
 /** Enemy plasma orb. */
 export const BULLET_ENEMY: PixelArtSpec = {
-  palette: { r: '#d63a3a', R: '#ff6a5a', W: '#ffd6c8' },
+  palette: { r: '#c84a34', R: '#ff5544', W: '#ffd6c8' },
   rows: [
     '  rrrr  ',
     ' rRRRRr ',
@@ -447,7 +506,7 @@ export const BULLET_ENEMY: PixelArtSpec = {
 /** Supply crate for weapon pickups; the floating letter stays a Text label. */
 export const PICKUP_CRATE: PixelArtSpec = {
   palette: {
-    B: '#8a6a3a', // frame
+    B: '#6a4e28', // frame
     w: '#b08a4a', // wood
     d: '#6a4e28', // brace shade
     m: '#9aa7b4' // corner rivets
@@ -511,11 +570,11 @@ function groundRows(width: number, height: number): string[] {
 
 export const TILE_GROUND: PixelArtSpec = {
   palette: {
-    g: '#527a3f', // grass
-    G: '#6a9a4f', // grass light
-    d: '#4a3b2c', // dirt
+    g: '#3d8549', // grass
+    G: '#6a8a4a', // grass light
+    d: '#413325', // dirt
     D: '#413325', // dirt shade
-    s: '#5d4e3a' // stone
+    s: '#6a4e28' // stone
   },
   rows: groundRows(32, 24)
 };
@@ -547,7 +606,7 @@ export const BG_STARS: PixelArtSpec = {
 
 /** Hazard stripe strip used to mark the lethal pit rim. 16x8. */
 export const TILE_HAZARD: PixelArtSpec = {
-  palette: { y: '#e8c832', k: '#242424' },
+  palette: { y: '#ffd23f', k: '#1c2733' },
   rows: [
     'yyyykkkkyyyykkkk',
     'yyykkkkyyyykkkky',
@@ -563,7 +622,7 @@ export const TILE_HAZARD: PixelArtSpec = {
 /** One-way platform tile: wooden planks with metal edge brackets. 24x12. */
 export const TILE_ONEWAY: PixelArtSpec = {
   palette: {
-    w: '#8a6a3a', // plank
+    w: '#6a4e28', // plank
     W: '#b08a4a', // plank light
     d: '#6a4e28', // plank shade
     m: '#68727f' // brackets
@@ -589,9 +648,9 @@ export const PROP_SKIFF: PixelArtSpec = {
   palette: {
     h: '#3a5a7a', // hull shade
     H: '#9ad1ff', // hull light
-    g: '#d8f4ff', // canopy glass
+    g: '#e8f1ff', // canopy glass
     s: '#ffd23f', // signal light
-    p: '#2a3a4a' // underside
+    p: '#22334a' // underside
   },
   rows: [
     '            s',
@@ -617,15 +676,15 @@ export const PROP_SKIFF: PixelArtSpec = {
  */
 export const BOSS_SIEGE_WALKER: PixelArtSpec = {
   palette: {
-    m: '#4a525e', // metal shade
+    m: '#4c5560', // metal shade
     M: '#68727f', // metal
-    h: '#8a97a5', // highlight
-    w: '#8a3a3a', // red plate shade
+    h: '#9aa7b4', // highlight
+    w: '#7a2a20', // red plate shade
     W: '#c84a34', // red plate
     o: '#ffd23f', // optic
     g: '#31383f', // gun
     G: '#9aa7b4', // muzzle
-    k: '#2a2f33' // joints / feet
+    k: '#1c2733' // joints / feet
   },
   rows: [
     '                                                          o',
@@ -689,7 +748,7 @@ export const BOSS_SIEGE_WALKER: PixelArtSpec = {
 
 /** Broad-leaf jungle bush prop. */
 export const PROP_BUSH: PixelArtSpec = {
-  palette: { b: '#1d3a2a', B: '#2c543a', G: '#3f7350' },
+  palette: { b: '#1d3a2a', B: '#2c543a', G: '#3d8549' },
   rows: [
     '        bbbb',
     '      bbBBBBbb        bb',
@@ -708,7 +767,7 @@ export const PROP_BUSH: PixelArtSpec = {
 
 /** Chunk of rubble / rock prop. */
 export const PROP_ROCK: PixelArtSpec = {
-  palette: { r: '#4a4f58', R: '#33373f', h: '#68707d' },
+  palette: { r: '#4c5560', R: '#31383f', h: '#68727f' },
   rows: [
     '          rrrrr',
     '        rrhhrrrrr',
@@ -727,7 +786,7 @@ export const PROP_ROCK: PixelArtSpec = {
 
 /** Broken masonry ruin silhouette for the horizon line. */
 export const BG_RUIN: PixelArtSpec = {
-  palette: { r: '#22334a', R: '#2e435f', w: '#182639' },
+  palette: { r: '#22334a', R: '#22334a', w: '#1c2733' },
   rows: [
     '    rrrr            ',
     '    rRRRr     rrr   ',
@@ -754,7 +813,7 @@ export const BG_RUIN: PixelArtSpec = {
 
 /** Dead jungle tree silhouette for the horizon line. */
 export const BG_TREE: PixelArtSpec = {
-  palette: { t: '#241d18', T: '#33291f' },
+  palette: { t: '#0b0f1a', T: '#413325' },
   rows: [
     '      t   t',
     '      t   t     t',
@@ -809,8 +868,104 @@ function ridgeRows(profile: readonly number[], height: number): string[] {
 }
 
 export const BG_RIDGE: PixelArtSpec = {
-  palette: { r: '#16283a', R: '#24405c' },
+  palette: { r: '#1c2733', R: '#22334a' },
   rows: ridgeRows(RIDGE_PROFILE, 20)
+};
+
+/* ------------------------------------------------------------------ */
+/* Ashfall Ridge theme (Level 3).                                      */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Cooled lava crust: the same generated structure as the jungle ground, in
+ * ash and ember. Sharing `groundRows` keeps the silhouette and the grass-line
+ * read identical across themes, so only the colour says which stage you are on.
+ */
+export const TILE_ASH: PixelArtSpec = {
+  palette: {
+    g: '#31383f', // crust
+    G: '#c96f3b', // ember crust line
+    d: '#1c2733', // cold rock
+    D: '#1c2733', // cold rock shade
+    s: '#7a2a20' // cooling vein
+  },
+  rows: groundRows(32, 24)
+};
+
+/** Basalt causeway plank for one-way ledges. 32x12. */
+export const TILE_CAUSEWAY: PixelArtSpec = {
+  palette: { k: '#0b0f1a', m: '#31383f', M: '#4c5560', e: '#c96f3b' },
+  rows: [
+    'MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM',
+    'MmmmmmmmmMmmmmmmmmMmmmmmmmmMmmmM',
+    'mmeemmmmmmmmmmeemmmmmmmmmmeemmmm',
+    'mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm',
+    'kmmmmmmmmkmmmmmmmmkmmmmmmmmkmmmk',
+    'kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk',
+    'kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk',
+    'kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk',
+    ' kkkkkkkk  kkkkkkkk  kkkkkkkk   ',
+    ' kkkkkkkk  kkkkkkkk  kkkkkkkk   ',
+    '  kkkkkk    kkkkkk    kkkkkk    ',
+    '   kkkk      kkkk      kkkk     '
+  ]
+};
+
+/** Volcanic spire on the horizon: a jagged cone venting a thread of smoke. */
+export const BG_SPIRE: PixelArtSpec = {
+  palette: { r: '#1c2733', R: '#31383f', e: '#7a2a20' },
+  rows: [
+    '            r           ',
+    '           rrr          ',
+    '          rrRrr         ',
+    '          rrRrr         ',
+    '         rrRRRrr        ',
+    '        rrRReRRrr       ',
+    '        rrRReRRrr       ',
+    '       rrRRReRRRrr      ',
+    '      rrRRRReRRRRrr     ',
+    '     rrRRRRReRRRRRrr    ',
+    '    rrRRRRRRRRRRRRRrr   ',
+    '   rrRRRRRRRRRRRRRRRrr  ',
+    '  rrRRRRRRRRRRRRRRRRRrr ',
+    ' rrRRRRRRRRRRRRRRRRRRRrr',
+    'rrRRRRRRRRRRRRRRRRRRRRRr',
+    'rrRRRRRRRRRRRRRRRRRRRRRr'
+  ]
+};
+
+/** Ground vent: a cracked fumarole glowing from within. 16x10. */
+export const PROP_VENT: PixelArtSpec = {
+  palette: { k: '#0b0f1a', m: '#31383f', e: '#c96f3b', E: '#ff8a3a' },
+  rows: [
+    '     mmmmmm     ',
+    '   mmkkkkkkmm   ',
+    '  mmkeEEEEekmm  ',
+    ' mmkeEEEEEEekmm ',
+    ' mkeEEEEEEEEekm ',
+    ' mkeEEEEEEEEekm ',
+    ' mmkeEEEEEEekmm ',
+    '  mmkeEEEEekmm  ',
+    '   mmkkkkkkmm   ',
+    '    mmmmmmmm    '
+  ]
+};
+
+/** Slag boulder: cooled spatter, darker and sharper than a jungle rock. */
+export const PROP_SLAG: PixelArtSpec = {
+  palette: { k: '#0b0f1a', m: '#31383f', M: '#4c5560', e: '#7a2a20' },
+  rows: [
+    '     mmMMmm     ',
+    '   mmMMMMMMmm   ',
+    '  mMMMMMMMMMMm  ',
+    ' mMMMeMMMMeMMMm ',
+    ' mMMMMMMMMMMMMm ',
+    'mMMMMMMMMMMMMMMm',
+    'mMMMMMMMMMMMMMMm',
+    'kmMMMMMMMMMMMMmk',
+    'kkmmMMMMMMMMmmkk',
+    'kkkkkkkkkkkkkkkk'
+  ]
 };
 
 /* ------------------------------------------------------------------ */
@@ -820,10 +975,10 @@ export const BG_RIDGE: PixelArtSpec = {
 /** Repeating metal deck tile: riveted steel plates with seams. 32x24. */
 export const TILE_METAL: PixelArtSpec = {
   palette: {
-    p: '#454e58', // panel
-    P: '#57636f', // panel light
-    s: '#23282e', // seam
-    r: '#7a8694' // rivet
+    p: '#4c5560', // panel
+    P: '#4c5560', // panel light
+    s: '#1c2733', // seam
+    r: '#68727f' // rivet
   },
   rows: [
     'ssssssssssssssssssssssssssssssss',
@@ -855,7 +1010,7 @@ export const TILE_METAL: PixelArtSpec = {
 
 /** One-way platform tile for the fortress: metal grate with holes. 24x12. */
 export const TILE_GRATE: PixelArtSpec = {
-  palette: { m: '#4a525e', M: '#68727f', h: '#1a1e24' },
+  palette: { m: '#4c5560', M: '#68727f', h: '#141f33' },
   rows: [
     'MMMMMMMMMMMMMMMMMMMMMMMM',
     'MhhMhhMhhMhhMhhMhhMhhM',
@@ -875,10 +1030,10 @@ export const TILE_GRATE: PixelArtSpec = {
 /** Fortress interior wall tile: riveted panels with a vent. 32x32. */
 export const TILE_WALL: PixelArtSpec = {
   palette: {
-    w: '#20252c', // wall base
-    W: '#39424d', // panel
-    r: '#556070', // rivet
-    v: '#14181e' // vent
+    w: '#1c2733', // wall base
+    W: '#31383f', // panel
+    r: '#4c5560', // rivet
+    v: '#0b0f1a' // vent
   },
   rows: [
     'wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww',
@@ -918,7 +1073,7 @@ export const TILE_WALL: PixelArtSpec = {
 
 /** Pipe run band for the fortress ceiling line. 48x24, repeats horizontally. */
 export const BG_PIPES: PixelArtSpec = {
-  palette: { p: '#3f4a4a', P: '#5a6a68', h: '#7a8a86' },
+  palette: { p: '#2c543a', P: '#68727f', h: '#68727f' },
   rows: [
     '',
     '',
@@ -950,10 +1105,10 @@ export const BG_PIPES: PixelArtSpec = {
 /** Machinery silhouette for the fortress ground line: terminal with screen. */
 export const BG_MACHINE: PixelArtSpec = {
   palette: {
-    m: '#2a3038', // body shade
-    M: '#3a4149', // body
+    m: '#31383f', // body shade
+    M: '#31383f', // body
     s: '#57d9a3', // screen
-    S: '#2a6a52', // screen shade
+    S: '#2c543a', // screen shade
     o: '#ffd23f' // indicator
   },
   rows: [
@@ -998,7 +1153,7 @@ export const BG_MACHINE: PixelArtSpec = {
 
 /** Structural I-beam column silhouette for the fortress. */
 export const BG_COLUMN: PixelArtSpec = {
-  palette: { c: '#232930', C: '#2f363f' },
+  palette: { c: '#1c2733', C: '#31383f' },
   rows: [
     '  cCCCCCCCccCCCc',
     '  cCCCCCCCccCCCc',
@@ -1046,7 +1201,7 @@ export const BG_COLUMN: PixelArtSpec = {
 
 /** Hazard barrel prop: rusty drum with a warning band. */
 export const PROP_BARREL: PixelArtSpec = {
-  palette: { b: '#7a5644', B: '#9a6a52', y: '#e8c832', k: '#3a2e28' },
+  palette: { b: '#6a4e28', B: '#b08a4a', y: '#ffd23f', k: '#413325' },
   rows: [
     '    bbbbbbbb',
     '   bBBBBBBBBbb',
@@ -1071,7 +1226,7 @@ export const PROP_BARREL: PixelArtSpec = {
 
 /** Metal storage crate prop for the fortress. */
 export const PROP_CRATE_METAL: PixelArtSpec = {
-  palette: { m: '#4a525e', M: '#68727f', d: '#333a44', r: '#9aa7b4' },
+  palette: { m: '#4c5560', M: '#68727f', d: '#31383f', r: '#9aa7b4' },
   rows: [
     'mmmmmmmmmmmmmmmmmm',
     'mMMMMMMMMMMMMMMMMm',
@@ -1097,11 +1252,11 @@ export const PROP_CRATE_METAL: PixelArtSpec = {
 /** Security blast door for the fortress: riveted panel, beacon, hazard base. 16x96. */
 export const DOOR_SECURITY: PixelArtSpec = {
   palette: {
-    d: '#3a4149', // panel
-    D: '#4a545e', // panel light
-    k: '#242a31', // seam
+    d: '#31383f', // panel
+    D: '#4c5560', // panel light
+    k: '#1c2733', // seam
     o: '#ffd23f', // beacon
-    y: '#e8c832', // hazard
+    y: '#ffd23f', // hazard
     r: '#68727f' // rivet
   },
   rows: [
@@ -1209,18 +1364,18 @@ export const DOOR_SECURITY: PixelArtSpec = {
  */
 export const BOSS_REACTOR_WARDEN: PixelArtSpec = {
   palette: {
-    m: '#4a525e', // metal shade
+    m: '#4c5560', // metal shade
     M: '#68727f', // metal
-    h: '#8a97a5', // highlight
-    w: '#8a3a3a', // red plate shade
+    h: '#9aa7b4', // highlight
+    w: '#7a2a20', // red plate shade
     W: '#c84a34', // red plate
     o: '#ffd23f', // warning amber
-    c: '#2a6a52', // reactor shade
+    c: '#2c543a', // reactor shade
     C: '#57d9a3', // reactor glow
-    b: '#d8ffe8', // reactor hot core
-    k: '#242a31', // recess
+    b: '#e8f1ff', // reactor hot core
+    k: '#1c2733', // recess
     g: '#31383f', // conduit
-    G: '#5a6672' // conduit light
+    G: '#68727f' // conduit light
   },
   rows: [
     "                                   o",
@@ -1302,11 +1457,11 @@ export const BOSS_REACTOR_WARDEN: PixelArtSpec = {
 /** Subcomponent node: octagonal shield emitter with a glowing core. 18x18. */
 export const SUBCOMPONENT_NODE: PixelArtSpec = {
   palette: {
-    m: '#4a525e', // frame shade
-    M: '#8a97a5', // frame light
-    c: '#2a6a52', // glow shade
+    m: '#4c5560', // frame shade
+    M: '#9aa7b4', // frame light
+    c: '#2c543a', // glow shade
     C: '#57d9a3', // glow
-    b: '#d8ffe8' // hot center
+    b: '#e8f1ff' // hot center
   },
   rows: [
     '     mMMMMMMm',
@@ -1330,14 +1485,354 @@ export const SUBCOMPONENT_NODE: PixelArtSpec = {
   ]
 };
 
+
+/**
+ * Title-screen emblem: the project's shield + echo-wave motif (the same mark
+ * as the favicon, authored at sprite scale). 22x26.
+ */
+export const LOGO_EMBLEM: PixelArtSpec = {
+  palette: {
+    b: '#8ea6c9', // shield edge
+    B: '#22334a', // shield fill
+    g: '#ffd23f'  // echo wave
+  },
+  rows: [
+    '    bbbbbbbbbbbbbb    ',
+    '   bBBBBBBBBBBBBBBb   ',
+    '  bBBBBBBBBBBBBBBBBBb  ',
+    ' bBBBBBBBBBBBBBBBBBBBb ',
+    'bBBBBBBBBBBBBBBBBBBBBBBb',
+    'bBBBBBBBBBBBBBBBBBBBBBBb',
+    'bBBBBBBBBBBBBBBBBBBBBBBb',
+    'bBBBBBBBBBBBBBBBBBBBBBBb',
+    'bBBBBBBgBBBBBgBBBBBBBb',
+    'bBBBBBgBBBgBBBgBBBBBBb',
+    'bBBBBBgBBgBBBgBBBBBBBb',
+    ' bBBBBgBBBgBBgBBBBBBb ',
+    ' bBBBBBgBBBgBBgBBBBBb ',
+    '  bBBBBBBBBBBBBBBBBBb  ',
+    '  bBBBBBBBBBBBBBBBBBb  ',
+    '   bBBBBBBBBBBBBBBb   ',
+    '   bBBBBBBBBBBBBBBb   ',
+    '    bBBBBBBBBBBBBb    ',
+    '    bBBBBBBBBBBBBb    ',
+    '     bBBBBBBBBBBb     ',
+    '      bBBBBBBBBb      ',
+    '      bBBBBBBBBb      ',
+    '       bBBBBBBb       ',
+    '        bBBBBb        ',
+    '         bBBb         ',
+    '          bb          '
+  ]
+};
+
+
+/** CRT scanline tile: one transparent row over one black row, tiled full-screen. */
+export const SCANLINE: PixelArtSpec = {
+  palette: { k: '#000000' },
+  rows: [' ', 'k']
+};
+
+
+/** Turret emplacement: a squat armoured mount with a levelled barrel. 24x22. */
+export const ENEMY_TURRET: PixelArtSpec = {
+  palette: {
+    m: '#4c5560', // mount shade
+    M: '#68727f', // mount
+    h: '#9aa7b4', // highlight
+    g: '#31383f', // barrel
+    G: '#9aa7b4', // muzzle
+    o: '#ffd23f', // optic
+    k: '#1c2733' // recess
+  },
+  rows: [
+    '          mMMMMMMm',
+    '         mMMMMMMMMm',
+    '        mMMhMMMMhMMm',
+    '   ggg  mMMMMMMMMMMm',
+    'gggGGGg mMMoooooooMMm',
+    'gggGGGg mMMoooooooMMm',
+    '   ggg  mMMMMMMMMMMm',
+    '        mMMhMMMMhMMm',
+    '         mMMMMMMMMm',
+    '          mMMMMMMm',
+    '       mmMMMMMMMMMMmm',
+    '     mmMMMMMMMMMMMMMMmm',
+    '    mMMMMMMMMMMMMMMMMMMm',
+    '    mMkkMMMMMMMMMMMMkkMm',
+    '    mMkkMMMMMMMMMMMMkkMm',
+    '    mMMMMMMMMMMMMMMMMMMm',
+    '    mMMMMMMMMMMMMMMMMMMm',
+    '    mmmmmmmmmmmmmmmmmmmm',
+    '    mmmmmmmmmmmmmmmmmmmm',
+    '    kkkkkkkkkkkkkkkkkkkk',
+    '    kkkkkkkkkkkkkkkkkkkk',
+    '    kkkkkkkkkkkkkkkkkkkk'
+  ]
+};
+
+/** Turret idle frame: the optic band narrows as it scans. */
+export const ENEMY_TURRET_B: PixelArtSpec = {
+  palette: ENEMY_TURRET.palette,
+  rows: [
+    ...ENEMY_TURRET.rows.slice(0, 4),
+    'gggGGGg mMMMoooooMMMm',
+    'gggGGGg mMMMoooooMMMm',
+    ...ENEMY_TURRET.rows.slice(6)
+  ]
+};
+
+/** Turret firing frame: muzzle flash off the barrel tip. */
+export const ENEMY_TURRET_FIRE: PixelArtSpec = {
+  palette: ENEMY_TURRET.palette,
+  rows: [
+    ...ENEMY_TURRET.rows.slice(0, 4),
+    'oggGGGg mMMoooooooMMm',
+    ...ENEMY_TURRET.rows.slice(5)
+  ]
+};
+
+/** Runner stride frame: the same trooper mid-passing-stride. */
+export const ENEMY_RUNNER_B: PixelArtSpec = {
+  palette: ENEMY_RUNNER.palette,
+  rows: [
+    ...ENEMY_RUNNER.rows.slice(0, 16),
+    '    wwWWww  wwWWww',
+    '    wWWw      wWWw',
+    '    wWWw      wWWw',
+    '    wWWw     wWWw',
+    '    kkkk     kkkk',
+    '    kkkk     kkkk',
+    '    kkkkk    kkkkk',
+    '    kkkk     kkkk',
+    '    kkkk      kkkk',
+    '    kkkkk     kkkkk',
+    '     kkkk     kkkk',
+    '     kkkk     kkkk',
+    '      kkkk     kkkk',
+    '      kkkk    kkkk'
+  ]
+};
+
+/** Runner firing frame: gun level, muzzle flash at the left edge. */
+export const ENEMY_RUNNER_FIRE: PixelArtSpec = {
+  palette: ENEMY_RUNNER.palette,
+  rows: [
+    ...ENEMY_RUNNER.rows.slice(0, 9),
+    ' oWWwWWWWWWWWwWW',
+    '  WkwWWWWWWWWwkW',
+    ...ENEMY_RUNNER.rows.slice(11)
+  ]
+};
+
+/** Sentry idle frame: the optic pulses wider. */
+export const ENEMY_SENTRY_B: PixelArtSpec = {
+  palette: ENEMY_SENTRY.palette,
+  rows: [
+    ...ENEMY_SENTRY.rows.slice(0, 3),
+    '         wWoooWWWWWw',
+    '   ggg   wWoooWWWWWw',
+    ...ENEMY_SENTRY.rows.slice(5)
+  ]
+};
+
+/** Sentry firing frame: muzzle flash at the barrel tip. */
+export const ENEMY_SENTRY_FIRE: PixelArtSpec = {
+  palette: ENEMY_SENTRY.palette,
+  rows: [
+    ...ENEMY_SENTRY.rows.slice(0, 5),
+    'oggGGGg  wWWWWWWWWWWw',
+    ...ENEMY_SENTRY.rows.slice(6)
+  ]
+};
+
+/** Grenadier idle frame: the cannon rides one pixel lower. */
+export const ENEMY_GRENADIER_B: PixelArtSpec = {
+  palette: ENEMY_GRENADIER.palette,
+  rows: [
+    ...ENEMY_GRENADIER.rows.slice(0, 9),
+    ...ENEMY_GRENADIER.rows.slice(12, 13),
+    ...ENEMY_GRENADIER.rows.slice(9, 12),
+    ...ENEMY_GRENADIER.rows.slice(13)
+  ]
+};
+
+/** Grenadier firing frame: cannon up, flash at the muzzle. */
+export const ENEMY_GRENADIER_FIRE: PixelArtSpec = {
+  palette: ENEMY_GRENADIER.palette,
+  rows: [
+    ...ENEMY_GRENADIER.rows.slice(0, 8),
+    ' o PpPPPPPPPPPPpP',
+    ...ENEMY_GRENADIER.rows.slice(9)
+  ]
+};
+
+/** Drone idle frame: the rotor flicks to its crossed position. */
+export const ENEMY_DRONE_B: PixelArtSpec = {
+  palette: ENEMY_DRONE.palette,
+  rows: [
+    '    r  r  r  r',
+    '   rrrrrrrrrrrrr',
+    '    r  r  r  r',
+    ...ENEMY_DRONE.rows.slice(3)
+  ]
+};
+
+/** Drone firing frame: both chin guns flashing. */
+export const ENEMY_DRONE_FIRE: PixelArtSpec = {
+  palette: ENEMY_DRONE.palette,
+  rows: [
+    ...ENEMY_DRONE.rows.slice(0, 11),
+    '      g      g',
+    '      g      g',
+    '      o      o',
+    '       f    f',
+    '       f    f',
+    '',
+    ''
+  ]
+};
+
+/**
+ * Boss idle variants, derived from the base frames so the two can never drift
+ * apart: a helper transforms the authored rows rather than re-typing 56-72
+ * rows of pixel art with an editor's error hiding in it.
+ */
+
+/** Lift the 2nd and 4th feet of a quadruped, one pixel, in the bottom rows. */
+function liftAlternateFeet(rows: readonly string[], footRows: number, footWidth: number, columns: number[]): string[] {
+  return rows.map((row, i) => {
+    if (i < rows.length - footRows) {
+      return row;
+    }
+    const cells = row.split('');
+    for (const col of columns) {
+      for (let x = col; x < col + footWidth && x < cells.length; x++) {
+        cells[x] = ' ';
+      }
+    }
+    return cells.join('').replace(/\s+$/, '');
+  });
+}
+
+/** Pulse one palette letter into another within a row range (e.g. a reactor core brightening). */
+function pulseRows(rows: readonly string[], from: string, to: string, rowStart: number, rowEnd: number): string[] {
+  return rows.map((row, i) => (i >= rowStart && i <= rowEnd ? row.split(from).join(to) : row));
+}
+
+/** Siege Walker idle frame: legs 2 and 4 carry the step. */
+export const BOSS_SIEGE_WALKER_B: PixelArtSpec = {
+  palette: BOSS_SIEGE_WALKER.palette,
+  rows: liftAlternateFeet(BOSS_SIEGE_WALKER.rows, 2, 12, [22, 50])
+};
+
+/** Reactor Warden idle frame: the reactor core brightens into its glow colour. */
+export const BOSS_REACTOR_WARDEN_B: PixelArtSpec = {
+  palette: BOSS_REACTOR_WARDEN.palette,
+  rows: pulseRows(BOSS_REACTOR_WARDEN.rows, 'c', 'C', 21, 32)
+};
+
+/**
+ * Ash Sentinel: a wide, squat artillery platform on short struts.
+ *
+ * Reads as a different silhouette from either other boss on sight - the Walker
+ * is a tall legged box, the Warden a vertical column, this a flat wing with
+ * two muzzles under it. 76x48.
+ */
+const SENTINEL_W = 76;
+const SENTINEL_H = 48;
+
+/**
+ * Build the Sentinel from a symmetric half-profile.
+ *
+ * Generated rather than hand-typed because the sprite is 76x48: at that size a
+ * miscounted row is invisible in review but stretches the whole boss, since the
+ * scene scales the sprite to the hitbox. The generator cannot miscount.
+ *
+ * Each entry is `[rowCount, inset, fill]` - how many rows, how far the hull is
+ * inset from each edge, and the character to fill with.
+ */
+function sentinelRows(): string[] {
+  const bands: [number, number, string][] = [
+    [1, 30, 'm'],
+    [1, 27, 'M'],
+    [2, 23, 'M'],
+    [2, 18, 'M'],
+    [2, 13, 'M'],
+    [2, 9, 'M'],
+    [2, 6, 'M'],
+    [3, 4, 'W'],
+    [2, 4, 'o'],
+    [3, 4, 'W'],
+    [2, 6, 'M'],
+    [2, 9, 'M'],
+    [2, 13, 'M'],
+    [2, 16, 'M'],
+    [2, 19, 'M']
+  ];
+  const rows: string[] = [];
+  for (const [count, inset, fill] of bands) {
+    for (let i = 0; i < count; i++) {
+      const inner = SENTINEL_W - inset * 2;
+      // A darker rim on both edges keeps the silhouette readable against the
+      // ash sky, which is the same value range as the hull.
+      const body = fill.repeat(Math.max(0, inner - 2));
+      rows.push(' '.repeat(inset) + (inner > 1 ? 'm' + body + 'm' : fill.repeat(inner)));
+    }
+  }
+  // Two muzzle housings hanging below the hull, at the quarter points.
+  const gunTop = rows.length;
+  for (let y = gunTop; y < SENTINEL_H; y++) {
+    const deep = y - gunTop;
+    const barrel = deep < 6 ? 'g' : deep < 8 ? 'e' : ' ';
+    const row = ' '.repeat(SENTINEL_W).split('');
+    if (barrel !== ' ') {
+      for (const cx of [Math.floor(SENTINEL_W * 0.28), Math.floor(SENTINEL_W * 0.72)]) {
+        for (let dx = -2; dx <= 2; dx++) {
+          row[cx + dx] = barrel;
+        }
+      }
+    }
+    rows.push(row.join('').replace(/\s+$/, ''));
+  }
+  return rows.slice(0, SENTINEL_H);
+}
+
+/**
+ * Ash Sentinel: a wide, squat artillery platform on short struts.
+ *
+ * A different silhouette from either other boss on sight - the Walker is a tall
+ * legged box, the Warden a vertical column, this a flat wing with two muzzles
+ * slung under it. 76x48.
+ */
+export const BOSS_ASH_SENTINEL: PixelArtSpec = {
+  palette: {
+    m: '#31383f', // hull rim
+    M: '#4c5560', // hull
+    W: '#c84a34', // plate
+    o: '#ffd23f', // sensor band
+    e: '#ff8a3a', // vent glow
+    g: '#1c2733' // muzzle
+  },
+  rows: sentinelRows()
+};
+
+/** Ash Sentinel idle frame: the sensor band dims as it sweeps. */
+export const BOSS_ASH_SENTINEL_B: PixelArtSpec = {
+  palette: BOSS_ASH_SENTINEL.palette,
+  // The sensor band sits at rows 15-16 of the generated profile; pulsing the
+  // wrong range would leave the two frames identical and the boss static.
+  rows: pulseRows(BOSS_ASH_SENTINEL.rows, 'o', 'e', 15, 16)
+};
+
 /** HUD life icon: the commando's helmet. 12x12. */
 export const UI_LIFE: PixelArtSpec = {
   palette: {
-    h: '#356e42',
-    H: '#5cab64',
-    r: '#d6493b',
+    h: '#3d8549',
+    H: '#58b368',
+    r: '#c84a34',
     s: '#e8b06f',
-    S: '#b98548',
+    S: '#b08a4a',
     v: '#1c2733'
   },
   rows: [
@@ -1361,19 +1856,34 @@ export const SPRITE_SPECS = {
   'art/player-idle': PLAYER_IDLE,
   'art/player-run-a': PLAYER_RUN_A,
   'art/player-run-b': PLAYER_RUN_B,
+  'art/player-run-c': PLAYER_RUN_C,
+  'art/player-run-d': PLAYER_RUN_D,
   'art/player-jump': PLAYER_JUMP,
   'art/player-crouch': PLAYER_CROUCH,
   'art/player-aim-up': PLAYER_AIM_UP,
   'art/player-aim-diag': PLAYER_AIM_DIAG,
   'art/player-hurt': PLAYER_HURT,
   'art/player-death': PLAYER_DEATH,
+  'art/enemy-turret': ENEMY_TURRET,
+  'art/enemy-turret-b': ENEMY_TURRET_B,
+  'art/enemy-turret-fire': ENEMY_TURRET_FIRE,
   'art/enemy-runner': ENEMY_RUNNER,
+  'art/enemy-runner-b': ENEMY_RUNNER_B,
+  'art/enemy-runner-fire': ENEMY_RUNNER_FIRE,
   'art/enemy-sentry': ENEMY_SENTRY,
+  'art/enemy-sentry-b': ENEMY_SENTRY_B,
+  'art/enemy-sentry-fire': ENEMY_SENTRY_FIRE,
   'art/enemy-grenadier': ENEMY_GRENADIER,
+  'art/enemy-grenadier-b': ENEMY_GRENADIER_B,
+  'art/enemy-grenadier-fire': ENEMY_GRENADIER_FIRE,
   'art/enemy-drone': ENEMY_DRONE,
+  'art/enemy-drone-b': ENEMY_DRONE_B,
+  'art/enemy-drone-fire': ENEMY_DRONE_FIRE,
   'art/bullet-pulse': BULLET_PULSE,
   'art/bullet-scatter': BULLET_SCATTER,
   'art/bullet-rapid': BULLET_RAPID,
+  'art/bullet-laser': BULLET_LASER,
+  'art/bullet-flame': BULLET_FLAME,
   'art/bullet-enemy': BULLET_ENEMY,
   'art/pickup-crate': PICKUP_CRATE,
   'art/tile-ground': TILE_GROUND,
@@ -1381,8 +1891,14 @@ export const SPRITE_SPECS = {
   'art/tile-oneway': TILE_ONEWAY,
   'art/prop-skiff': PROP_SKIFF,
   'art/boss-siege-walker': BOSS_SIEGE_WALKER,
+  'art/boss-siege-walker-b': BOSS_SIEGE_WALKER_B,
   'art/boss-reactor-warden': BOSS_REACTOR_WARDEN,
+  'art/boss-ash-sentinel': BOSS_ASH_SENTINEL,
+  'art/boss-ash-sentinel-b': BOSS_ASH_SENTINEL_B,
+  'art/boss-reactor-warden-b': BOSS_REACTOR_WARDEN_B,
   'art/subcomponent-node': SUBCOMPONENT_NODE,
+  'art/logo-emblem': LOGO_EMBLEM,
+  'art/scanline': SCANLINE,
   'art/ui-life': UI_LIFE,
   'art/prop-bush': PROP_BUSH,
   'art/prop-rock': PROP_ROCK,
@@ -1390,6 +1906,11 @@ export const SPRITE_SPECS = {
   'art/bg-tree': BG_TREE,
   'art/bg-ridge': BG_RIDGE,
   'art/bg-stars': BG_STARS,
+  'art/tile-ash': TILE_ASH,
+  'art/tile-causeway': TILE_CAUSEWAY,
+  'art/bg-spire': BG_SPIRE,
+  'art/prop-vent': PROP_VENT,
+  'art/prop-slag': PROP_SLAG,
   'art/tile-metal': TILE_METAL,
   'art/tile-grate': TILE_GRATE,
   'art/tile-wall': TILE_WALL,

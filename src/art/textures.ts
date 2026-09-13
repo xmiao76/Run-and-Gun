@@ -8,28 +8,40 @@
 import Phaser from 'phaser';
 
 import { parsePixelArt, type PixelGrid } from './pixelArt';
+import { isPaletteColour, nearestPaletteColour } from './palette';
 import { SPRITE_SPECS, type SpriteKey } from './sprites';
-import { SKY_TEXTURE, FORTRESS_SKY_TEXTURE } from './textureKeys';
+import { SKY_TEXTURE, FORTRESS_SKY_TEXTURE, ASH_SKY_TEXTURE } from './textureKeys';
 
 export { SKY_TEXTURE, FORTRESS_SKY_TEXTURE } from './textureKeys';
 
 /** Sky gradient stops, top to bottom: dusk over a jungle war zone. */
 const SKY_STOPS: readonly { at: number; color: string }[] = [
   { at: 0, color: '#141f33' },
-  { at: 0.55, color: '#274060' },
-  { at: 0.85, color: '#3f5e58' },
+  { at: 0.55, color: '#22334a' },
+  { at: 0.85, color: '#2c543a' },
+  { at: 1, color: '#c96f3b' }
+];
+
+/**
+ * Ashfall gradient, top to bottom: a smoke ceiling that burns toward the
+ * ground, so the stage reads as lit from below rather than from the sky.
+ */
+const ASH_SKY_STOPS: readonly { at: number; color: string }[] = [
+  { at: 0, color: '#0b0f1a' },
+  { at: 0.45, color: '#1c2733' },
+  { at: 0.8, color: '#7a2a20' },
   { at: 1, color: '#c96f3b' }
 ];
 
 /** Interior gradient stops, top to bottom: murky fortress air. */
 const FORTRESS_SKY_STOPS: readonly { at: number; color: string }[] = [
-  { at: 0, color: '#10131a' },
-  { at: 0.5, color: '#1a201c' },
-  { at: 0.85, color: '#232b26' },
-  { at: 1, color: '#33413a' }
+  { at: 0, color: '#0b0f1a' },
+  { at: 0.5, color: '#141f33' },
+  { at: 0.85, color: '#1c2733' },
+  { at: 1, color: '#31383f' }
 ];
 
-function gridToCanvas(grid: PixelGrid): HTMLCanvasElement {
+export function gridToCanvas(grid: PixelGrid): HTMLCanvasElement {
   const canvas = document.createElement('canvas');
   canvas.width = grid.width;
   canvas.height = grid.height;
@@ -43,7 +55,11 @@ function gridToCanvas(grid: PixelGrid): HTMLCanvasElement {
       if (color === null || color === undefined) {
         continue;
       }
-      ctx.fillStyle = color;
+      // Safety net, not the mechanism: every colour in the sheet is already a
+      // palette entry (tests/unit/palette.test.ts enforces it). This quantises
+      // anything that slips past review so off-palette art renders NES-lean
+      // rather than silently breaking the palette discipline.
+      ctx.fillStyle = isPaletteColour(color) ? color : nearestPaletteColour(color);
       ctx.fillRect(x, y, 1, 1);
     }
   }
@@ -83,6 +99,9 @@ export function ensureGameTextures(scene: Phaser.Scene): void {
   if (!scene.textures.exists(SKY_TEXTURE)) {
     // 16px wide is enough for a horizontal-uniform gradient; it is stretched.
     scene.textures.addCanvas(SKY_TEXTURE, skyCanvas(16, 256, SKY_STOPS));
+  }
+  if (!scene.textures.exists(ASH_SKY_TEXTURE)) {
+    scene.textures.addCanvas(ASH_SKY_TEXTURE, skyCanvas(16, 256, ASH_SKY_STOPS));
   }
   if (!scene.textures.exists(FORTRESS_SKY_TEXTURE)) {
     scene.textures.addCanvas(FORTRESS_SKY_TEXTURE, skyCanvas(16, 256, FORTRESS_SKY_STOPS));

@@ -7,7 +7,7 @@
  */
 
 import type { Rect } from '../levels/levelSchema';
-import { SKY_TEXTURE, FORTRESS_SKY_TEXTURE } from './textureKeys';
+import { SKY_TEXTURE, FORTRESS_SKY_TEXTURE, ASH_SKY_TEXTURE } from './textureKeys';
 
 export interface LevelTheme {
   /** Base backdrop texture key (gradient, stretched full-screen). */
@@ -69,12 +69,41 @@ export const FORTRESS_THEME: LevelTheme = {
   propKeys: ['art/prop-barrel', 'art/prop-crate-metal']
 };
 
-/** Returns the active theme for a level id; unknown levels share the default. */
+/** Ashfall ridge: a volcanic approach lit from the ground up (Level 3). */
+export const ASH_THEME: LevelTheme = {
+  skyKey: ASH_SKY_TEXTURE,
+  showStars: false,
+  bandKey: 'art/bg-ridge',
+  // The jungle ridge silhouette, re-tinted to ash rather than redrawn: the far
+  // band is a flat shape at this scale, so its colour is what carries the
+  // theme and a second near-identical sprite would earn nothing.
+  bandTint: 0x7a2a20,
+  bandScroll: 0.3,
+  bandY: 250,
+  bandHeight: 130,
+  bandTileScale: 4,
+  pipesKey: null,
+  groundTile: 'art/tile-ash',
+  oneWayTile: 'art/tile-causeway',
+  horizonKeys: ['art/bg-spire'],
+  propKeys: ['art/prop-vent', 'art/prop-slag']
+};
+
+/**
+ * Theme by level id.
+ *
+ * A lookup rather than a chain of ifs, so a fourth theme is one entry and no
+ * code. Unknown ids fall back to the jungle theme, which keeps a level that is
+ * mid-authoring renderable instead of blank.
+ */
+const THEMES: Readonly<Record<string, LevelTheme>> = {
+  'jungle-outpost': JUNGLE_THEME,
+  'fortress-interior': FORTRESS_THEME,
+  'ashfall-ridge': ASH_THEME
+};
+
 export function themeForLevel(levelId: string): LevelTheme {
-  if (levelId === 'fortress-interior') {
-    return FORTRESS_THEME;
-  }
-  return JUNGLE_THEME;
+  return THEMES[levelId] ?? JUNGLE_THEME;
 }
 
 export interface PropPlacement {

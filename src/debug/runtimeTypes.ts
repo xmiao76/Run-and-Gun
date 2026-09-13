@@ -22,6 +22,16 @@ export interface LevelEnemySnapshot {
   y: number;
 }
 
+/** A collapsing bridge span as reported by the level scene. */
+export interface BridgeSnapshot {
+  id: string;
+  x: number;
+  y: number;
+  width: number;
+  /** 'intact' | 'failing' | 'gone'. */
+  stage: string;
+}
+
 /** Enemy projectile entry as reported by the level scene. */
 export interface EnemyProjectileSnapshot {
   x: number;
@@ -133,6 +143,8 @@ export interface LevelRuntime {
   maxPlayerBulletsSeen: number;
   maxEnemyBulletsSeen: number;
   particleCount: number;
+  /** Collapsing bridge spans and their current stage (TASK-038). */
+  bridges: BridgeSnapshot[];
   paused: boolean;
   gameOver: boolean;
   completing: boolean;
@@ -143,6 +155,15 @@ export interface LevelRuntime {
   autopilot: boolean;
   /** Simulation steps run since this level started. */
   stepIndex: number;
+  /**
+   * True while a hit-stop freeze is holding the world (TASK-037).
+   *
+   * A frozen step is still a step: it is counted by `advanceSteps` and by
+   * `stepIndex`. This flag exists so a driver can tell the difference between
+   * "the world did not move because it is frozen" and "the world did not move
+   * because something is wrong".
+   */
+  hitStopped: boolean;
   /**
    * Furthest x reached this run. Monotone, so a driver sampling every N steps
    * cannot miss progress that happened between two samples.
@@ -216,6 +237,8 @@ export interface SettingsRuntime {
   sfxVolume: number;
   mute: boolean;
   reducedFlash: boolean;
+  /** Whether the CRT scanline overlay is on. */
+  scanlines: boolean;
   startingLives: number;
 }
 

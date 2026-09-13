@@ -3,6 +3,8 @@ import { LOGICAL_WIDTH, SCENE_KEYS } from '../app/config';
 import { reportRuntime, reportScene } from '../debug/debugBridge';
 import { attachMenuConfirm } from '../input/menuConfirm';
 import { hookShutdown } from './sceneLifecycle';
+import { drawText } from '../ui/text';
+import { attachScanlines } from '../ui/scanlines';
 
 const LINES: { text: string; y: number; size: number; color: string }[] = [
   { text: 'CONTROLS', y: 70, size: 34, color: '#e8f1ff' },
@@ -34,18 +36,12 @@ export class HelpScene extends Phaser.Scene {
 
   public create(): void {
     reportScene(SCENE_KEYS.help);
+    attachScanlines(this);
     reportRuntime({ scene: SCENE_KEYS.help, controlsListed: ['keyboard', 'gamepad', 'touch'] });
 
     const cx = LOGICAL_WIDTH / 2;
     for (const line of LINES) {
-      this.add
-        .text(cx, line.y, line.text, {
-          fontFamily: 'monospace',
-          fontSize: line.size + 'px',
-          color: line.color,
-          fontStyle: line.size >= 20 ? 'bold' : 'normal'
-        })
-        .setOrigin(0.5, 0);
+      drawText(this, cx, line.y, line.text, { size: line.size, color: line.color, originX: 0.5, originY: 0 });
     }
 
     this.onKey = (e: KeyboardEvent): void => {

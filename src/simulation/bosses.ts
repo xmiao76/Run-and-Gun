@@ -1,4 +1,4 @@
-import { getBossDef, type BossDef, type BossId, type BossPattern } from '../balance/bosses';
+import { getBossDef, type BossDef, type BossId, type BossPattern, VOLLEY_HEIGHTS } from '../balance/bosses';
 
 /**
  * Deterministic boss finite-state logic.
@@ -39,7 +39,7 @@ export interface BossState {
   phaseTimer: number;
 }
 
-export type BossActionKind = 'shockwave' | 'burst' | 'none';
+export type BossActionKind = 'shockwave' | 'burst' | 'volley' | 'none';
 
 export interface BossActionIntent {
   kind: BossActionKind;
@@ -49,6 +49,14 @@ export interface BossActionIntent {
   /** For burst: target position to aim the spread at. */
   targetX?: number;
   targetY?: number;
+  /**
+   * For volley: the world y the wall is fired at.
+   *
+   * Chosen from the pattern index rather than at random, so the same fight
+   * plays out identically every run - the no-RNG rule the whole simulation
+   * depends on - and so the sequence is learnable.
+   */
+  volleyY?: number;
 }
 
 export interface BossStepResult {
@@ -56,6 +64,17 @@ export interface BossStepResult {
   action: BossActionIntent;
   /** True on the step the boss transitions to dead. */
   justDied: boolean;
+}
+
+/**
+ * The height a volley is fired at, alternating with the attack count.
+ *
+ * Deterministic, so the player cannot camp one posture but CAN learn the
+ * sequence, and the eval harness stays reproducible.
+ */
+export function volleyHeight(patternIndex: number): number {
+  const n = VOLLEY_HEIGHTS.length;
+  return VOLLEY_HEIGHTS[((patternIndex % n) + n) % n];
 }
 
 export function createBossState(id: BossId): BossState {
@@ -192,6 +211,8 @@ export function stepBoss(
           action = { kind: 'shockwave', x, y: def.groundY };
         } else if (pattern === 'burst') {
           action = { kind: 'burst', x, y: boss.y + def.height / 2, targetX: playerX, targetY: playerY };
+        } else if (pattern === 'volley') {
+          action = { kind: 'volley', x, y: boss.y + def.height / 2, volleyY: volleyHeight(boss.patternIndex) };
         }
       }
       break;

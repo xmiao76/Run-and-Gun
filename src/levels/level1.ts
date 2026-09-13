@@ -46,7 +46,11 @@ const checkpoints = [
 
 const pickups = [
   { id: 'l1-scatter', x: 360, y: GROUND_Y - 24, weapon: 'scatter' as const },
-  { id: 'l1-rapid', x: 1700, y: GROUND_Y - 24, weapon: 'rapid' as const }
+  { id: 'l1-rapid', x: 1700, y: GROUND_Y - 24, weapon: 'rapid' as const },
+  // The Lance Laser rides the raised one-way at (1820, 360): an optional climb
+  // that rewards looking up, and deliberately OFF the straight-through ground
+  // route so the level plays exactly as it did for a player who ignores it.
+  { id: 'l1-laser', x: 1870, y: 336, weapon: 'laser' as const }
 ];
 
 // Arcade-feel pass: each wave gained one extra defender so encounters read as

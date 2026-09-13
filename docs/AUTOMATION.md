@@ -23,8 +23,21 @@ The bridge ships in the production bundle but is **inert unless activated**:
 | `?renderer=canvas` | Forces the Canvas renderer (recommended for headless) |
 | `?manualClock=1` | Freezes the real-time clock; only `advanceSteps` advances the game |
 | `?keys=1` | Input diagnostic overlay (separate feature) |
+| `?attractMs=N` | Force the title's attract demo on after N ms, even under automation |
 
 Normal visitors never see any of this. Do not share `?debug` URLs as "the game".
+
+
+### Attract mode and automation
+
+The title screen runs an attract demo for a real visitor: after ~15 s idle the
+built-in pilot plays Level 1 with a DEMO label, and any keypress returns to the
+title. This is **suppressed whenever automation is attached** (`?debug`, the
+manual clock, or `?autopilot`), because a demo firing mid-drive would hijack
+the scene out from under the driver. `?attractMs=N` overrides the suppression
+with a chosen delay - that is the seam the attract e2e suite uses, and the only
+way a demo can start while the bridge is up. The demo never persists anything:
+its score is not written to the best score.
 
 ## The runtime contract
 

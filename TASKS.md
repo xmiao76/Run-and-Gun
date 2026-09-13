@@ -849,3 +849,448 @@ cceptance criteria:
   - Keep the pass pure and browser-free like the rest of `checks.mjs`.
 
 ---
+
+### TASK-030 - Restore the asset policy and the missing referenced docs
+
+- Status: DONE
+- Requirement:
+  Three source files cite `ASSET_POLICY.md` as the authority for "no resemblance to any
+  commercial title's map" and "no asset files", but the file does not exist: it was
+  written early and deleted in commit `b8a9afa` (the same commit that introduced the
+  pixel-art pipeline). `ARCHITECTURE.md` and `GAME_REQUIREMENTS.md` are cited from five
+  more places and have never existed either. Restore the asset policy, bring its manifest
+  up to date, and resolve the other two dangling references. Then amend `PROJECT.md` so
+  the Contra-like direction and a third level are sanctioned rather than contradicted.
+  This task comes first because it is the document the rest of this programme relies on.
+- Acceptance criteria:
+  - [x] `ASSET_POLICY.md` exists again, recovered from `git show b8a9afa^:ASSET_POLICY.md`
+  - [x] Its manifest describes what the game actually ships now - hand-authored
+        `PixelArtSpec` sprites compiled to canvas textures at runtime, procedural sky
+        gradients, synthesised WebAudio music and SFX - not the "colored rectangles" it
+        was written against
+  - [x] It keeps its existing rules verbatim: the named prohibition on reproducing
+        protected Contra expression, and the allowance for broad genre mechanics
+  - [x] `ARCHITECTURE.md` and `GAME_REQUIREMENTS.md` either exist or are no longer cited
+        from source; no comment points at a file that does not exist
+  - [x] `PROJECT.md` non-goals no longer bar the planned work: the "more than 2 core
+        levels" entry is amended, with the reason recorded
+  - [x] Lint, typecheck, unit, e2e and build stay green; `npm run eval -- --baseline`
+        reports no regressions
+- Non-goals / constraints:
+  - Do not weaken the IP rules. The policy exists to keep concrete expression original
+    and that is exactly what makes the rest of this programme defensible.
+  - No gameplay, art or audio change in this task.
+
+---
+
+### TASK-031 - Pixel bitmap font
+
+- Status: DONE
+- Requirement:
+  Every string in the game is drawn in the system `monospace` font across 38 call sites,
+  which is the single loudest thing telling a player this is a web page rather than an
+  arcade cabinet. Author an original pixel font and use it everywhere. Phaser 4.2.1 ships
+  `ParseRetroFont`/`RetroFont`, which builds a bitmap font from a texture with no font
+  file, so the glyph sheet is authored as a `PixelArtSpec` in `src/art/sprites.ts` like
+  every other sprite and no asset file is introduced.
+- Acceptance criteria:
+  - [x] An original glyph sheet covering A-Z, 0-9 and the punctuation the UI uses,
+        authored in the existing `PixelArtSpec` format
+  - [x] A helper that creates the retro font once and a text helper scenes call instead
+        of `this.add.text(...)`, so the font lives in one place
+  - [x] Title, HUD, results, game over, settings, help and the pause overlay all use it
+  - [x] Text stays readable at the 960x540 logical size and at phone width
+  - [x] Unit coverage for the glyph sheet (every declared character has art) and for the
+        text helper
+  - [x] The e2e specs that assert on text content still pass, updated where they assert
+        on a `Text` object specifically
+  - [x] Full verification green
+- Non-goals / constraints:
+  - No font files; the glyph sheet is procedural like the rest of the art.
+  - Do not change any wording, only how it is drawn.
+
+---
+
+### TASK-032 - NES-leaning palette
+
+- Status: DONE
+- Requirement:
+  The art uses 103 unique colours in a dusk/muted direction, with 14 colours on the
+  player alone. Classic NES-era run-and-gun art is a small, saturated palette on
+  near-black. Introduce one shared palette and route all art through it.
+  `parsePixelArt` and `gridToCanvas` are the single choke point every sprite passes
+  through, so a quantiser there re-palettes the whole game at once; the player and the
+  four enemies then get hand-tuned rather than left to the quantiser.
+- Acceptance criteria:
+  - [x] One exported palette constant is the only place a colour is defined for art
+  - [x] Every sprite renders through it; no sprite declares a colour outside it
+  - [x] The loose `0x......` literals in scene code (HUD, particles, tints, boss bar,
+        telegraphs, pit void) come from the same palette
+  - [x] The player, the four enemy archetypes and both bosses are hand-tuned, not merely
+        quantised, and reviewed against a screenshot
+  - [x] Unit coverage asserting no art colour falls outside the palette
+  - [x] `sprites.test.ts` still passes unchanged - it asserts sprite dimensions, which
+        this task must not alter
+  - [x] Full verification green, and the visual e2e specs updated if they assert colour
+- Non-goals / constraints:
+  - Do not resize any sprite; the dimension assertions tie art to hitboxes.
+  - Keep contrast readable; a restricted palette must not make combat harder to parse.
+
+---
+
+### TASK-033 - Title screen and attract mode
+
+- Status: DONE
+- Requirement:
+  The title screen is text on a flat background with no art at all. Give it an original
+  logo and a backdrop, then add the arcade convention that ties this project together:
+  after a short idle the title starts a DEMO, driven by the AI pilot that already exists,
+  and any input returns to the title. This reuses `src/ai/pilot.ts` and the `autopilot`
+  registry flag rather than adding a second way to play the game automatically.
+- Acceptance criteria:
+  - [x] An original title logo sprite plus a backdrop (starfield or skyline), not flat colour
+  - [x] After roughly 15 s idle on the title, a demo starts: the pilot plays a level with
+        a DEMO label visible
+  - [x] Any control input during the demo returns to the title immediately
+  - [x] The demo never starts during automated runs: `?autopilot`, `?debug` and the
+        manual clock must all suppress the idle timer, the same way `?autopilot` already
+        short-circuits the title
+  - [x] The demo loop does not leak scenes, timers or listeners across repeats; the
+        existing `hookShutdown` lifecycle is used
+  - [x] E2E covers the idle timer starting a demo, input returning to title, and the
+        suppression under automation flags
+  - [x] Full verification green, including `npm run eval -- --baseline`
+- Non-goals / constraints:
+  - Do not change how a real game starts.
+  - Do not let the demo write to persisted settings or the best score.
+
+---
+
+### TASK-034 - CRT / scanline option
+
+- Status: DONE
+- Requirement:
+  Add an opt-in scanline/CRT presentation option in Settings, persisted like the other
+  settings. Implement it as a tiling overlay, NOT a WebGL post-processing shader: the
+  test and eval harnesses force `?renderer=canvas`, so a shader effect would be invisible
+  to every automated check while shipping to real users on WebGL - untestable by
+  construction.
+- Acceptance criteria:
+  - [x] A Settings row toggles the effect, persisted through the existing validated
+        storage service with a safe default
+  - [x] The overlay covers the whole view including the HUD, and sits above every other
+        depth in use
+  - [x] It honours `reducedFlash`: no pulsing, shimmer or animation when that is set
+  - [x] It works under the canvas renderer, so e2e can assert it
+  - [x] E2E asserts the overlay appears when enabled, disappears when disabled, and
+        survives a reload
+  - [x] Measured: no frame-time regression in the soak spec
+  - [x] Full verification green
+- Non-goals / constraints:
+  - Do not change the logical resolution or the scale mode.
+  - Default off, so nothing changes for an existing player without opting in.
+
+---
+
+### TASK-035 - Animation pass
+
+- Status: DONE
+- Requirement:
+  Enemies and bosses have zero animation frames - `enemyArt.ts` and `bossArt.ts` are pure
+  key switches and every enemy is one static image. The player has a two-frame run cycle
+  at roughly 7 fps. Static actors are the clearest tell that this is not an arcade game.
+  Add frames. The player poses are already composed from a shared body plus a legs spec,
+  so new frames are new leg and torso specs rather than whole new sprites.
+- Acceptance criteria:
+  - [x] The player run cycle has at least 4 frames at an arcade-appropriate rate
+  - [x] Each enemy archetype has at least a 2-frame idle or walk cycle, and a distinct
+        firing frame
+  - [x] Both bosses have at least a subtle idle animation
+  - [x] Frame selection stays pure and unit-tested, following `playerPose.ts`
+  - [x] Animation is driven by simulation time, not wall time, so it stays deterministic
+        under the manual clock and the eval harness
+  - [x] `sprites.test.ts` dimension assertions extended to the new frames
+  - [x] Full verification green
+- Non-goals / constraints:
+  - Do not change any hitbox; art dimensions are tied to balance constants.
+  - Do not change enemy behaviour, only its presentation.
+
+---
+
+### TASK-036 - Weapon roster and letter capsules
+
+- Status: DONE
+- Requirement:
+  The game has three weapons: a rifle, a spread and a rapid. Two of the genre's
+  signatures are missing - a piercing laser and an arcing flame. Add both, and adopt the
+  letter-capsule pickup convention so a weapon reads at a glance.
+  `WeaponDef` cannot currently express piercing or projectile gravity, so it needs new
+  optional fields and matching branches in `stepWeapon`; everything else about weapons is
+  already data-driven. `pickupLetter()` already exists in `LevelScene`, so the letter
+  convention is half-built.
+- Acceptance criteria:
+  - [x] A piercing laser: passes through more than one target, with the pierce limit
+        expressed as data rather than hard-coded
+  - [x] An arcing or spiralling flame weapon, visually distinct in flight
+  - [x] `WeaponDef` gains the fields these need; the three existing weapons are
+        unchanged in behaviour and their tests pass untouched
+  - [x] Pickups show their weapon letter, and the HUD shows the same letter
+  - [x] Each new weapon has a distinct projectile sprite and fire sound
+  - [x] The damage ledger still prevents a single shot damaging one target twice, and
+        piercing does not bypass it
+  - [x] Unit coverage for piercing and for the new projectile motion
+  - [x] Full verification green; the eval matrix weapon axis extended to the new weapons
+- Non-goals / constraints:
+  - Do not retune the existing weapons' damage, cooldown or speed.
+  - Do not add ammo limits or weapon switching.
+
+---
+
+### TASK-037 - Arcade feedback
+
+- Status: DONE
+- Requirement:
+  Impact currently reads as a screen shake and a few 3 px rectangles. There is no sound
+  at all for player death, enemy death or a boss hit, and one fixed 720 Hz blip serves
+  all three weapons. Build out the feedback vocabulary so hits land.
+- Acceptance criteria:
+  - [x] Brief hit-stop on heavy impacts (boss hit, boss defeat, player death), expressed
+        in simulation steps so it stays deterministic
+  - [x] A damage flash on the player and on damaged enemies
+  - [x] A death explosion for the player and for enemies, not just a burst of rectangles
+  - [x] Sounds added for player death, enemy death and boss hit; each weapon has its own
+        fire sound
+  - [x] Every new effect honours `reducedFlash`, and hit-stop is suppressed or minimal
+        under it
+  - [x] Hit-stop does not break the fixed-step contract: `advanceSteps` must still
+        advance exactly the number of steps it reports
+  - [x] Unit coverage for the hit-stop state machine
+  - [x] Full verification green, soak still bounded and heap-flat
+- Blocker, now cleared (recorded 2026-09-13):
+  Implementation is COMPLETE and every criterion above passes. The final criterion
+  does not: `npm run eval -- --baseline` exits 1 with one regression,
+  `coverageEnemyHarmless` for the grenadier. That defect is pre-existing and
+  independent of this task - proven by re-running the probe with `reducedFlash` on,
+  which suppresses every freeze this task added and produces identical results - and
+  is filed as TASK-041. UNBLOCKED: TASK-041 landed and the gate is green again. The
+  baseline was deliberately NOT updated and `HARMLESS_ARCHETYPES` was deliberately
+  NOT used, because either would silence a real bug to make this task look green.
+- Non-goals / constraints:
+  - Do not change damage values or invulnerability duration.
+  - Do not add screen-filling flashes; `reducedFlash` exists for a reason.
+
+---
+
+### TASK-038 - Set-piece mechanics: collapsing bridge and turret emplacement
+
+- Status: DONE
+- Requirement:
+  Add two genre set pieces as reusable, data-authored mechanics: a bridge that collapses
+  under the player, and a fixed turret emplacement. Both follow the established pattern -
+  a pure module under `src/simulation/`, immutable state in the scene, one step call, one
+  render block. The turret reuses the existing enemy FSM rather than inventing a new
+  object type, so it inherits telegraphing and the concurrent-attack throttle for free.
+- Acceptance criteria:
+  - [x] A collapsing bridge authored in level data: solid, then collapses on a timer once
+        triggered, then is gone
+  - [x] A turret emplacement authored in level data, using the existing enemy pipeline
+  - [x] Both are pure-module driven and unit-tested over immutable state
+  - [x] `validateLevel` rejects malformed definitions of both
+  - [x] Both appear in the runtime snapshot so the harness and an agent can see them
+  - [x] **The AI pilot handles both.** `buildPilotGeometry` currently hands the pilot only
+        pits, one-ways, spikes and the boss line - it knows nothing about doors, platforms
+        or containers. A collapsing bridge on the critical path becomes a pit the pilot
+        cannot see, so the geometry it receives must be extended
+  - [x] `npm run eval -- --baseline` green, with the pilot completing any level using them
+  - [x] Full verification green
+- Placement note (recorded 2026-09-13):
+  The turret is placed in the prototype room, which is where a new archetype is
+  exercised before a level commits to one. The collapsing bridge is implemented
+  end to end - schema, validation, pure module, scene step, dynamic solids,
+  render, runtime snapshot and pilot geometry - but is not placed in Level 1 or
+  2, because this task's own non-goal forbids changing existing layouts.
+  TASK-039 (Level 3) is where it lands, and where the pilot-geometry path gets
+  live coverage.
+- Non-goals / constraints:
+  - No climbable structures or vertical scrolling; the camera is horizontal-only by
+    architecture and that is out of scope.
+  - Do not change existing level layouts in this task.
+
+---
+
+### TASK-039 - Level 3 and a third theme
+
+- Status: DONE
+- Requirement:
+  Add a third stage with its own visual identity, using the set pieces from TASK-038.
+  Requires the `PROJECT.md` amendment from TASK-030, which currently bars more than two
+  levels. Beyond the level data there is a known tail of hardcoded level counts to
+  generalise rather than duplicate.
+- Acceptance criteria:
+  - [x] `src/levels/level3.ts` passes `validateLevel` and is registered in `levels.ts`
+  - [x] A third `LevelTheme`; `themeForLevel` becomes a lookup rather than a hardcoded
+        `if`, so a fourth theme costs nothing
+  - [x] `startLevel3` joins the debug command union and `main.ts`
+  - [x] The level-number hardcoding in `scripts/eval/matrix.mjs`, `scripts/eval/run.mjs`
+        and `scripts/lib/mcpTools.mjs` is generalised, not extended case by case
+  - [x] `fullGame.spec.ts` gains a third leg - its `final === true` assertion moves to the
+        new last level and the spec fails until updated
+  - [x] The AI pilot completes Level 3 from every checkpoint; the eval matrix covers it
+  - [x] Full verification green
+- Boss note (recorded 2026-09-13):
+  Level 3 reuses the Reactor Warden, so the last two stages end with the same
+  boss. A distinct third boss is real content work (sprite, patterns, balance)
+  that this task neither asked for nor scoped, and building a rushed one would
+  be worse than reusing a good one. Filed as TASK-042.
+- Non-goals / constraints:
+  - Side-scrolling only.
+  - Original layout; no resemblance to any commercial stage, per `ASSET_POLICY.md`.
+
+---
+
+### TASK-040 - Per-stage music and a fuller SFX set
+
+- Status: DONE
+- Requirement:
+  The whole game shares one 2-second, 8-step music loop - the same music on Level 1,
+  Level 2 and both boss fights, with no title or results music. The synth is a single
+  oscillator per voice, so NES-style percussion is impossible as written. Give each stage
+  its own theme and add the missing voices.
+- Acceptance criteria:
+  - [x] Distinct original themes for the title, each stage, the boss fight and the
+        results screen
+  - [x] A noise-based percussion voice, so the music has drums
+  - [x] Music changes on stage and boss transitions without clicks or overlap
+  - [x] Everything respects the existing music/SFX volume and mute settings
+  - [x] All audio synthesised at runtime; no audio files, per `ASSET_POLICY.md`
+  - [x] Audio never blocks or throws when the AudioContext is unavailable, as today
+  - [x] Full verification green; the soak spec still shows a flat heap
+- Non-goals / constraints:
+  - Do not transcribe or imitate any recognisable melody. The restored policy names this
+    prohibition explicitly.
+  - Do not add an asset pipeline.
+
+---
+
+
+### TASK-041 - Grenadier never attacks: inverted repositioning
+
+- Status: DONE
+- Requirement:
+  The eval matrix's coverage invariant reported `enemy "grenadier" appeared but never
+  damaged the player anywhere in the matrix`.
+- Root cause (corrected during the work - the original diagnosis filed here was wrong):
+  This task was first filed against the attack-concurrency cap, on the theory that the
+  slowest-firing archetype was being starved of attack slots by faster neighbours. A
+  step-by-step trace disproved that. The real cause was `repositionDir` in
+  `src/simulation/enemyReposition.ts` returning the OPPOSITE of what its own doc
+  comment promised, in both branches. A Grenadier that was too far from the player
+  walked further away instead of closing in: from x=1500 against a player at x=1205 it
+  drifted 1500 -> 1526 -> 1561 -> 1666 -> 1701, left its own 340 px `engageRange`
+  within about two seconds, and could never fire again.
+  A scheduler built against the wrong diagnosis was measured and removed: with the
+  sign corrected the Grenadier lands 8 shots in 20 s under the ORIGINAL first-come
+  rule and 8 under the scheduler, so slot starvation was never the mechanism and the
+  extra machinery earned nothing.
+- Why it survived so long:
+  Five separate unit assertions had locked the inverted behaviour in, each with an
+  inline comment that contradicted its own test name - "player to the right ... moves
+  the enemy left, toward the player". The implementation and its tests were wrong in
+  the same direction, so the suite was green and only a behavioural invariant over a
+  whole matrix of runs could see it.
+- Acceptance criteria:
+  - [x] A grenadier within `engageRange` of the player reliably attacks, whatever else
+        is on screen with it
+  - [x] The two-slot concurrency cap is preserved unchanged
+  - [x] The fix is in the pure simulation layer where it can be unit-tested
+  - [x] Unit coverage proving the behaviour, not just the -1/+1: six engagement tests
+        covering approach from both sides, staying in range, settling at the preferred
+        band, backing off when crowded, and a sustained fire rate. All six fail on the
+        old sign, as do the three corrected assertions in `newEnemies.test.ts` and the
+        two in `enemyReposition.test.ts`
+  - [x] `coverageEnemyHarmless` clears in the eval matrix, and `HARMLESS_ARCHETYPES`
+        is NOT used to silence it
+  - [x] Full verification green
+- Non-goals / constraints:
+  - No enemy damage, health, or fire interval was changed; this is a direction fix.
+  - The concurrent-attack cap was not raised.
+
+---
+
+### TASK-042 - A third boss for Ashfall Ridge
+
+- Status: DONE
+- Requirement:
+  Levels 2 and 3 both end with the Reactor Warden, because TASK-039 added a stage
+  without adding a boss. Fighting the same boss twice in a row is the weakest moment
+  in the game's progression. Give Ashfall Ridge its own final boss.
+- Acceptance criteria:
+  - [x] A third `BossDef` with its own sprite, pattern set and subcomponent layout,
+        original to this project per `ASSET_POLICY.md`
+  - [x] Distinct from the Siege Walker (ground, horizontal) and the Reactor Warden
+        (static, subcomponent-gated) in how it must be fought, not only in appearance
+  - [x] Damageable by every weapon in the roster, verified by the eval coverage
+        invariant rather than by inspection - this is the exact class of bug TASK-022
+        found, where a boss was immune to the default weapon
+  - [x] The AI pilot defeats it from the `preboss` checkpoint with every weapon
+  - [x] Two-frame idle animation, matching the other bosses (TASK-035)
+  - [x] Full verification green
+- Non-goals / constraints:
+  - Do not retune the existing two bosses.
+  - No new boss mechanics that need vertical scrolling or a camera change.
+
+---
+
+### TASK-043 - The Reactor Warden's charge pattern does nothing
+
+- Status: DONE
+- Requirement:
+  `reactorWarden` declares `patterns: ['burst', 'charge']` but `chargeSpeed: 0`, and
+  `stepBoss` implements charge purely as movement (`x += facing * chargeSpeed * dt`).
+  Half the boss's rotation is therefore a wind-up followed by `attackDuration` seconds
+  of nothing: it does not move, does not fire, and cannot hurt the player. The fight
+  reads as a boss that keeps pausing. Give the Warden a real second attack.
+- Evidence:
+  Recorded during the original Contra-plan exploration as one of two balance oddities
+  "worth filing separately rather than fixing here", and never filed. Still true:
+  `siegeWalker` has `chargeSpeed: 260`, `reactorWarden` has `0`.
+- Acceptance criteria:
+  - [x] Every pattern in every boss's rotation does something observable
+  - [x] The Warden keeps its identity: static, subcomponent-gated - the fix must not
+        turn it into a second Siege Walker, and must not take the Ash Sentinel's volley,
+        which `ashSentinel.test.ts` asserts is unique to it
+  - [x] A unit test that fails if any boss is given a pattern it cannot perform
+  - [x] The pilot still defeats the Warden from `preboss` with every weapon
+  - [x] Full verification green
+- Non-goals / constraints:
+  - Do not change the Warden's health, phases or subcomponent layout.
+
+---
+
+### TASK-044 - The Rapid Carbine strictly dominates the Pulse Rifle
+
+- Status: TODO
+- Requirement:
+  The starting Pulse Rifle and the Rapid Carbine deal the same damage (1), but the
+  Carbine fires 2.2x faster (0.1s vs 0.22s) and its bullet travels faster (520 vs 460).
+  It is better in every measurable way with no cost, so picking it up is never a
+  decision and the Pulse Rifle stops existing the moment you find one. Every other
+  weapon in the roster trades something: the Scatter spreads, the Laser fires slowly to
+  pierce, the Flare arcs. Give the Carbine a real cost too.
+- Evidence:
+  Recorded during the original Contra-plan exploration and deliberately left out of
+  scope then. Corroborated by the eval matrix: at the Level 3 boss the Carbine finishes
+  in 480 steps against the Pulse Rifle's 689, with no offsetting weakness anywhere.
+- Acceptance criteria:
+  - [ ] The Carbine has a drawback that shows up in play, not only on paper
+  - [ ] The Pulse Rifle is preferable in at least one identifiable situation
+  - [ ] No weapon becomes unable to defeat any boss; the coverage invariant still passes
+  - [ ] The pilot completes every level from every checkpoint with every weapon
+  - [ ] Full verification green
+- Non-goals / constraints:
+  - **This is a deliberate balance change**, unlike TASK-043 which repairs a pattern
+    that does nothing. It alters how the game plays and should be confirmed as wanted
+    before it is taken.
+  - Do not remove a weapon or add ammo limits.
+
+---

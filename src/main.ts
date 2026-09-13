@@ -85,6 +85,11 @@ registerCommand('startLevel2', () => {
   switchToScene(SCENE_KEYS.level);
   return { ok: true, scene: SCENE_KEYS.level };
 });
+registerCommand('startLevel3', () => {
+  game.registry.set('currentLevelIndex', 2);
+  switchToScene(SCENE_KEYS.level);
+  return { ok: true, scene: SCENE_KEYS.level };
+});
 registerCommand('gotoTitle', () => {
   switchToScene(SCENE_KEYS.title);
   return { ok: true, scene: SCENE_KEYS.title };

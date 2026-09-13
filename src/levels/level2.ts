@@ -37,7 +37,10 @@ const checkpoints = [
 
 const pickups = [
   { id: 'l2-rapid', x: 520, y: GROUND_Y - 24, weapon: 'rapid' as const },
-  { id: 'l2-scatter', x: 1640, y: GROUND_Y - 24, weapon: 'scatter' as const }
+  { id: 'l2-scatter', x: 1640, y: GROUND_Y - 24, weapon: 'scatter' as const },
+  // The Flare Thrower on the raised one-way at (1180, 392) - same idea as the
+  // Level 1 laser: optional, off the ground route, found by looking up.
+  { id: 'l2-flame', x: 1230, y: 368, weapon: 'flame' as const }
 ];
 
 // Arcade-feel pass: one extra defender per wave, matching Level 1. Added

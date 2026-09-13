@@ -1,8 +1,8 @@
 import { type InputState } from '../input/InputState';
 
 /**
- * Pure aim-direction math for eight-direction firing (GAME_REQUIREMENTS.md
- * section 4, ACCEPTANCE_CRITERIA C4).
+ * Pure aim-direction math for eight-direction firing (PROJECT.md,
+ * Player abilities).
  *
  * The aim angle is derived from the held direction modifiers and the player's
  * facing, in degrees with 0 = right, -90 = up, 90 = down, 180/-180 = left.
