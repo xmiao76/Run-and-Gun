@@ -128,16 +128,17 @@ describe('the roster as a whole', () => {
     expect(new Set(names).size).toBe(names.length);
   });
 
-  it('keeps the new weapons inside the existing power band', () => {
-    // Not a balance test so much as a guard on the task's own constraint: the
-    // new weapons are sidegrades, so neither may out-damage the Rapid Carbine,
-    // which is already the roster's damage-per-second ceiling.
+  it('keeps every weapon inside one power band', () => {
+    // This asserted that the Rapid Carbine was the roster's damage-per-second
+    // ceiling, which was true when it was written and is the very thing
+    // TASK-044 removed - being untouchable on every axis was the defect. The
+    // useful invariant is that the band stays narrow, so no weapon is a must-
+    // have; who sits at the top is `weaponBalance.test.ts`'s business.
     const dps = (id: WeaponId): number => {
       const w = getWeapon(id);
       return (w.damage * w.spreadAngles.length) / w.cooldown;
     };
-    const ceiling = dps('rapid');
-    expect(dps('laser')).toBeLessThanOrEqual(ceiling);
-    expect(dps('flame')).toBeLessThanOrEqual(ceiling);
+    const all = WEAPON_ORDER.map(dps);
+    expect(Math.max(...all) / Math.min(...all)).toBeLessThan(2);
   });
 });

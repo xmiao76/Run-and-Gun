@@ -3838,3 +3838,74 @@ Include enough detail so the next iteration can continue without guessing.
   - none.
 
 ---
+
+### 2026-09-13 09:05 - TASK-044 (the Rapid Carbine strictly dominated the Pulse Rifle)
+
+- Status before: TODO, deliberately held back as a balance CHANGE rather than a
+  defect, and taken on an explicit instruction.
+- Goal of this iteration:
+  The Carbine dealt the same damage as the starting Pulse Rifle at 2.2x the
+  fire rate with a faster bullet and effectively the same reach. Picking it up
+  was never a decision and the Rifle stopped existing on sight. Give it a cost.
+- Work completed:
+  - The Carbine is now close-range sustained fire: 0.6 damage per shot (from
+    1.0) and 520px of reach (from 624). It keeps a clear edge on sustained
+    output - 6.0 dps against the Rifle's 4.5 - while the Rifle owns anything
+    at distance. Picking it up is now a choice about how you intend to fight.
+  - **`tests/unit/weaponBalance.test.ts`** (new, 5), which is the durable part.
+    Rather than pinning this one pair it encodes the SHAPE a roster needs:
+    nothing may beat another weapon on every axis at once; every pickup must
+    be outright best at something (or there is no situation that calls for
+    it); the starting weapon must never be the sole worst at anything (it is
+    the generalist you fall back to after every death); and every weapon must
+    out-range the pilot's 350px boss stand-off, because a weapon that cannot
+    reach a boss is broken rather than balanced.
+- **The invariants immediately found a second instance I had not seen**, and it
+  was mine: at a 0.3s cooldown the Flare Thrower matched the Lance Laser's
+  damage-per-second AND its per-shot damage while having less than half the
+  reach and no piercing - the Laser beat it on every axis and the Flare had no
+  reason to exist. Both numbers came from TASK-036. The Flare now leads the
+  roster on raw output (0.24s cooldown, 6.2 dps), which is the thing a
+  short-range arcing weapon should be best at. Shipping a task about strict
+  domination while leaving one in place would have been incoherent.
+- **The eval matrix rejected my first attempt, and it was right to.** I first
+  cut the Carbine to 0.5 damage and 0.8s of flight. Six regressions: Level 1
+  hands you this weapon before its boss, and at that power the pilot could no
+  longer finish the level inside its step budget at all - "was completing, now
+  budget", three runs, plus `notCompletable`. A cost is a trade, not a halving.
+  Softened to 0.6 damage and 1.0s, and L1-start completes again at 1508 steps
+  against roughly 1450 before: a real but mild price, exactly what was wanted.
+  Every boss run still finishes with every weapon.
+- One stale test updated honestly rather than deleted: `weaponRoster.test.ts`
+  asserted the Carbine was the roster's damage-per-second ceiling. That was
+  true when written and is precisely what this task removed, so the assertion
+  became "the band stays narrow" - who sits at the top is now
+  weaponBalance.test.ts's business.
+- Final roster, each with a reason to exist:
+    pulse   4.5 dps  644px  1.00/shot   4.5/s            generalist
+    scatter 3.8 dps  378px  0.50/shot   2.5/s  3 pellets area
+    rapid   6.0 dps  520px  0.60/shot  10.0/s            fire rate
+    laser   5.0 dps  770px  1.50/shot   3.3/s  pierce 3  range, piercing
+    flame   6.2 dps  360px  1.50/shot   4.2/s            raw output
+- Files changed:
+  - src/balance/weapons.ts (Carbine cost, Flare output)
+  - tests/unit/weaponBalance.test.ts (new, 5), tests/unit/weaponRoster.test.ts
+  - TASKS.md
+- Commands run:
+  - `npm run lint`, `npm run typecheck` (clean)
+  - `npm run test:unit` (471 passed, up from 466)
+  - `npm run build` (pass)
+  - `npx playwright test` (108 passed, soak heap-flat)
+  - `npm run eval -- --baseline` (exit 0, green; first attempt exit 1 with 6
+    regressions, which is what drove the retune)
+- Verification result:
+  - Every acceptance criterion met, including the two that could have been
+    faked: no weapon became unable to defeat a boss, and the pilot still
+    completes every level from every checkpoint with every weapon.
+- Status after: DONE. Every task in TASKS.md is now DONE.
+- Next recommended task:
+  - None outstanding. Note the deployed site is now one commit behind again.
+- Blockers (if any):
+  - none.
+
+---

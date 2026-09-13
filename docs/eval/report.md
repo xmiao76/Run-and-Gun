@@ -1,10 +1,10 @@
 # Self-play evaluation report
 
-Generated 2026-09-13T15:17:57.759Z
+Generated 2026-09-13T16:28:35.290Z
 
 - Runs: **54** (completed 38, game over 11, hit budget 5)
 - Findings: **6** (6 critical), grouped into 6
-- Deaths observed: 285 {"enemyFire":214,"bossShockwave":12,"pit":29,"hazard":30}
+- Deaths observed: 297 {"enemyFire":226,"bossShockwave":12,"pit":29,"hazard":30}
 
 ## Versus baseline
 
@@ -28,9 +28,9 @@ Ordered by whether a competent player hit it, then severity, then how many runs 
 | Run | Ended | Steps | Furthest x | Deaths | Findings |
 |---|---|---|---|---|---|
 | L1-start-3lives-pilot | gameOver | 543 | 1881 | 3 | 0 |
-| L1-start-30lives-pilot | results | 1454 | 3182 | 4 | 0 |
-| L1-mid-3lives-pilot | results | 1148 | 3183 | 1 | 0 |
-| L1-mid-30lives-pilot | results | 1148 | 3183 | 1 | 0 |
+| L1-start-30lives-pilot | results | 1508 | 3182 | 6 | 0 |
+| L1-mid-3lives-pilot | results | 1196 | 3183 | 1 | 0 |
+| L1-mid-30lives-pilot | results | 1196 | 3183 | 1 | 0 |
 | L1-preboss-3lives-pilot | results | 1301 | 3182 | 2 | 0 |
 | L1-preboss-30lives-pilot | results | 1301 | 3182 | 2 | 0 |
 | L2-start-3lives-pilot | gameOver | 996 | 2960 | 3 | 0 |
@@ -39,30 +39,30 @@ Ordered by whether a competent player hit it, then severity, then how many runs 
 | L2-mid-30lives-pilot | results | 1824 | 3183 | 7 | 0 |
 | L2-preboss-3lives-pilot | results | 735 | 3182 | 2 | 0 |
 | L2-preboss-30lives-pilot | results | 735 | 3182 | 2 | 0 |
-| L3-start-3lives-pilot | gameOver | 673 | 2282 | 3 | 0 |
-| L3-start-30lives-pilot | results | 1355 | 3181 | 5 | 0 |
+| L3-start-3lives-pilot | gameOver | 493 | 1823 | 3 | 0 |
+| L3-start-30lives-pilot | results | 1355 | 3181 | 6 | 0 |
 | L3-mid-3lives-pilot | gameOver | 482 | 2561 | 3 | 0 |
 | L3-mid-30lives-pilot | results | 1009 | 3181 | 5 | 0 |
 | L3-preboss-3lives-pilot | results | 689 | 3181 | 2 | 0 |
 | L3-preboss-30lives-pilot | results | 689 | 3181 | 2 | 0 |
 | L1-preboss-30lives-pilot-pulse | results | 1301 | 3182 | 2 | 0 |
 | L1-preboss-30lives-pilot-scatter | results | 1351 | 3182 | 2 | 0 |
-| L1-preboss-30lives-pilot-rapid | results | 804 | 3182 | 1 | 0 |
+| L1-preboss-30lives-pilot-rapid | results | 852 | 3182 | 1 | 0 |
 | L1-preboss-30lives-pilot-laser | results | 856 | 3182 | 1 | 0 |
-| L1-preboss-30lives-pilot-flame | results | 1315 | 3182 | 2 | 0 |
+| L1-preboss-30lives-pilot-flame | results | 1299 | 3182 | 2 | 0 |
 | L2-preboss-30lives-pilot-pulse | results | 735 | 3182 | 2 | 0 |
 | L2-preboss-30lives-pilot-scatter | results | 1422 | 3182 | 5 | 0 |
-| L2-preboss-30lives-pilot-rapid | results | 566 | 3182 | 1 | 0 |
+| L2-preboss-30lives-pilot-rapid | results | 715 | 3182 | 1 | 0 |
 | L2-preboss-30lives-pilot-laser | results | 725 | 3182 | 2 | 0 |
-| L2-preboss-30lives-pilot-flame | results | 941 | 3182 | 3 | 0 |
+| L2-preboss-30lives-pilot-flame | results | 709 | 3182 | 2 | 0 |
 | L3-preboss-30lives-pilot-pulse | results | 689 | 3181 | 2 | 0 |
 | L3-preboss-30lives-pilot-scatter | results | 1118 | 3181 | 3 | 0 |
-| L3-preboss-30lives-pilot-rapid | results | 480 | 3181 | 1 | 0 |
+| L3-preboss-30lives-pilot-rapid | results | 689 | 3181 | 2 | 0 |
 | L3-preboss-30lives-pilot-laser | results | 689 | 3181 | 2 | 0 |
-| L3-preboss-30lives-pilot-flame | results | 1112 | 3181 | 3 | 0 |
+| L3-preboss-30lives-pilot-flame | results | 894 | 3181 | 3 | 0 |
 | L2-mid-30lives-hiccup-seed1 | results | 1762 | 3183 | 7 | 0 |
 | L3-preboss-30lives-hiccup-seed2 | results | 742 | 3181 | 2 | 0 |
-| L1-start-30lives-hiccup-seed3 | results | 1552 | 3182 | 5 | 0 |
+| L1-start-30lives-hiccup-seed3 | results | 2037 | 3182 | 6 | 0 |
 | L2-mid-30lives-hiccup-seed4 | results | 1762 | 3183 | 7 | 0 |
 | L2-mid-30lives-doorCamper | gameOver | 4704 | 2058 | 30 | 2 |
 | L1-start-30lives-edgeNudger | gameOver | 4427 | 813 | 30 | 0 |
@@ -76,8 +76,8 @@ Ordered by whether a competent player hit it, then severity, then how many runs 
 | L2-start-30lives-fuzz-seed1 | budget | 6000 | 851 | 3 | 0 |
 | L3-start-30lives-fuzz-seed2 | budget | 6000 | 813 | 1 | 0 |
 | L1-start-30lives-fuzz-seed3 | budget | 6000 | 813 | 2 | 0 |
-| L1-start-30lives-pilot-chunk1 | results | 1454 | 3182 | 4 | 0 |
-| L1-start-30lives-pilot | results | 1454 | 3182 | 4 | 0 |
-| L1-start-30lives-pilot-chunk600 | results | 1454 | 3182 | 4 | 0 |
-| L1-start-30lives-pilot-chain1 | results | 1454 | 3182 | 4 | 0 |
+| L1-start-30lives-pilot-chunk1 | results | 1508 | 3182 | 6 | 0 |
+| L1-start-30lives-pilot | results | 1508 | 3182 | 6 | 0 |
+| L1-start-30lives-pilot-chunk600 | results | 1508 | 3182 | 6 | 0 |
+| L1-start-30lives-pilot-chain1 | results | 1508 | 3182 | 6 | 0 |
 | L2-start-30lives-pilot-chain2 | results | 1882 | 3182 | 6 | 0 |
